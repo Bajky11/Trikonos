@@ -1,0 +1,125 @@
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.utils.translation import gettext as _
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status, viewsets
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+
+from core.exceptions import LastAdminError
+from core.pagination import AdminPagination
+
+from .admin_serializers import AdminUserCreateSerializer, AdminUserSerializer, AdminUserUpdateSerializer
+from .emails import send_password_setup_email
+from .models import User
+from .permissions import IsAdmin
+
+_TAG = ['Admin - uživatelé']
+
+
+def _has_other_active_user(exclude):
+    return User.objects.filter(is_active=True).exclude(pk=exclude.pk).exists()
+
+
+@extend_schema_view(
+    list=extend_schema(
+        tags=_TAG,
+        summary='Seznam uživatelů administrace',
+        description='Všichni uživatelé administrace, bez stránkování navíc k výchozímu.',
+    ),
+    retrieve=extend_schema(
+        tags=_TAG,
+        summary='Detail uživatele administrace',
+        description='Detail jednoho uživatele administrace.',
+    ),
+    create=extend_schema(
+        tags=_TAG,
+        summary='Založit uživatele administrace',
+        description=(
+            'Pole `password` je nepovinné: pokud ho vynecháš, '
+            'novému uživateli se nastaví nepoužitelné heslo (nemůže se přihlásit '
+            'heslem, dokud ho nenastaví) a pošle se mu e-mail s odkazem na '
+            'nastavení hesla - stejný mechanismus jako "Zapomenuté heslo". Pokud '
+            '`password` pošleš, uživatel se může přihlásit okamžitě a žádný '
+            'e-mail se neposílá. `email` musí být unikátní, jinak 409 `EMAIL_TAKEN`.'
+        ),
+    ),
+    partial_update=extend_schema(
+        tags=_TAG,
+        summary='Upravit uživatele administrace',
+        description=(
+            'Lze měnit `name`, `isActive`. Pojistka: '
+            'pokud by deaktivace znamenala, že '
+            'nezůstane žádný jiný aktivní uživatel administrace, vrátí 409 `LAST_ADMIN` a změna '
+            'se neprovede.'
+        ),
+    ),
+    destroy=extend_schema(
+        tags=_TAG,
+        summary='Smazat uživatele administrace',
+        description=(
+            'Dvě pojistky: nejde smazat **sebe sama** (403) a '
+            'nejde smazat **posledního aktivního uživatele** (409 `LAST_ADMIN`) - '
+            'systém by jinak zůstal bez nikoho, kdo může správu uživatelů ovládat.'
+        ),
+    ),
+)
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """Uživatelé administrace - interní účty, ne zákazníci."""
+    queryset = User.objects.all().order_by('email')
+    permission_classes = [IsAdmin]
+    pagination_class = AdminPagination
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+    filter_backends = []
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return AdminUserCreateSerializer
+        if self.action == 'partial_update':
+            return AdminUserUpdateSerializer
+        return AdminUserSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        password = data.get('password')
+        user = User(email=data['email'], name=data['name'])
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+        user.save()
+
+        if not password:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            send_password_setup_email(user, uid, token)
+
+        return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        user = self.get_object()
+        serializer = self.get_serializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        deactivating = 'is_active' in data and data['is_active'] is False
+        if deactivating and not _has_other_active_user(exclude=user):
+            raise LastAdminError()
+
+        for field in ('name', 'is_active'):
+            if field in data:
+                setattr(user, field, data[field])
+        user.save()
+        return Response(AdminUserSerializer(user).data)
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.pk == request.user.pk:
+            raise PermissionDenied(_('You cannot delete your own account.'))
+        if not _has_other_active_user(exclude=user):
+            raise LastAdminError()
+        return super().destroy(request, *args, **kwargs)

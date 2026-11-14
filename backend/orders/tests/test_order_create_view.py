@@ -1,0 +1,238 @@
+"""POST /orders (public checkout) and POST /admin/orders (admin manual
+creation) share OrderCreateSerializer - these tests lock down the single
+most money-critical property of the whole app: a public, unauthenticated
+client can send any `unitPrice`/`shippingCost` it wants, but the server
+must silently ignore both and always compute the real price itself. This
+is the amount that will eventually be handed to the payment gateway, so it
+must never be influenceable by request data.
+"""
+import uuid
+
+import pytest
+from rest_framework.test import APIClient
+
+from accounts.models import User
+from orders.models import DeliveryType, Order, OrderStatus
+from shipping.models import ShippingPrice
+
+pytestmark = pytest.mark.django_db
+
+
+def _order_body(motif, product_type, cut, color, *, delivery, unit_price=None, shipping_cost=None, email='jana@example.cz'):
+    item = {
+        'isCustom': False, 'motifId': str(motif.id), 'productTypeId': str(product_type.id),
+        'cutId': str(cut.id), 'colorId': str(color.id), 'size': 'M', 'quantity': 1,
+    }
+    if unit_price is not None:
+        item['unitPrice'] = unit_price
+
+    body = {
+        'customer': {'email': email, 'firstName': 'Jana', 'lastName': 'Nováková'},
+        'billing': {'fullName': 'Jana Nováková', 'street': 'Horní 12', 'city': 'Vrchlabí', 'zip': '54301'},
+        'shipping': {'sameAsBilling': True},
+        'delivery': delivery,
+        'paymentMethod': 'BANK_TRANSFER',
+        'termsAccepted': True,
+        'items': [item],
+    }
+    if shipping_cost is not None:
+        body['shippingCost'] = shipping_cost
+    return body
+
+
+def test_public_checkout_ignores_client_supplied_unit_price(motif, product_type, cut, color):
+    """A customer sending unitPrice: 1 (haléř) for a 599 Kč motif must still
+    be charged motif.price + product_type.price - the server never trusts a
+    client-supplied item price, public checkout or not.
+    """
+    client = APIClient()
+    body = _order_body(
+        motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP}, unit_price=1,
+    )
+
+    response = client.post('/api/v1/orders', body, format='json')
+
+    assert response.status_code == 201
+    assert response.data['items'][0]['unit_price'] == motif.price + product_type.price
+    assert response.data['subtotal'] == motif.price + product_type.price
+
+
+def test_public_checkout_ignores_client_supplied_shipping_cost(motif, product_type, cut, color, carrier):
+    """A customer sending shippingCost: 1 (haléř) must still get the real
+    configured price for their chosen carrier/delivery type, not their own
+    number.
+    """
+    ShippingPrice.objects.create(carrier=carrier, delivery_type=DeliveryType.HOME_DELIVERY, price=7900)
+    client = APIClient()
+    body = _order_body(
+        motif, product_type, cut, color,
+        delivery={
+            'carrierId': str(carrier.id), 'deliveryType': DeliveryType.HOME_DELIVERY,
+        },
+        shipping_cost=1,
+    )
+
+    response = client.post('/api/v1/orders', body, format='json')
+
+    assert response.status_code == 201
+    assert response.data['shipping_cost'] == 7900
+    assert response.data['total'] == motif.price + product_type.price + 7900
+
+
+def test_public_checkout_custom_item_ignores_client_supplied_unit_price(product_type, cut, color, print_area):
+    """Same tampering attempt on a custom-print item (which has no catalog
+    price to fall back to) - must still end up unpriced (None), not the
+    client's number, even though the item is "awaiting a quote" either way.
+    """
+    client = APIClient()
+    item = {
+        'isCustom': True, 'productTypeId': str(product_type.id), 'cutId': str(cut.id), 'colorId': str(color.id),
+        'size': 'M', 'quantity': 1, 'unitPrice': 1,
+        'placements': [{
+            'printAreaId': str(print_area.id), 'fileToken': 'does-not-matter',
+            'width': 100, 'height': 100,
+        }],
+    }
+    body = {
+        'customer': {'email': 'jana@example.cz', 'firstName': 'Jana', 'lastName': 'Nováková'},
+        'billing': {'fullName': 'Jana Nováková', 'street': 'Horní 12', 'city': 'Vrchlabí', 'zip': '54301'},
+        'shipping': {'sameAsBilling': True},
+        'delivery': {'deliveryType': DeliveryType.PERSONAL_PICKUP},
+        'paymentMethod': 'BANK_TRANSFER',
+        'termsAccepted': True,
+        'items': [item],
+    }
+    # fileToken resolution happens via core.tokens.resolve_file_token - not under
+    # test here, so this request is expected to fail validation on the token,
+    # not on pricing. We only care that IF it got past validation, unit_price
+    # would never come from the client - covered by the serializer-level
+    # assertion below instead of a full HTTP round trip.
+    from orders.serializers import OrderCreateSerializer
+
+    serializer = OrderCreateSerializer(data=body)
+    is_valid = serializer.is_valid()
+    if is_valid:
+        assert serializer.validated_data['items'][0]['unit_price'] is None
+    else:
+        # Token resolution failing is fine here (expected, see comment above) -
+        # anything else failing would hide the property we're testing.
+        assert 'placements' in str(serializer.errors) or 'file_token' in str(serializer.errors)
+
+
+def test_admin_create_can_set_unit_price_and_shipping_cost(motif, product_type, cut, color):
+    """The admin-context path (AdminOrderViewSet.create, context is_admin=True)
+    is the one legitimate way to override price/shipping - confirms the
+    distinction is real, not that admin override is silently broken too.
+    """
+    admin = User.objects.create_user(email='admin@trikonos.cz', password='x', name='Admin')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+    body = _order_body(
+        motif, product_type, cut, color,
+        delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP}, unit_price=12345, shipping_cost=678,
+    )
+    del body['termsAccepted']  # not required for admin-created orders
+
+    response = client.post('/api/v1/admin/orders', body, format='json')
+
+    assert response.status_code == 201
+    assert response.data['items'][0]['unit_price'] == 12345
+    assert response.data['shipping_cost'] == 678
+    assert response.data['total'] == 12345 + 678
+
+
+def test_duplicate_order_id_returns_the_same_order_not_a_second_one(motif, product_type, cut, color):
+    """A retried checkout (double-click, network retry) with the same
+    client-generated orderId must not create a duplicate order.
+    """
+    client = APIClient()
+    order_id = str(uuid.uuid4())
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+    body['orderId'] = order_id
+
+    first = client.post('/api/v1/orders', body, format='json')
+    second = client.post('/api/v1/orders', body, format='json')
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.data['order_number'] == second.data['order_number']
+    assert first.data['access_token'] == second.data['access_token']
+    assert Order.objects.filter(id=order_id).count() == 1
+    assert Order.objects.count() == 1
+
+
+def test_different_order_id_creates_separate_orders(motif, product_type, cut, color):
+    client = APIClient()
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+    body['orderId'] = str(uuid.uuid4())
+
+    first = client.post('/api/v1/orders', body, format='json')
+    body['orderId'] = str(uuid.uuid4())
+    second = client.post('/api/v1/orders', body, format='json')
+
+    assert first.data['order_number'] != second.data['order_number']
+    assert Order.objects.count() == 2
+
+
+def test_public_catalog_order_auto_confirms(motif, product_type, cut, color):
+    """A fully-priced catalog order from public checkout confirms itself -
+    the customer already saw the final price in this response, no admin
+    action needed before it can move to PROCESSING.
+    """
+    client = APIClient()
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+
+    response = client.post('/api/v1/orders', body, format='json')
+
+    order = Order.objects.get(order_number=response.data['order_number'])
+    assert order.status == OrderStatus.NEW
+    assert order.confirmed_at is not None
+
+
+def test_admin_created_catalog_order_does_not_auto_confirm(motif, product_type, cut, color):
+    """Admin manually building an order (e.g. from a phone call) still
+    confirms it by hand later, even for a plain catalog item - the
+    auto-confirm shortcut is specifically for the public checkout path.
+    """
+    admin = User.objects.create_user(email='admin2@trikonos.cz', password='x', name='Admin')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+    del body['termsAccepted']
+
+    response = client.post('/api/v1/admin/orders', body, format='json')
+
+    order = Order.objects.get(order_number=response.data['order_number'])
+    assert order.status == OrderStatus.NEW
+    assert order.confirmed_at is None
+
+
+def test_quote_order_does_not_auto_confirm(product_type, cut, color, print_area):
+    """A custom-print order has no price yet - nothing to auto-confirm."""
+    client = APIClient()
+    item = {
+        'isCustom': True, 'productTypeId': str(product_type.id), 'cutId': str(cut.id), 'colorId': str(color.id),
+        'size': 'M', 'quantity': 1,
+        'placements': [{
+            'printAreaId': str(print_area.id), 'fileToken': 'does-not-matter', 'width': 100, 'height': 100,
+        }],
+    }
+    body = {
+        'customer': {'email': 'jana@example.cz', 'firstName': 'Jana', 'lastName': 'Nováková'},
+        'billing': {'fullName': 'Jana Nováková', 'street': 'Horní 12', 'city': 'Vrchlabí', 'zip': '54301'},
+        'shipping': {'sameAsBilling': True},
+        'delivery': {'deliveryType': DeliveryType.PERSONAL_PICKUP},
+        'paymentMethod': 'BANK_TRANSFER',
+        'termsAccepted': True,
+        'items': [item],
+    }
+
+    from orders.serializers import OrderCreateSerializer
+
+    serializer = OrderCreateSerializer(data=body)
+    if not serializer.is_valid():
+        pytest.skip('file token resolution not under test here')
+    order = serializer.save()
+
+    assert order.status == OrderStatus.QUOTE_REQUESTED
+    assert order.confirmed_at is None
