@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+.git/
+.env
+.env.*
+.vite/
+.vite-plus/
+.cache/
+test-results/
+playwright-report/
+coverage/
+*.log
+.DS_Store

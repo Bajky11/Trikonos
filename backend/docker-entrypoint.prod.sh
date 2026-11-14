@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+echo "Running migrations..."
+python manage.py migrate --noinput
+
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
+
+# No demo data or default administrator in production.
+exec "$@"

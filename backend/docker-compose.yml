@@ -22,7 +22,9 @@ services:
       - "1025:1025"  # SMTP
 
   web:
-    build: .
+    build:
+      context: .
+      target: development
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app

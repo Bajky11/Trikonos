@@ -8,4 +8,9 @@ media/
 staticfiles/
 .env
 .env.docker
+.env.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+db.sqlite3*
 *.pdf

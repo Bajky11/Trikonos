@@ -1,0 +1,63 @@
+services:
+  frontend:
+    build:
+      context: ./frontend2
+      target: development
+    init: true
+    environment:
+      VITE_USE_POLLING: "true"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./frontend2:/app
+      # Do not mount macOS node_modules over Linux dependencies.
+      - dev_frontend_node_modules:/app/node_modules
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: trikonos
+      POSTGRES_USER: trikonos
+      POSTGRES_PASSWORD: trikonos
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trikonos -d trikonos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      target: development
+    # Invoke through sh because the bind mount preserves host file permissions.
+    entrypoint: ["sh", "/app/docker-entrypoint.sh"]
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    init: true
+    environment:
+      DJANGO_DEBUG: "True"
+      DJANGO_SECRET_KEY: dev-only-not-for-production
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      DB_NAME: trikonos
+      DB_USER: trikonos
+      DB_PASSWORD: trikonos
+      DB_HOST: db
+      DB_PORT: "5432"
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      ADMIN_EMAIL: admin@trikonos.cz
+      ADMIN_PASSWORD: change-me
+      ADMIN_NAME: Admin
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend:/app
+      - dev_media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dev_frontend_node_modules:
+  dev_postgres_data:
+  dev_media_data:
