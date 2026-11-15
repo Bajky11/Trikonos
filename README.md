@@ -81,6 +81,35 @@ směruj na `127.0.0.1:8080`, doménu backendu na `127.0.0.1:8000` a zachovej
 veřejnou hlavičku `Host`. HTTP na veřejné straně přesměruj na HTTPS.
 TLS/certifikáty tato konfigurace sama nezajišťuje.
 
+### Raspberry: Cloudflare Tunnel a automatické nasazení
+
+Produkční Compose připojuje pouze frontend a backendový Nginx do existující
+externí sítě `bajerlukascz_network` (lze změnit přes `CLOUDFLARE_NETWORK`).
+Při nasazení na jiný server musí tato síť existovat. Databáze ani Gunicorn
+do sdílené sítě připojené nejsou.
+
+Lokálně spravovaný Cloudflare Tunnel má na Raspberry konfiguraci
+`/srv/shared/projects/cloudflare/config.yml` a směruje:
+
+- `trikonos.bajerlukas.cz` → `http://trikonos-frontend:80`
+- `trikonos-be.bajerlukas.cz` → `http://trikonos-backend-proxy:80`
+
+Cloudflare přistupuje přímo přes Docker síť, nikoli přes publikované loopback
+porty. Do `DJANGO_ALLOWED_HOSTS` patří `trikonos-be.bajerlukas.cz`.
+
+Workflow `.github/workflows/deploy.yml` se spouští po pushi do `main` nebo ručně
+z GitHub Actions. Používá ARM64 self-hosted runner na Raspberry a stálý klon
+`/srv/shared/projects/Trikonos`. Runner musí běžet pod uživatelem s přístupem
+k tomuto adresáři a Dockeru. Další SSH klíče ani GitHub Secrets nejsou potřeba;
+ke stažení kódu používá dočasný token poskytnutý GitHubem.
+
+Produkční `.env.production` je jen ve stálém klonu na Raspberry, ignorovaný Gitem.
+Workflow nečistí pracovní adresář: stáhne `main` pomocí fast-forward aktualizace,
+sestaví image za běhu staré verze a pak spustí kontejnery s kontrolou healthchecků.
+Verzované soubory na serveru neupravuj ručně; necommitnuté změny deploy zastaví.
+Deploye se nesouběží. Neúspěšný build ponechá staré kontejnery běžet, ale chyba
+při startu či migraci neprovádí automatický rollback.
+
 Porty jsou záměrně publikované jen na loopbacku. Interní backendový Nginx
 předpokládá předchozí ukončení TLS a vždy přepíše `X-Forwarded-Proto` na
 `https`. **Nezveřejňuj tento interní HTTP listener přímo do internetu.**

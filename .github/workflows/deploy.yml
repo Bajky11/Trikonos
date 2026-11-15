@@ -1,0 +1,49 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trikonos-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
+    steps:
+      - name: Update and deploy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          exec 9>/srv/shared/projects/.trikonos-deploy.lock
+          flock -n 9
+
+          cd /srv/shared/projects/Trikonos
+          test -f .env.production
+          test "$(git branch --show-current)" = main
+          git diff --quiet
+          git diff --cached --quiet
+
+          # GitHub supplies a temporary read-only token; no SSH key is needed.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c credential.helper= \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --no-tags origin main
+          unset auth GH_TOKEN
+          git merge --ff-only origin/main
+
+          # No checkout/clean/reset: the server's .env.production stays in place.
+          docker compose --env-file .env.production -f docker-compose.yaml config --quiet
+          docker compose --env-file .env.production -f docker-compose.yaml build
+          docker compose --env-file .env.production -f docker-compose.yaml \
+            up -d --no-build --wait --wait-timeout 180

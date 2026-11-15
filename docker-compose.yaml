@@ -9,7 +9,10 @@ services:
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
     networks:
-      - frontend
+      frontend: {}
+      cloudflare:
+        aliases:
+          - trikonos-frontend
 
   db:
     image: postgres:16-alpine
@@ -69,7 +72,9 @@ services:
       start_period: 60s
       retries: 3
     networks:
-      - backend
+      backend:
+        aliases:
+          - trikonos-backend
 
   backend-proxy:
     image: nginx:stable-alpine
@@ -89,7 +94,10 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - backend
+      backend: {}
+      cloudflare:
+        aliases:
+          - trikonos-backend-proxy
 
 volumes:
   postgres_data:
@@ -99,3 +107,6 @@ volumes:
 networks:
   frontend:
   backend:
+  cloudflare:
+    external: true
+    name: ${CLOUDFLARE_NETWORK:-bajerlukascz_network}
