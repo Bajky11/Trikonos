@@ -30,6 +30,7 @@ import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
 import type { Me } from "../api/generated/models";
+import { ProductsPanel } from "../admin/catalog/ProductsPanel";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -77,7 +78,12 @@ export function AdminLayout() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              slotProps={{ htmlInput: { "aria-label": "Hledat v objednávkách" } }}
+              slotProps={{
+                htmlInput: {
+                  "aria-label":
+                    section === "produkty" ? "Hledat v motivech" : "Hledat v objednávkách",
+                },
+              }}
             />
             <Avatar className="admin-avatar" variant="square">
               {(user.name || user.email).slice(0, 2).toLocaleUpperCase("cs")}
@@ -408,7 +414,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
           </p>
         </Paper>
       )}
-      {["produkty", "klienti"].includes(section) && (
+      {section === "produkty" && <ProductsPanel search={search} />}
+      {section === "klienti" && (
         <Paper className="admin-panel" variant="outlined">
           <h2>{sections.find(([id]) => id === section)?.[1]}</h2>
           <p className="admin-empty">Tuto část administrace připravujeme.</p>
@@ -423,7 +430,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       <p className="admin-prototype">
-        Prototyp administrace · ukázková data, bez napojení na backend.
+        Správa motivů a variant používá backend. Přehled, objednávky a ostatní sekce jsou zatím
+        ukázkové.
       </p>
     </>
   );

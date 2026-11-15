@@ -18,6 +18,15 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AdminCategoriesListParams,
+  AdminColorsListParams,
+  AdminCutsListParams,
+  AdminMotifDetail,
+  AdminMotifVariant,
+  AdminMotifVariantsListParams,
+  AdminMotifWrite,
+  AdminMotifsListParams,
+  AdminProductTypesListParams,
   CatalogOptionsResponse,
   CategoriesListParams,
   Category,
@@ -27,11 +36,40 @@ import type {
   MotifDetail,
   MotifList,
   MotifsListParams,
+  PaginatedAdminCategoryList,
+  PaginatedAdminColorList,
+  PaginatedAdminCutList,
+  PaginatedAdminMotifListList,
+  PaginatedAdminMotifVariantList,
+  PaginatedAdminProductTypeList,
   PaginatedMotifListList,
+  PatchedAdminMotifVariant,
+  PatchedAdminMotifWrite,
 } from "./models";
 
 import { apiFetch } from "../http.ts";
 import type { ErrorType } from "../http.ts";
+
+// https://stackoverflow.com/questions/49579094/typescript-conditional-types-filter-out-readonly-properties-pick-only-requir/49579497#49579497
+type IfEquals<X, Y, A = X, B = never> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? A : B;
+
+type WritableKeys<T> = {
+  [P in keyof T]-?: IfEquals<{ [Q in P]: T[P] }, { -readonly [Q in P]: T[P] }, P>;
+}[keyof T];
+
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void
+  ? I
+  : never;
+type DistributeReadOnlyOverUnions<T> = T extends any ? NonReadonly<T> : never;
+
+type Writable<T> = Pick<T, WritableKeys<T>>;
+type NonReadonly<T> = [T] extends [UnionToIntersection<T>]
+  ? {
+      [P in keyof Writable<T>]: T[P] extends object ? NonReadonly<NonNullable<T[P]>> : T[P];
+    }
+  : DistributeReadOnlyOverUnions<T>;
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 const getHeaders = (
@@ -511,6 +549,1608 @@ export function useAdminAuthMeRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getAdminAuthMeRetrieveQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminCategoriesListUrl = (params?: AdminCategoriesListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/categories?${stringifiedParams}`
+    : `/api/v1/admin/categories`;
+};
+
+/**
+ * Vrátí VŠECHNY kategorií včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam kategorií
+ */
+export const adminCategoriesList = async (
+  params?: AdminCategoriesListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminCategoryList> => {
+  return apiFetch<PaginatedAdminCategoryList>(getAdminCategoriesListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCategoriesListQueryKey = (params?: AdminCategoriesListParams) => {
+  return [`/api/v1/admin/categories`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminCategoriesListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCategoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCategoriesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCategoriesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCategoriesListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminCategoriesList>>> = ({ signal }) =>
+    adminCategoriesList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminCategoriesList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminCategoriesListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminCategoriesList>>
+>;
+export type AdminCategoriesListQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí VŠECHNY kategorií včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam kategorií
+ */
+export function useAdminCategoriesList<
+  TData = Awaited<ReturnType<typeof adminCategoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminCategoriesListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCategoriesList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCategoriesList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCategoriesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY kategorií včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam kategorií
+ */
+export function useAdminCategoriesList<
+  TData = Awaited<ReturnType<typeof adminCategoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCategoriesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCategoriesList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCategoriesList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCategoriesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY kategorií včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam kategorií
+ */
+export function useAdminCategoriesList<
+  TData = Awaited<ReturnType<typeof adminCategoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCategoriesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCategoriesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY kategorií včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam kategorií
+ */
+export function useAdminCategoriesList<
+  TData = Awaited<ReturnType<typeof adminCategoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCategoriesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCategoriesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCategoriesListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminColorsListUrl = (params?: AdminColorsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/colors?${stringifiedParams}`
+    : `/api/v1/admin/colors`;
+};
+
+/**
+ * Vrátí VŠECHNY barev včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam barev
+ */
+export const adminColorsList = async (
+  params?: AdminColorsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminColorList> => {
+  return apiFetch<PaginatedAdminColorList>(getAdminColorsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminColorsListQueryKey = (params?: AdminColorsListParams) => {
+  return [`/api/v1/admin/colors`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminColorsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminColorsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminColorsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminColorsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminColorsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminColorsList>>> = ({ signal }) =>
+    adminColorsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminColorsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminColorsListQueryResult = NonNullable<Awaited<ReturnType<typeof adminColorsList>>>;
+export type AdminColorsListQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí VŠECHNY barev včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam barev
+ */
+export function useAdminColorsList<
+  TData = Awaited<ReturnType<typeof adminColorsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminColorsListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminColorsList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminColorsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminColorsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY barev včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam barev
+ */
+export function useAdminColorsList<
+  TData = Awaited<ReturnType<typeof adminColorsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminColorsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminColorsList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminColorsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminColorsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY barev včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam barev
+ */
+export function useAdminColorsList<
+  TData = Awaited<ReturnType<typeof adminColorsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminColorsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminColorsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY barev včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam barev
+ */
+export function useAdminColorsList<
+  TData = Awaited<ReturnType<typeof adminColorsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminColorsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminColorsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminColorsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminCutsListUrl = (params?: AdminCutsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/cuts?${stringifiedParams}`
+    : `/api/v1/admin/cuts`;
+};
+
+/**
+ * Vrátí VŠECHNY střihů včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam střihů
+ */
+export const adminCutsList = async (
+  params?: AdminCutsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminCutList> => {
+  return apiFetch<PaginatedAdminCutList>(getAdminCutsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCutsListQueryKey = (params?: AdminCutsListParams) => {
+  return [`/api/v1/admin/cuts`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminCutsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCutsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCutsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCutsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCutsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminCutsList>>> = ({ signal }) =>
+    adminCutsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminCutsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminCutsListQueryResult = NonNullable<Awaited<ReturnType<typeof adminCutsList>>>;
+export type AdminCutsListQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí VŠECHNY střihů včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam střihů
+ */
+export function useAdminCutsList<
+  TData = Awaited<ReturnType<typeof adminCutsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminCutsListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCutsList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCutsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCutsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY střihů včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam střihů
+ */
+export function useAdminCutsList<
+  TData = Awaited<ReturnType<typeof adminCutsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCutsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCutsList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCutsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCutsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY střihů včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam střihů
+ */
+export function useAdminCutsList<
+  TData = Awaited<ReturnType<typeof adminCutsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCutsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCutsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY střihů včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam střihů
+ */
+export function useAdminCutsList<
+  TData = Awaited<ReturnType<typeof adminCutsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCutsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCutsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCutsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminMotifVariantsListUrl = (params: AdminMotifVariantsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/motif-variants?${stringifiedParams}`
+    : `/api/v1/admin/motif-variants`;
+};
+
+/**
+ * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
+ * @summary Seznam dostupných kombinací pro motiv
+ */
+export const adminMotifVariantsList = async (
+  params: AdminMotifVariantsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminMotifVariantList> => {
+  return apiFetch<PaginatedAdminMotifVariantList>(getAdminMotifVariantsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminMotifVariantsListQueryKey = (params?: AdminMotifVariantsListParams) => {
+  return [`/api/v1/admin/motif-variants`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminMotifVariantsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: AdminMotifVariantsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminMotifVariantsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminMotifVariantsList>>> = ({ signal }) =>
+    adminMotifVariantsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminMotifVariantsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminMotifVariantsListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifVariantsList>>
+>;
+export type AdminMotifVariantsListQueryError = ErrorType<unknown>;
+
+/**
+ * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
+ * @summary Seznam dostupných kombinací pro motiv
+ */
+export function useAdminMotifVariantsList<
+  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: AdminMotifVariantsListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifVariantsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifVariantsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
+ * @summary Seznam dostupných kombinací pro motiv
+ */
+export function useAdminMotifVariantsList<
+  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: AdminMotifVariantsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifVariantsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifVariantsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
+ * @summary Seznam dostupných kombinací pro motiv
+ */
+export function useAdminMotifVariantsList<
+  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: AdminMotifVariantsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
+ * @summary Seznam dostupných kombinací pro motiv
+ */
+export function useAdminMotifVariantsList<
+  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: AdminMotifVariantsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminMotifVariantsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminMotifVariantsCreateUrl = () => {
+  return `/api/v1/admin/motif-variants`;
+};
+
+/**
+ * Duplicitní kombinace (stejný motiv/typ/střih/barva/velikost) vrátí 409 `DUPLICATE_VARIANT`.
+ * @summary Povolit kombinaci pro motiv
+ */
+export const adminMotifVariantsCreate = async (
+  adminMotifVariant: NonReadonly<AdminMotifVariant>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifVariant> => {
+  return apiFetch<AdminMotifVariant>(getAdminMotifVariantsCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminMotifVariant),
+  });
+};
+
+export const getAdminMotifVariantsCreateMutationKey = () => ["adminMotifVariantsCreate"] as const;
+
+export const getAdminMotifVariantsCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+    TError,
+    AdminMotifVariantsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+  TError,
+  AdminMotifVariantsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifVariantsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+    AdminMotifVariantsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminMotifVariantsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifVariantsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifVariantsCreate>>
+>;
+export type AdminMotifVariantsCreateMutationBody = NonReadonly<AdminMotifVariant>;
+export type AdminMotifVariantsCreateMutationError = ErrorType<unknown>;
+export type AdminMotifVariantsCreateMutationVariables = { data: NonReadonly<AdminMotifVariant> };
+
+/**
+ * Duplicitní kombinace (stejný motiv/typ/střih/barva/velikost) vrátí 409 `DUPLICATE_VARIANT`.
+ * @summary Povolit kombinaci pro motiv
+ */
+export const useAdminMotifVariantsCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+      TError,
+      AdminMotifVariantsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+  TError,
+  AdminMotifVariantsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifVariantsCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifVariantsPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/motif-variants/${id}`;
+};
+
+/**
+ * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
+ * @summary Upravit kombinaci (např. deaktivovat)
+ */
+export const adminMotifVariantsPartialUpdate = async (
+  id: string,
+  patchedAdminMotifVariant?: NonReadonly<PatchedAdminMotifVariant>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifVariant> => {
+  return apiFetch<AdminMotifVariant>(getAdminMotifVariantsPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminMotifVariant),
+  });
+};
+
+export const getAdminMotifVariantsPartialUpdateMutationKey = () =>
+  ["adminMotifVariantsPartialUpdate"] as const;
+
+export const getAdminMotifVariantsPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
+    TError,
+    AdminMotifVariantsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
+  TError,
+  AdminMotifVariantsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifVariantsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
+    AdminMotifVariantsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminMotifVariantsPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifVariantsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>
+>;
+export type AdminMotifVariantsPartialUpdateMutationBody =
+  | NonReadonly<PatchedAdminMotifVariant>
+  | undefined;
+export type AdminMotifVariantsPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminMotifVariantsPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminMotifVariant>;
+};
+
+/**
+ * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
+ * @summary Upravit kombinaci (např. deaktivovat)
+ */
+export const useAdminMotifVariantsPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
+      TError,
+      AdminMotifVariantsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
+  TError,
+  AdminMotifVariantsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifVariantsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifVariantsDestroyUrl = (id: string) => {
+  return `/api/v1/admin/motif-variants/${id}`;
+};
+
+/**
+ * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
+ * @summary Smazat kombinaci
+ */
+export const adminMotifVariantsDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminMotifVariantsDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminMotifVariantsDestroyMutationKey = () => ["adminMotifVariantsDestroy"] as const;
+
+export const getAdminMotifVariantsDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
+    TError,
+    AdminMotifVariantsDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
+  TError,
+  AdminMotifVariantsDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifVariantsDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
+    AdminMotifVariantsDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminMotifVariantsDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifVariantsDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>
+>;
+
+export type AdminMotifVariantsDestroyMutationError = ErrorType<unknown>;
+export type AdminMotifVariantsDestroyMutationVariables = { id: string };
+
+/**
+ * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
+ * @summary Smazat kombinaci
+ */
+export const useAdminMotifVariantsDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
+      TError,
+      AdminMotifVariantsDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
+  TError,
+  AdminMotifVariantsDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifVariantsDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsListUrl = (params?: AdminMotifsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/motifs?${stringifiedParams}`
+    : `/api/v1/admin/motifs`;
+};
+
+/**
+ * Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` (fulltext v názvu). Řazení `ordering`: `position` (výchozí), `-createdAt`, `name`. Řádek obsahuje `ordersCount` (v kolika objednávkách se motiv objevil - orientační, pro rychlý přehled popularity v administraci).
+ * @summary Seznam motivů (administrace)
+ */
+export const adminMotifsList = async (
+  params?: AdminMotifsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminMotifListList> => {
+  return apiFetch<PaginatedAdminMotifListList>(getAdminMotifsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminMotifsListQueryKey = (params?: AdminMotifsListParams) => {
+  return [`/api/v1/admin/motifs`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminMotifsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminMotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminMotifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminMotifsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminMotifsList>>> = ({ signal }) =>
+    adminMotifsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminMotifsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminMotifsListQueryResult = NonNullable<Awaited<ReturnType<typeof adminMotifsList>>>;
+export type AdminMotifsListQueryError = ErrorType<unknown>;
+
+/**
+ * Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` (fulltext v názvu). Řazení `ordering`: `position` (výchozí), `-createdAt`, `name`. Řádek obsahuje `ordersCount` (v kolika objednávkách se motiv objevil - orientační, pro rychlý přehled popularity v administraci).
+ * @summary Seznam motivů (administrace)
+ */
+export function useAdminMotifsList<
+  TData = Awaited<ReturnType<typeof adminMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminMotifsListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminMotifsList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` (fulltext v názvu). Řazení `ordering`: `position` (výchozí), `-createdAt`, `name`. Řádek obsahuje `ordersCount` (v kolika objednávkách se motiv objevil - orientační, pro rychlý přehled popularity v administraci).
+ * @summary Seznam motivů (administrace)
+ */
+export function useAdminMotifsList<
+  TData = Awaited<ReturnType<typeof adminMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminMotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminMotifsList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` (fulltext v názvu). Řazení `ordering`: `position` (výchozí), `-createdAt`, `name`. Řádek obsahuje `ordersCount` (v kolika objednávkách se motiv objevil - orientační, pro rychlý přehled popularity v administraci).
+ * @summary Seznam motivů (administrace)
+ */
+export function useAdminMotifsList<
+  TData = Awaited<ReturnType<typeof adminMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminMotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminMotifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` (fulltext v názvu). Řazení `ordering`: `position` (výchozí), `-createdAt`, `name`. Řádek obsahuje `ordersCount` (v kolika objednávkách se motiv objevil - orientační, pro rychlý přehled popularity v administraci).
+ * @summary Seznam motivů (administrace)
+ */
+export function useAdminMotifsList<
+  TData = Awaited<ReturnType<typeof adminMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminMotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminMotifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminMotifsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminMotifsCreateUrl = () => {
+  return `/api/v1/admin/motifs`;
+};
+
+/**
+ * `slug` je nepovinný - když chybí, vygeneruje se z `name` (musí vyjít unikátní, jinak 400). Nový motiv vznikne bez obrázků - ty se nahrávají až následně přes `POST /motifs/{id}/images`.
+ * @summary Vytvořit motiv
+ */
+export const adminMotifsCreate = async (
+  adminMotifWrite: NonReadonly<AdminMotifWrite>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  return apiFetch<AdminMotifDetail>(getAdminMotifsCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminMotifWrite),
+  });
+};
+
+export const getAdminMotifsCreateMutationKey = () => ["adminMotifsCreate"] as const;
+
+export const getAdminMotifsCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsCreate>>,
+    TError,
+    AdminMotifsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsCreate>>,
+  TError,
+  AdminMotifsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsCreate>>,
+    AdminMotifsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminMotifsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsCreate>>
+>;
+export type AdminMotifsCreateMutationBody = NonReadonly<AdminMotifWrite>;
+export type AdminMotifsCreateMutationError = ErrorType<unknown>;
+export type AdminMotifsCreateMutationVariables = { data: NonReadonly<AdminMotifWrite> };
+
+/**
+ * `slug` je nepovinný - když chybí, vygeneruje se z `name` (musí vyjít unikátní, jinak 400). Nový motiv vznikne bez obrázků - ty se nahrávají až následně přes `POST /motifs/{id}/images`.
+ * @summary Vytvořit motiv
+ */
+export const useAdminMotifsCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsCreate>>,
+      TError,
+      AdminMotifsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsCreate>>,
+  TError,
+  AdminMotifsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}`;
+};
+
+/**
+ * Plný detail včetně celého pole `images` (ne jen hlavní obrázek).
+ * @summary Detail motivu (administrace)
+ */
+export const adminMotifsRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  return apiFetch<AdminMotifDetail>(getAdminMotifsRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminMotifsRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/motifs/${id}`] as const;
+};
+
+export const getAdminMotifsRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminMotifsRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminMotifsRetrieve>>> = ({ signal }) =>
+    adminMotifsRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type AdminMotifsRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsRetrieve>>
+>;
+export type AdminMotifsRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Plný detail včetně celého pole `images` (ne jen hlavní obrázek).
+ * @summary Detail motivu (administrace)
+ */
+export function useAdminMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail včetně celého pole `images` (ne jen hlavní obrázek).
+ * @summary Detail motivu (administrace)
+ */
+export function useAdminMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminMotifsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail včetně celého pole `images` (ne jen hlavní obrázek).
+ * @summary Detail motivu (administrace)
+ */
+export function useAdminMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail včetně celého pole `images` (ne jen hlavní obrázek).
+ * @summary Detail motivu (administrace)
+ */
+export function useAdminMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof adminMotifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminMotifsRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminMotifsRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminMotifsPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH). **Důležité:** změna `price` nijak neovlivní ceny v už existujících objednávkách - cena je v `order_items.unit_price` uložená jako snapshot v okamžiku objednání, ne odkaz na aktuální cenu motivu.
+ * @summary Upravit motiv
+ */
+export const adminMotifsPartialUpdate = async (
+  id: string,
+  patchedAdminMotifWrite?: NonReadonly<PatchedAdminMotifWrite>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  return apiFetch<AdminMotifDetail>(getAdminMotifsPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminMotifWrite),
+  });
+};
+
+export const getAdminMotifsPartialUpdateMutationKey = () => ["adminMotifsPartialUpdate"] as const;
+
+export const getAdminMotifsPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsPartialUpdate>>,
+    TError,
+    AdminMotifsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsPartialUpdate>>,
+  TError,
+  AdminMotifsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsPartialUpdate>>,
+    AdminMotifsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminMotifsPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsPartialUpdate>>
+>;
+export type AdminMotifsPartialUpdateMutationBody = NonReadonly<PatchedAdminMotifWrite> | undefined;
+export type AdminMotifsPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminMotifsPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminMotifWrite>;
+};
+
+/**
+ * Částečná úprava (PATCH). **Důležité:** změna `price` nijak neovlivní ceny v už existujících objednávkách - cena je v `order_items.unit_price` uložená jako snapshot v okamžiku objednání, ne odkaz na aktuální cenu motivu.
+ * @summary Upravit motiv
+ */
+export const useAdminMotifsPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsPartialUpdate>>,
+      TError,
+      AdminMotifsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsPartialUpdate>>,
+  TError,
+  AdminMotifsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsDestroyUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}`;
+};
+
+/**
+ * Pokud je motiv použitý v jakékoli objednávce, vrátí 409 `IN_USE` - použij `isActive: false` místo mazání. Když mazání projde, smažou se i všechny soubory fotek (originály i miniatury) z úložiště, ne jen záznam z `images` JSON.
+ * @summary Smazat motiv
+ */
+export const adminMotifsDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminMotifsDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminMotifsDestroyMutationKey = () => ["adminMotifsDestroy"] as const;
+
+export const getAdminMotifsDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsDestroy>>,
+    TError,
+    AdminMotifsDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsDestroy>>,
+  TError,
+  AdminMotifsDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsDestroy>>,
+    AdminMotifsDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminMotifsDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsDestroy>>
+>;
+
+export type AdminMotifsDestroyMutationError = ErrorType<unknown>;
+export type AdminMotifsDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je motiv použitý v jakékoli objednávce, vrátí 409 `IN_USE` - použij `isActive: false` místo mazání. Když mazání projde, smažou se i všechny soubory fotek (originály i miniatury) z úložiště, ne jen záznam z `images` JSON.
+ * @summary Smazat motiv
+ */
+export const useAdminMotifsDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsDestroy>>,
+      TError,
+      AdminMotifsDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsDestroy>>,
+  TError,
+  AdminMotifsDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminProductTypesListUrl = (params?: AdminProductTypesListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/product-types?${stringifiedParams}`
+    : `/api/v1/admin/product-types`;
+};
+
+/**
+ * Vrátí VŠECHNY typů oblečení včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam typů oblečení
+ */
+export const adminProductTypesList = async (
+  params?: AdminProductTypesListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminProductTypeList> => {
+  return apiFetch<PaginatedAdminProductTypeList>(getAdminProductTypesListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminProductTypesListQueryKey = (params?: AdminProductTypesListParams) => {
+  return [`/api/v1/admin/product-types`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminProductTypesListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminProductTypesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductTypesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductTypesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminProductTypesListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminProductTypesList>>> = ({ signal }) =>
+    adminProductTypesList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminProductTypesList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminProductTypesListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductTypesList>>
+>;
+export type AdminProductTypesListQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí VŠECHNY typů oblečení včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam typů oblečení
+ */
+export function useAdminProductTypesList<
+  TData = Awaited<ReturnType<typeof adminProductTypesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminProductTypesListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductTypesList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductTypesList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductTypesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY typů oblečení včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam typů oblečení
+ */
+export function useAdminProductTypesList<
+  TData = Awaited<ReturnType<typeof adminProductTypesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductTypesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductTypesList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductTypesList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductTypesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY typů oblečení včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam typů oblečení
+ */
+export function useAdminProductTypesList<
+  TData = Awaited<ReturnType<typeof adminProductTypesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductTypesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductTypesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí VŠECHNY typů oblečení včetně neaktivních (na rozdíl od veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` (true/false) a fulltext `q` v názvu.
+ * @summary Seznam typů oblečení
+ */
+export function useAdminProductTypesList<
+  TData = Awaited<ReturnType<typeof adminProductTypesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductTypesListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductTypesList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminProductTypesListQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

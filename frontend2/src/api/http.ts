@@ -11,14 +11,16 @@ export function clearCsrfToken() {
 export class ApiError extends Error {
   readonly status: number;
   readonly data: unknown;
+  readonly code?: string;
 
   constructor(status: number, data: unknown) {
-    const envelope = data as { error?: { message?: unknown } } | null;
+    const envelope = data as { error?: { message?: unknown; code?: unknown } } | null;
     const message = envelope?.error?.message;
     super(typeof message === "string" ? message : `Požadavek selhal (HTTP ${status}).`);
     this.name = "ApiError";
     this.status = status;
     this.data = data;
+    this.code = typeof envelope?.error?.code === "string" ? envelope.error.code : undefined;
   }
 }
 

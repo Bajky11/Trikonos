@@ -21,6 +21,34 @@ test("local Docker login, session after reload and CSRF-protected logout", async
   await expect(page.locator(".admin-app")).toBeVisible();
   await page.reload();
   await expect(page.locator(".admin-app")).toBeVisible();
+  const motifsResponse = page.waitForResponse(
+    (response) =>
+      response.url().startsWith("http://localhost:8000/api/v1/admin/motifs?") &&
+      response.request().method() === "GET",
+  );
+  await page
+    .getByRole("navigation", { name: "Administrace" })
+    .getByRole("link", { name: "Produkty" })
+    .click();
+  const motifs = await motifsResponse;
+  expect(motifs.status()).toBe(200);
+  const data = (await motifs.json()) as { count: number };
+  await expect(page.getByRole("table", { name: "Motivy", exact: true })).toBeVisible();
+  if (data.count > 0) {
+    await page.getByRole("button", { name: "Upravit", exact: true }).first().click();
+    await expect(
+      page.getByRole("dialog").getByRole("textbox", { name: "Název motivu" }),
+    ).not.toHaveValue("");
+    await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
+    await page.getByRole("button", { name: "Varianty", exact: true }).first().click();
+    await expect(
+      page.getByRole("dialog").getByRole("table", { name: "Povolené kombinace" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByRole("combobox", { name: "Typ oblečení" }),
+    ).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
+  }
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);

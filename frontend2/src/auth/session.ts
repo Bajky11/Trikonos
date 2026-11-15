@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Query, QueryClient } from "@tanstack/react-query";
 import {
-  adminAuthCsrfRetrieve,
   adminAuthLoginCreate,
   adminAuthLogoutCreate,
   adminAuthMeRetrieve,
@@ -10,6 +9,7 @@ import {
 } from "../api/generated/api";
 import type { Login, Me } from "../api/generated/models";
 import { ApiError, clearCsrfToken } from "../api/http";
+import { withCsrf } from "./csrf";
 
 const sessionKey = getAdminAuthMeRetrieveQueryKey();
 const isAdminQuery = (query: Query) =>
@@ -55,10 +55,7 @@ export function useLogin() {
   const client = useQueryClient();
   return useMutation({
     gcTime: 0,
-    mutationFn: async (credentials: Login) => {
-      await adminAuthCsrfRetrieve({ cache: "no-store" });
-      return adminAuthLoginCreate(credentials);
-    },
+    mutationFn: (credentials: Login) => withCsrf(() => adminAuthLoginCreate(credentials)),
     onSuccess: (user) => replaceSession(client, user),
   });
 }
@@ -69,14 +66,15 @@ export function useLogout() {
     mutationFn: async () => {
       try {
         // Also works after reload, when the cross-host token is not in memory yet.
-        await adminAuthCsrfRetrieve({ cache: "no-store" });
-        await adminAuthLogoutCreate();
+        await withCsrf(() => adminAuthLogoutCreate());
       } catch (error) {
         // An expired session is already logged out. Do not hide a CSRF rejection.
-        if (error instanceof ApiError && error.status === 403) {
-          const data = error.data as { error?: { code?: unknown } } | null;
-          if (data?.error?.code === "AUTHENTICATION_REQUIRED") return;
-        }
+        if (
+          error instanceof ApiError &&
+          error.status === 403 &&
+          error.code === "AUTHENTICATION_REQUIRED"
+        )
+          return;
         throw error;
       }
     },

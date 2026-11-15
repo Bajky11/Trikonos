@@ -249,6 +249,29 @@ def test_paginated_ordering_breaks_price_and_date_ties_with_a_unique_key():
         assert queryset.query.order_by == (field, 'id')
 
 
+def test_admin_motif_writes_return_the_detail_shape(admin_client, category):
+    created = admin_client.post('/api/v1/admin/motifs', {
+        'name': 'Nový motiv', 'slug': 'stabilni-url', 'price': 49990,
+        'category': str(category.id), 'isActive': False,
+    }, format='json')
+    assert created.status_code == 201
+    data = created.json()
+    assert data['ordersCount'] == 0
+    assert data['category'] == {'id': str(category.id), 'name': category.name}
+    updated = admin_client.patch(f"/api/v1/admin/motifs/{data['id']}", {
+        'slug': data['slug'], 'price': 59990, 'isActive': True,
+    }, format='json')
+    assert updated.status_code == 200
+    assert updated.json()['slug'] == 'stabilni-url'
+    assert updated.json()['price'] == 59990
+    assert updated.json()['category'] == data['category']
+    invalid = admin_client.post('/api/v1/admin/motifs', {
+        'name': '!!!', 'price': 49990, 'category': str(category.id),
+    }, format='json')
+    assert invalid.status_code == 400
+    assert 'slug' in invalid.json()['error']['fields']
+
+
 def test_inactive_motif_returns_404_on_public_detail(motif):
     motif.is_active = False
     motif.save(update_fields=['is_active'])

@@ -785,6 +785,13 @@
   flex-wrap: wrap;
   margin-bottom: 24px;
 }
+.admin-catalog-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
+}
 .catalog-heading h1 {
   font:
     700 clamp(32px, 4vw, 52px)/1.1 Manrope,

@@ -48,6 +48,12 @@ def _make_thumbnail(pil_image, max_dimension, extension):
     list=extend_schema(
         tags=_TAG,
         summary='Seznam motivů (administrace)',
+        parameters=[
+            OpenApiParameter('category', str, description='UUID kategorie.'),
+            OpenApiParameter('isActive', bool, description='Filtrovat aktivní/neaktivní motivy.'),
+            OpenApiParameter('q', str, description='Hledat v názvu.'),
+            OpenApiParameter('ordering', str, enum=['position', '-createdAt', 'name']),
+        ],
         description=(
             'Na rozdíl od veřejného `GET /motifs` vrací VŠECHNY motivy včetně '
             'neaktivních. Filtry: `category` (id kategorie), `isActive`, `q` '
@@ -65,6 +71,8 @@ def _make_thumbnail(pil_image, max_dimension, extension):
     create=extend_schema(
         tags=_TAG,
         summary='Vytvořit motiv',
+        request=AdminMotifWriteSerializer,
+        responses={201: AdminMotifDetailSerializer},
         description=(
             '`slug` je nepovinný - když chybí, vygeneruje se z '
             '`name` (musí vyjít unikátní, jinak 400). Nový motiv vznikne bez '
@@ -74,6 +82,8 @@ def _make_thumbnail(pil_image, max_dimension, extension):
     partial_update=extend_schema(
         tags=_TAG,
         summary='Upravit motiv',
+        request=AdminMotifWriteSerializer,
+        responses={200: AdminMotifDetailSerializer},
         description=(
             'Částečná úprava (PATCH). **Důležité:** změna `price` '
             'nijak neovlivní ceny v už existujících objednávkách - cena je v '

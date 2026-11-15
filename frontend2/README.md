@@ -60,7 +60,8 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session a veřejný katalog;
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog
+a používané administrační operace motivů, variant a čtení číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -70,7 +71,7 @@ pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
   a zformátuje. Aktuálnost ověř regenerováním a kontrolou diffu této složky.
 - Běžný build ani unit testy nevyžadují živý backend ani regenerování klienta.
 - `src/api/http.ts` přidává origin, `credentials: include`, lokální CSRF cookie
-  u zápisů a `ApiError` se statusem a původním tělem chyby. Podporuje AbortSignal,
+  u zápisů a `ApiError` se statusem, kódem a původním tělem chyby. Podporuje AbortSignal,
   FormData a prázdné odpovědi. Bootstrap a login vracejí token také v CORS-exposed
   hlavičce; pokud není cookie čitelná, token zůstává pouze v paměti transportu.
   Síťové a parsovací chyby mohou být nativní `Error`; status čti až po `instanceof ApiError`.
@@ -111,6 +112,19 @@ košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platn�
   odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
   varianty se v této integraci neimportují a nedoplňují do databáze.
 
+### Administrace motivů a variant
+
+- `/admin/produkty` používá skutečný seznam motivů, hledání, filtr kategorie/stavu
+  a stránkování. Umožňuje vytvoření, úpravu a potvrzené smazání motivu.
+- Nový motiv je výchozím nastavením koncept. Editace posílá explicitní slug,
+  aby běžná změna ceny neměnila veřejnou URL. Motiv použitý v objednávce se místo
+  smazání deaktivuje; chybu backendu UI nezamění za úspěch.
+- Dialog variant spravuje jednotlivé kombinace typu oblečení, střihu, barvy
+  a velikosti, včetně jejich deaktivace. Číselníky se čtou ze všech stránek,
+  včetně označených neaktivních položek. Duplicitu odmítá backend.
+- Zápisy používají CSRF bootstrap a invalidují odpovídající admin i veřejnou cache.
+  Správa fotografií a CRUD číselníků zatím zbývají; sekce Číselníky je stále demo.
+
 ### Přihlášení a session
 
 Login v patičce i `/prihlaseni` používají stejný formulář a skutečné session API.
@@ -119,7 +133,7 @@ na přihlášení a po úspěchu vrátí na původní administrační URL. Serve
 není považovaný za odhlášení a nabízí opakované ověření. Session se ověřuje také
 po návratu na kartu a každou minutu, pokud je uživatel přihlášený.
 
-Před loginem a logoutem proběhne CSRF bootstrap. Token se po loginu obnoví,
+Před loginem, logoutem i katalogovými zápisy proběhne CSRF bootstrap. Token se po loginu obnoví,
 odhlášení/expirace odstraní chráněná query data. Profil ani přihlašovací údaje
 se nepersistují do web storage; heslo se po pokusu vymaže z formuláře a mutation
 cache. Neúspěšné odhlášení se nevydává za úspěšné.
@@ -128,7 +142,8 @@ cache. Neúspěšné odhlášení se nevydává za úspěšné.
 bun run test:e2e:auth
 ```
 
-Tento test **provádí login a logout** pouze proti lokálnímu backendu. Výchozí
+Tento test **provádí login a logout** pouze proti lokálnímu backendu; administraci
+motivů, detail a varianty ověřuje pouze čtením, bez změn katalogových dat. Výchozí
 dev účet odpovídá Docker seedu (`admin@trikonos.cz` / `change-me`); vlastní
 lokální testovací účet lze zadat přes `API_TEST_ADMIN_EMAIL` a
 `API_TEST_ADMIN_PASSWORD`. Nikdy sem nevkládej produkční údaje. Živý test neběží
@@ -150,7 +165,8 @@ bun run test:e2e
 
 Testy běží v Chromium na desktopu 1440 × 900. Pokrývají navigaci, galerie,
 sezóny, FAQ, filtrování a stránkování katalogu, detail produktu a košík,
-výběr/nahrávání/úpravy potisku, administrativní vyhledávání a CRUD číselníků.
+výběr/nahrávání/úpravy potisku, administrativní vyhledávání, správu motivů/variant
+a dosavadní lokální demo CRUD číselníků.
 
 ## Routy
 
@@ -173,6 +189,7 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
 - `src/pages/` — veřejné stránky a samostatný, líně načítaný administrační modul
 - `src/data/` — statický obsah, sezónní fotografie a zatím demo číselníky vlastního potisku
 - `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
+- `src/admin/catalog/` — správa skutečných motivů a variant
 - `public/` — samostatné kopie potřebných obrázků z původního frontendu, včetně
   dokumentace jejich zdrojů
 
@@ -182,15 +199,16 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config, katalog, jeho číselníky a session autentizace.
-  Administrace katalogu, serverový košík, platby a objednávání zatím napojené nejsou.
+- Na backend jsou napojené config, katalog, čtení jeho číselníků, správa motivů/variant
+  a session autentizace. Správa fotografií/číselníků, serverový košík, platby
+  a objednávání zatím napojené nejsou.
 - Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
   klíči `trikonos-cart-v2` a `trikonos-react-dictionaries-v1`.
 - Nahrané obrázky zůstávají v prohlížeči; větší soubor může přesáhnout jeho
   úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.
-- Statistiky, objednávky a recenze jsou ukázkové. Sekce Produkty a Klienti mají
-  stejné zástupné obrazovky jako HTML předloha, Sezóny obsahují informační seznam.
+- Statistiky, objednávky a recenze jsou ukázkové. Sekce Klienti má zástupnou
+  obrazovku, Sezóny obsahují informační seznam.
 - Vzhled byl laděn pro desktop. Mobilní rozložení není součástí této migrace.
 - Je to vizuálně věrný přepis, nikoli garantovaná pixelová shoda každého stavu:
   formuláře, dialogy, tabulky a FAQ používají MUI a drobně se liší od nativního HTML.

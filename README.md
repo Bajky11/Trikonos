@@ -11,8 +11,9 @@ docker compose -f docker-compose.dev.yaml up --build
 Nová aplikace je ve složce [`frontend2`](frontend2/README.md) (Vite+, React,
 TypeScript, MUI a Bun). Spuštění: v `frontend2` spusť `bun install` a `bun run dev`.
 Konfiguraci, katalog a jeho číselníky načítá přímo z backendu přes
-TanStack Query a klienta generovaného Orvalem. Obsah administrace a editor
-vlastního potisku jsou zatím demo; přístup do administrace vyžaduje skutečné přihlášení.
+TanStack Query a klienta generovaného Orvalem. Administrace motivů a variant je také
+napojená; ostatní administrační sekce a editor vlastního potisku jsou zatím demo.
+Přístup do administrace vyžaduje skutečné přihlášení.
 Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
 
 ## Vývoj v Dockeru (hot reload)
@@ -89,9 +90,11 @@ nevolal `localhost` na zařízení návštěvníka.
 Přihlášení je ověřené lokálně mezi různými porty; produkční domény a HTTPS
 cookies je před nasazením potřeba ověřit samostatně.
 
-Obsah administrace a vlastní potisk stále používají testovací data. Login v patičce
+Ostatní obsah administrace a vlastní potisk stále používají testovací data. Login v patičce
 a `/prihlaseni` používají skutečnou autentizaci backendu; `/admin` je chráněné.
 Konfigurace, katalogové číselníky, kategorie i motivy se načítají ze skutečného API.
+V `/admin/produkty` lze spravovat motivy a jejich povolené varianty; správa fotografií
+a číselníků zatím napojená není.
 Přidání katalogové varianty do košíku zatím uloží jen lokální návrh; checkout
 a serverové ověření celého košíku ještě nejsou dostupné.
 

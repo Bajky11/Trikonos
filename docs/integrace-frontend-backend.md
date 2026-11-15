@@ -137,17 +137,18 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
 - [x] Nahradit lokální varianty backendovými ID a povolenými kombinacemi;
   sjednotit zobrazování cen v Kč z hodnot v haléřích.
 - [x] Doplnit loading, empty, error, 404 a nedostupné varianty.
-- [ ] Napojit admin CRUD motivů, obrázky a jejich pořadí, varianty,
-  kategorie, typy oblečení, barvy, střihy, velikosti a tiskové plochy
-  podle skutečné podpory API; případné mezery dořešit.
-- [ ] Po admin změnách invalidovat odpovídající data a ověřit jejich nové načtení.
+- [x] Napojit admin CRUD motivů a jejich povolených variant.
+- [ ] Napojit správu obrázků a jejich pořadí.
+- [ ] Napojit správu kategorií, typů oblečení, barev, střihů, velikostí
+  a tiskových ploch podle skutečné podpory API; případné mezery dořešit.
+- [x] Po změnách motivů/variant invalidovat odpovídající data a ověřit nové načtení.
 
 **Ověření etapy:** katalog a detail čerpají z API; admin změna se po načtení
 projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě demem.
 
 ### Veřejný katalog a položka košíku (15. 11. 2026)
 
-- Session je v commitu `1600c27`; tato navazující práce se necommituje automaticky.
+- Session je v commitu `1600c27`, veřejný katalog v uživatelem schváleném commitu `0bb52a7`.
 - Uživatel schválil přibrat k veřejnému katalogu minimální úpravu katalogové
   položky košíku; checkout a editor vlastního potisku se funkčně nemění.
 - Katalog, hledání, kategorie, řazení, detail, fotografie a související motivy
@@ -166,6 +167,28 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
   a 30 cílených backendových testů katalogu/kontraktu prošly. Ve skutečné lokální
   DB se ověřil i nedostupný motiv; přidání povolené varianty pokrývají řízená API data.
 - Zbývá `/cart/validate`, plné uživatelské flow košíku, vlastní upload a checkout.
+
+### Administrace motivů a variant (15. 11. 2026)
+
+- `/admin/produkty` nyní spravuje skutečné motivy: hledání, filtry, stránkování,
+  vytvoření, editace, koncept/publikace a potvrzené smazání. Motiv použitý
+  v objednávce nelze smazat; UI nabízí vysvětlení a lze jej deaktivovat.
+- Povolené kombinace mají samostatný CRUD a stránkování. Číselníky se zatím pouze
+  čtou, ze všech stránek a včetně neaktivních položek. Fotografie a CRUD číselníků
+  jsou další samostatné kroky, nikoli dokončená součást této práce.
+- Editace vždy posílá současný explicitní slug; existující backendová politika
+  regenerace při chybějícím slugu se nemění. Nové motivy jsou implicitně koncepty.
+- Orval zahrnuje jen používané admin operace. Drobné backendové opravy zpřesňují
+  OpenAPI request/response a filtry, zajišťují `ordersCount: 0` po vytvoření
+  a odmítají prázdný automaticky vygenerovaný slug.
+- Sdílený CSRF bootstrap chrání zápisy i po reloadu. Mutace invalidují příslušnou
+  admin a veřejnou cache; změna variant neresetuje formulář základních údajů.
+- Ověření: check/build, 21 unit testů, 19 standardních E2E a 31 backendových testů
+  katalogu/core prošly. Oba živé API/auth testy také prošly; admin seznam, detail
+  a varianty ověřily pouze čtením, skutečná katalogová data se neměnila.
+  Build nadále hlásí existující upozornění na hlavní JS chunk přes 500 kB;
+  backendové testy mají stávající Django/DRF deprecation warnings.
+- Tato navazující práce zůstává necommitnutá a nepushnutá.
 
 ## 3. Košík a vlastní potisk
 

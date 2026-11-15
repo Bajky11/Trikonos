@@ -155,4 +155,32 @@ export async function mockStoreApi(page: Page) {
   await mockCatalogApi(page);
   await page.route("**/api/v1/config", (route) => route.fulfill({ json: config }));
   await page.route("**/api/v1/catalog/options", (route) => route.fulfill({ json: options }));
+  await page.route(/\/api\/v1\/admin\/motifs(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { count: 0, results: [], next: null, previous: null } }),
+  );
+  const lookups = [
+    ["categories", categories],
+    ["product-types", options.productTypes],
+    ["cuts", options.cuts],
+    ["colors", options.colors],
+  ] as const;
+  for (const [path, values] of lookups) {
+    await page.route(new RegExp(`/api/v1/admin/${path}(?:\\?.*)?$`), (route) => {
+      const url = new URL(route.request().url());
+      const rows = values.map((item, position) => ({ ...item, position, isActive: true }));
+      // Exercise multi-page lookup loading even with this small fixture.
+      const current = Number(url.searchParams.get("page") ?? 1);
+      return route.fulfill({
+        json: {
+          count: rows.length,
+          results: rows.slice(current - 1, current),
+          next:
+            current < rows.length
+              ? `http://localhost:8000/api/v1/admin/${path}?page=${current + 1}`
+              : null,
+          previous: null,
+        },
+      });
+    });
+  }
 }
