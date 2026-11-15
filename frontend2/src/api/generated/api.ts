@@ -34,6 +34,8 @@ import type {
   Login,
   Me,
   MotifDetail,
+  MotifImageReorder,
+  MotifImageUpload,
   MotifList,
   MotifsListParams,
   PaginatedAdminCategoryList,
@@ -45,6 +47,7 @@ import type {
   PaginatedMotifListList,
   PatchedAdminMotifVariant,
   PatchedAdminMotifWrite,
+  PatchedMotifImagePatch,
 } from "./models";
 
 import { apiFetch } from "../http.ts";
@@ -1999,6 +2002,382 @@ export const useAdminMotifsDestroy = <TError = ErrorType<unknown>, TContext = un
   TContext
 > => {
   return useMutation(getAdminMotifsDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsImagesCreateUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}/images`;
+};
+
+/**
+ * Multipart upload (`file` + nepovinné `altText`, `colorId`). Povolené typy JPG, PNG, WEBP, max 10 MB - typ se ověřuje podle skutečného obsahu souboru (Pillow), ne podle přípony v názvu. Server vygeneruje dvě zmenšeniny (400px a 1200px na delší straně) a uloží je společně s originálem pod náhodným názvem. Nový prvek se přidá na konec pole `images` a dostane vlastní `id` (UUID), přes které se dá dál adresovat (`PATCH`/`DELETE .../images/{imageId}`). **První obrázek v poli `images` je vždy ten hlavní** zobrazovaný ve výpisu - pořadí měníš přes `POST /motifs/{id}/images/reorder`.
+ * @summary Nahrát fotku motivu
+ */
+export const adminMotifsImagesCreate = async (
+  id: string,
+  motifImageUpload: MotifImageUpload,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  const formData = new FormData();
+  formData.append(`file`, motifImageUpload.file);
+  if (motifImageUpload.altText !== undefined) {
+    formData.append(`altText`, motifImageUpload.altText);
+  }
+  if (motifImageUpload.colorId !== undefined && motifImageUpload.colorId !== null) {
+    formData.append(`colorId`, motifImageUpload.colorId);
+  }
+
+  return apiFetch<AdminMotifDetail>(getAdminMotifsImagesCreateUrl(id), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getAdminMotifsImagesCreateMutationKey = () => ["adminMotifsImagesCreate"] as const;
+
+export const getAdminMotifsImagesCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsImagesCreate>>,
+    TError,
+    AdminMotifsImagesCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsImagesCreate>>,
+  TError,
+  AdminMotifsImagesCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsImagesCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsImagesCreate>>,
+    AdminMotifsImagesCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminMotifsImagesCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsImagesCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsImagesCreate>>
+>;
+export type AdminMotifsImagesCreateMutationBody = MotifImageUpload;
+export type AdminMotifsImagesCreateMutationError = ErrorType<unknown>;
+export type AdminMotifsImagesCreateMutationVariables = { id: string; data: MotifImageUpload };
+
+/**
+ * Multipart upload (`file` + nepovinné `altText`, `colorId`). Povolené typy JPG, PNG, WEBP, max 10 MB - typ se ověřuje podle skutečného obsahu souboru (Pillow), ne podle přípony v názvu. Server vygeneruje dvě zmenšeniny (400px a 1200px na delší straně) a uloží je společně s originálem pod náhodným názvem. Nový prvek se přidá na konec pole `images` a dostane vlastní `id` (UUID), přes které se dá dál adresovat (`PATCH`/`DELETE .../images/{imageId}`). **První obrázek v poli `images` je vždy ten hlavní** zobrazovaný ve výpisu - pořadí měníš přes `POST /motifs/{id}/images/reorder`.
+ * @summary Nahrát fotku motivu
+ */
+export const useAdminMotifsImagesCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsImagesCreate>>,
+      TError,
+      AdminMotifsImagesCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsImagesCreate>>,
+  TError,
+  AdminMotifsImagesCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsImagesCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsImagesPartialUpdateUrl = (id: string, imageId: string) => {
+  return `/api/v1/admin/motifs/${id}/images/${imageId}`;
+};
+
+/**
+ * Změní `altText` a/nebo `colorId` jednoho obrázku v poli `images`, podle jeho `id` (ne indexu v poli). `colorId` musí odkazovat na existující barvu, jinak 400. Pro změnu pořadí nebo samotného souboru použij `reorder`/nový `POST .../images`, tento endpoint mění jen metadata.
+ * @summary Upravit popisek/barvu fotky
+ */
+export const adminMotifsImagesPartialUpdate = async (
+  id: string,
+  imageId: string,
+  patchedMotifImagePatch?: PatchedMotifImagePatch,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  return apiFetch<AdminMotifDetail>(getAdminMotifsImagesPartialUpdateUrl(id, imageId), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedMotifImagePatch),
+  });
+};
+
+export const getAdminMotifsImagesPartialUpdateMutationKey = () =>
+  ["adminMotifsImagesPartialUpdate"] as const;
+
+export const getAdminMotifsImagesPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>,
+    TError,
+    AdminMotifsImagesPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>,
+  TError,
+  AdminMotifsImagesPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsImagesPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>,
+    AdminMotifsImagesPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, imageId, data } = props ?? {};
+
+    return adminMotifsImagesPartialUpdate(id, imageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsImagesPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>
+>;
+export type AdminMotifsImagesPartialUpdateMutationBody = PatchedMotifImagePatch | undefined;
+export type AdminMotifsImagesPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminMotifsImagesPartialUpdateMutationVariables = {
+  id: string;
+  imageId: string;
+  data?: PatchedMotifImagePatch;
+};
+
+/**
+ * Změní `altText` a/nebo `colorId` jednoho obrázku v poli `images`, podle jeho `id` (ne indexu v poli). `colorId` musí odkazovat na existující barvu, jinak 400. Pro změnu pořadí nebo samotného souboru použij `reorder`/nový `POST .../images`, tento endpoint mění jen metadata.
+ * @summary Upravit popisek/barvu fotky
+ */
+export const useAdminMotifsImagesPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>,
+      TError,
+      AdminMotifsImagesPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsImagesPartialUpdate>>,
+  TError,
+  AdminMotifsImagesPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsImagesPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsImagesDestroyUrl = (id: string, imageId: string) => {
+  return `/api/v1/admin/motifs/${id}/images/${imageId}`;
+};
+
+/**
+ * Odebere obrázek z pole `images` podle jeho `id` a smaže i jeho soubory z úložiště (originál i obě miniatury) - není to jen smazání záznamu, soubor opravdu zmizí.
+ * @summary Smazat fotku motivu
+ */
+export const adminMotifsImagesDestroy = async (
+  id: string,
+  imageId: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminMotifsImagesDestroyUrl(id, imageId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminMotifsImagesDestroyMutationKey = () => ["adminMotifsImagesDestroy"] as const;
+
+export const getAdminMotifsImagesDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsImagesDestroy>>,
+    TError,
+    AdminMotifsImagesDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsImagesDestroy>>,
+  TError,
+  AdminMotifsImagesDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsImagesDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsImagesDestroy>>,
+    AdminMotifsImagesDestroyMutationVariables
+  > = (props) => {
+    const { id, imageId } = props ?? {};
+
+    return adminMotifsImagesDestroy(id, imageId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsImagesDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsImagesDestroy>>
+>;
+
+export type AdminMotifsImagesDestroyMutationError = ErrorType<unknown>;
+export type AdminMotifsImagesDestroyMutationVariables = { id: string; imageId: string };
+
+/**
+ * Odebere obrázek z pole `images` podle jeho `id` a smaže i jeho soubory z úložiště (originál i obě miniatury) - není to jen smazání záznamu, soubor opravdu zmizí.
+ * @summary Smazat fotku motivu
+ */
+export const useAdminMotifsImagesDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsImagesDestroy>>,
+      TError,
+      AdminMotifsImagesDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsImagesDestroy>>,
+  TError,
+  AdminMotifsImagesDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsImagesDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifsImagesReorderCreateUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}/images/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["imageId1", "imageId2", ...]}` v požadovaném pořadí - přepíše `position` všech uvedených obrázků podle pořadí v seznamu. **První id v seznamu se stává hlavním obrázkem.** Pokud pole `images` obsahuje obrázky, jejichž id v seznamu nejsou, zařadí se za uvedené, ve svém původním relativním pořadí (neztratí se).
+ * @summary Změnit pořadí fotek motivu
+ */
+export const adminMotifsImagesReorderCreate = async (
+  id: string,
+  motifImageReorder: MotifImageReorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminMotifDetail> => {
+  return apiFetch<AdminMotifDetail>(getAdminMotifsImagesReorderCreateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(motifImageReorder),
+  });
+};
+
+export const getAdminMotifsImagesReorderCreateMutationKey = () =>
+  ["adminMotifsImagesReorderCreate"] as const;
+
+export const getAdminMotifsImagesReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>,
+    TError,
+    AdminMotifsImagesReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>,
+  TError,
+  AdminMotifsImagesReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifsImagesReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>,
+    AdminMotifsImagesReorderCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminMotifsImagesReorderCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifsImagesReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>
+>;
+export type AdminMotifsImagesReorderCreateMutationBody = MotifImageReorder;
+export type AdminMotifsImagesReorderCreateMutationError = ErrorType<unknown>;
+export type AdminMotifsImagesReorderCreateMutationVariables = {
+  id: string;
+  data: MotifImageReorder;
+};
+
+/**
+ * Tělo `{"ids": ["imageId1", "imageId2", ...]}` v požadovaném pořadí - přepíše `position` všech uvedených obrázků podle pořadí v seznamu. **První id v seznamu se stává hlavním obrázkem.** Pokud pole `images` obsahuje obrázky, jejichž id v seznamu nejsou, zařadí se za uvedené, ve svém původním relativním pořadí (neztratí se).
+ * @summary Změnit pořadí fotek motivu
+ */
+export const useAdminMotifsImagesReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>,
+      TError,
+      AdminMotifsImagesReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifsImagesReorderCreate>>,
+  TError,
+  AdminMotifsImagesReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifsImagesReorderCreateMutationOptions(options), queryClient);
 };
 
 export const getAdminProductTypesListUrl = (params?: AdminProductTypesListParams) => {

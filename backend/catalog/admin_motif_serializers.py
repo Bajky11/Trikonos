@@ -1,5 +1,6 @@
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from core.exceptions import FileTooLargeError
@@ -7,6 +8,21 @@ from core.exceptions import FileTooLargeError
 from .models import Category, Color, Motif
 
 MOTIF_IMAGE_MAX_SIZE = 10 * 1024 * 1024
+
+
+class AdminMotifImageSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    url = serializers.CharField()
+    thumbnail_small_url = serializers.CharField()
+    thumbnail_large_url = serializers.CharField()
+    alt_text = serializers.CharField(allow_blank=True)
+    color_id = serializers.UUIDField(allow_null=True)
+    position = serializers.IntegerField()
+
+
+@extend_schema_field(AdminMotifImageSerializer(many=True))
+class AdminMotifImagesField(serializers.JSONField):
+    """Describe stored image metadata without changing its representation."""
 
 
 class AdminMotifCategoryRefSerializer(serializers.ModelSerializer):
@@ -25,6 +41,7 @@ class AdminMotifListSerializer(serializers.ModelSerializer):
 
 
 class AdminMotifDetailSerializer(serializers.ModelSerializer):
+    images = AdminMotifImagesField(read_only=True)
     category = AdminMotifCategoryRefSerializer(read_only=True)
     orders_count = serializers.IntegerField(read_only=True, default=0)
 
@@ -57,8 +74,13 @@ class AdminMotifWriteSerializer(serializers.ModelSerializer):
         return attrs
 
 
+@extend_schema_field({'type': 'string', 'format': 'binary'})
+class UploadedImageField(serializers.ImageField):
+    pass
+
+
 class MotifImageUploadSerializer(serializers.Serializer):
-    file = serializers.ImageField()
+    file = UploadedImageField()
     alt_text = serializers.CharField(required=False, allow_blank=True, default='')
     color_id = serializers.PrimaryKeyRelatedField(
         source='color', queryset=Color.objects.all(), required=False, allow_null=True, default=None,
@@ -79,3 +101,8 @@ class MotifImagePatchSerializer(serializers.Serializer):
 
 class MotifImageReorderSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+
+    def validate_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(_('Image ids must be unique.'))
+        return value

@@ -112,7 +112,7 @@ košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platn�
   odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
   varianty se v této integraci neimportují a nedoplňují do databáze.
 
-### Administrace motivů a variant
+### Administrace motivů, variant a fotografií
 
 - `/admin/produkty` používá skutečný seznam motivů, hledání, filtr kategorie/stavu
   a stránkování. Umožňuje vytvoření, úpravu a potvrzené smazání motivu.
@@ -122,8 +122,14 @@ košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platn�
 - Dialog variant spravuje jednotlivé kombinace typu oblečení, střihu, barvy
   a velikosti, včetně jejich deaktivace. Číselníky se čtou ze všech stránek,
   včetně označených neaktivních položek. Duplicitu odmítá backend.
+- Dialog Fotografie nahrává JPG/PNG/WEBP do 10 MB přímo přes backendové multipart API.
+  Server kontroluje obsah a ukládá originál i náhledy (400 a 1200 px) do
+  `media/motifs/<UUID>/` v persistentním Docker volume. V databázi jsou metadata.
+- Lze změnit popisek, přiřadit/odebrat barvu a šipkami změnit pořadí; první fotografie
+  je hlavní obrázek katalogu. Potvrzené smazání odstraní originál i oba náhledy.
 - Zápisy používají CSRF bootstrap a invalidují odpovídající admin i veřejnou cache.
-  Správa fotografií a CRUD číselníků zatím zbývají; sekce Číselníky je stále demo.
+  CRUD číselníků zatím zbývá; sekce Číselníky je stále demo. Fotografie se neukládají
+  do localStorage. Produkční zálohy musí zahrnovat databázi i media volume.
 
 ### Přihlášení a session
 
@@ -143,7 +149,7 @@ bun run test:e2e:auth
 ```
 
 Tento test **provádí login a logout** pouze proti lokálnímu backendu; administraci
-motivů, detail a varianty ověřuje pouze čtením, bez změn katalogových dat. Výchozí
+motivů, detail, varianty a dialog fotografií ověřuje pouze čtením, bez změn katalogových dat. Výchozí
 dev účet odpovídá Docker seedu (`admin@trikonos.cz` / `change-me`); vlastní
 lokální testovací účet lze zadat přes `API_TEST_ADMIN_EMAIL` a
 `API_TEST_ADMIN_PASSWORD`. Nikdy sem nevkládej produkční údaje. Živý test neběží
@@ -165,7 +171,7 @@ bun run test:e2e
 
 Testy běží v Chromium na desktopu 1440 × 900. Pokrývají navigaci, galerie,
 sezóny, FAQ, filtrování a stránkování katalogu, detail produktu a košík,
-výběr/nahrávání/úpravy potisku, administrativní vyhledávání, správu motivů/variant
+výběr/nahrávání/úpravy potisku, administrativní vyhledávání, správu motivů/variant/fotografií
 a dosavadní lokální demo CRUD číselníků.
 
 ## Routy
@@ -189,7 +195,7 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
 - `src/pages/` — veřejné stránky a samostatný, líně načítaný administrační modul
 - `src/data/` — statický obsah, sezónní fotografie a zatím demo číselníky vlastního potisku
 - `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
-- `src/admin/catalog/` — správa skutečných motivů a variant
+- `src/admin/catalog/` — správa skutečných motivů, variant a fotografií
 - `public/` — samostatné kopie potřebných obrázků z původního frontendu, včetně
   dokumentace jejich zdrojů
 
@@ -199,12 +205,12 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config, katalog, čtení jeho číselníků, správa motivů/variant
-  a session autentizace. Správa fotografií/číselníků, serverový košík, platby
+- Na backend jsou napojené config, katalog, čtení jeho číselníků, správa motivů/variant/fotografií
+  a session autentizace. Správa číselníků, serverový košík, platby
   a objednávání zatím napojené nejsou.
 - Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
   klíči `trikonos-cart-v2` a `trikonos-react-dictionaries-v1`.
-- Nahrané obrázky zůstávají v prohlížeči; větší soubor může přesáhnout jeho
+- Nahrané obrázky vlastního potisku zůstávají v prohlížeči; větší soubor může přesáhnout jeho
   úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.
 - Statistiky, objednávky a recenze jsou ukázkové. Sekce Klienti má zástupnou

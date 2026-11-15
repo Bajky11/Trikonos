@@ -30,8 +30,11 @@ import { catalogMutationKey, useAdminCategories, useCatalogMutation } from "./ap
 import { catalogError } from "./forms";
 import { MotifForm } from "./MotifForm";
 import { VariantsPanel } from "./VariantsPanel";
+import { ImagesPanel } from "./ImagesPanel";
 
-type Editor = { mode: "motif"; id?: string } | { mode: "variants"; id: string; name: string };
+type Editor =
+  | { mode: "motif"; id?: string }
+  | { mode: "variants" | "images"; id: string; name: string };
 
 function EditMotif({ id, onSaved }: { id?: string; onSaved: () => void }) {
   const categories = useAdminCategories();
@@ -173,6 +176,17 @@ export function ProductsPanel({ search }: { search: string }) {
                           Varianty
                         </Button>
                         <Button
+                          onClick={() => {
+                            client.removeQueries({
+                              queryKey: getAdminMotifsRetrieveQueryKey(product.id),
+                              exact: true,
+                            });
+                            setEditor({ mode: "images", id: product.id, name: product.name });
+                          }}
+                        >
+                          Fotografie
+                        </Button>
+                        <Button
                           color="error"
                           onClick={() => {
                             setError("");
@@ -207,8 +221,8 @@ export function ProductsPanel({ search }: { search: string }) {
         fullWidth
       >
         <DialogTitle>
-          {editor?.mode === "variants"
-            ? `Varianty: ${editor.name}`
+          {editor?.mode === "variants" || editor?.mode === "images"
+            ? `${editor.mode === "variants" ? "Varianty" : "Fotografie"}: ${editor.name}`
             : editor?.id
               ? "Upravit motiv"
               : "Nový motiv"}
@@ -216,6 +230,8 @@ export function ProductsPanel({ search }: { search: string }) {
         <DialogContent>
           {editor?.mode === "variants" ? (
             <VariantsPanel key={editor.id} motifId={editor.id} />
+          ) : editor?.mode === "images" ? (
+            <ImagesPanel key={editor.id} motifId={editor.id} />
           ) : (
             editor && (
               <EditMotif

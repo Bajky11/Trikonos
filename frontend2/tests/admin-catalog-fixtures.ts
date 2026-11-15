@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
-import type { AdminMotifDetail, AdminMotifVariant } from "../src/api/generated/models";
+import type {
+  AdminMotifDetail,
+  AdminMotifImage,
+  AdminMotifVariant,
+} from "../src/api/generated/models";
 import type {
   AdminMotifsCreateMutationBody,
   AdminMotifVariantsCreateMutationBody,
@@ -28,7 +32,9 @@ export async function mockAdminCatalog(
   initial: AdminMotifDetail[] = [],
   inUse = false,
 ) {
-  let records = structuredClone(initial);
+  let records: (Omit<AdminMotifDetail, "images"> & { images: AdminMotifImage[] })[] = initial.map(
+    (item) => ({ ...structuredClone(item), images: structuredClone([...(item.images ?? [])]) }),
+  );
   let variants: AdminMotifVariant[] = [];
   let sequence = 100;
   const id = () => `20000000-0000-0000-0000-${String(sequence++).padStart(12, "0")}`;
@@ -53,7 +59,7 @@ export async function mockAdminCatalog(
         createdAt: "2026-11-15T12:00:00Z",
         updatedAt: "2026-11-15T12:00:00Z",
       };
-      records.push(item);
+      records.push({ ...item, images: [] });
       return route.fulfill({ status: 201, json: item });
     }
     const params = new URL(route.request().url()).searchParams;
@@ -130,13 +136,51 @@ export async function mockAdminCatalog(
     return route.fulfill({ json: item });
   });
 
+  await page.route(/\/api\/v1\/admin\/motifs\/[0-9a-f-]+\/images(?:\/[^/?]+)?$/, (route) => {
+    const parts = new URL(route.request().url()).pathname.split("/");
+    const item = records.find((record) => record.id === parts[5])!;
+    const imageId = parts[7];
+    if (imageId === "reorder") {
+      const body = route.request().postDataJSON() as { ids: string[] };
+      item.images = body.ids.map((id, position) => ({
+        ...item.images!.find((image) => image.id === id)!,
+        position,
+      }));
+    } else if (route.request().method() === "DELETE") {
+      item.images = item.images!.filter((image) => image.id !== imageId);
+      return route.fulfill({ status: 204 });
+    } else if (route.request().method() === "PATCH") {
+      Object.assign(
+        item.images!.find((image) => image.id === imageId)!,
+        route.request().postDataJSON(),
+      );
+    } else {
+      const body = route.request().postData() ?? "";
+      const part = (name: string) =>
+        new RegExp(`name="${name}"\\r\\n\\r\\n([^\\r]*)`).exec(body)?.[1] ?? "";
+      const url =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6YQAAAABJRU5ErkJggg==";
+      item.images!.push({
+        id: id(),
+        url,
+        thumbnailSmallUrl: url,
+        thumbnailLargeUrl: url,
+        altText: part("altText"),
+        colorId: part("colorId") || null,
+        position: item.images!.length,
+      });
+      return route.fulfill({ status: 201, json: item });
+    }
+    return route.fulfill({ json: item });
+  });
+
   const publicItem = (item: AdminMotifDetail) => ({
     id: item.id,
     slug: item.slug,
     name: item.name,
     price: item.price,
     currency: "CZK",
-    mainImage: null,
+    mainImage: item.images?.[0]?.url ?? null,
     category: {
       name: item.category.name,
       slug: categories.find((category) => category.id === item.category.id)!.slug,
@@ -153,7 +197,7 @@ export async function mockAdminCatalog(
           json: {
             ...publicItem(item),
             description: item.description,
-            images: [],
+            images: item.images,
             variants: variants.filter((variant) => variant.motifId === item.id && variant.isActive),
           },
         })

@@ -138,7 +138,7 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
   sjednotit zobrazování cen v Kč z hodnot v haléřích.
 - [x] Doplnit loading, empty, error, 404 a nedostupné varianty.
 - [x] Napojit admin CRUD motivů a jejich povolených variant.
-- [ ] Napojit správu obrázků a jejich pořadí.
+- [x] Napojit správu obrázků a jejich pořadí.
 - [ ] Napojit správu kategorií, typů oblečení, barev, střihů, velikostí
   a tiskových ploch podle skutečné podpory API; případné mezery dořešit.
 - [x] Po změnách motivů/variant invalidovat odpovídající data a ověřit nové načtení.
@@ -188,7 +188,30 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
   a varianty ověřily pouze čtením, skutečná katalogová data se neměnila.
   Build nadále hlásí existující upozornění na hlavní JS chunk přes 500 kB;
   backendové testy mají stávající Django/DRF deprecation warnings.
-- Tato navazující práce zůstává necommitnutá a nepushnutá.
+- Správa motivů a variant byla na pokyn uživatele commitnutá jako `a8c079f`; bez pushe.
+
+### Fotografie motivů (15. 11. 2026)
+
+- V `/admin/produkty` přibyl dialog Fotografie: upload JPG/PNG/WEBP do 10 MB,
+  popisek, volitelné přiřazení k barvě, změna pořadí šipkami a potvrzené mazání.
+  První fotografie je hlavní obrázek katalogu. Po zápisu se invaliduje admin detail
+  i veřejná cache; formulář po úspěšném uploadu vyčistí výběr souboru a metadata.
+- Využívá stávající backendové úložiště: originál a dva náhledy v
+  `media/motifs/<UUID>/`, v persistentním volume `dev_media_data` / `media_data`.
+  Databáze ukládá metadata a cesty. Produkční zálohy musí zahrnovat obojí.
+- Backend dostal přesný OpenAPI popis obrázků, binárního multipart uploadu
+  a PATCH metadat. Orval generuje skutečný FormData klient; transport neurčuje
+  multipart Content-Type ručně, boundary vytváří browser.
+- Drobná validace odmítá duplicitní ID při změně pořadí, která dříve mohla
+  zdvojit záznam fotografie. Stávající backendové testy byly rozšířeny o tento
+  případ, camelCase odpověď a nastavení/odebrání barvy.
+- Jeden ucelený nový E2E scénář ověřuje upload včetně odmítnutí, zachování možnosti
+  opakovat požadavek, metadata, pořadí, potvrzení mazání, CSRF a veřejnou cache.
+- Ověření: check/build, 21 unit testů, 20 standardních E2E, oba živé API/auth testy
+  a 31 backendových testů katalogu/core prošly. Živé ověření fotografií pouze četlo;
+  upload a mazání se testovaly na izolovaných datech. Skutečná katalogová DB ani
+  media volume nebyly doplňovány či měněny. Stávající build/deprecation warnings zůstávají.
+- Fotografie jsou zatím necommitnuté a nepushnuté. Další bod je skutečný CRUD číselníků.
 
 ## 3. Košík a vlastní potisk
 

@@ -430,8 +430,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       <p className="admin-prototype">
-        Správa motivů a variant používá backend. Přehled, objednávky a ostatní sekce jsou zatím
-        ukázkové.
+        Správa motivů, variant a fotografií používá backend. Přehled, objednávky a ostatní sekce
+        jsou zatím ukázkové.
       </p>
     </>
   );

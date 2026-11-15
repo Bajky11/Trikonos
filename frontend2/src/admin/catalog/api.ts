@@ -46,6 +46,14 @@ export function useVariantLookups() {
   });
 }
 
+export function useAdminColors() {
+  return useQuery({
+    queryKey: ["/api/v1/admin/colors", "all"],
+    queryFn: ({ signal }) =>
+      allPages((page) => adminColorsList({ page, pageSize: 100 }, { signal })),
+  });
+}
+
 export const catalogMutationKey = ["admin-catalog-write"];
 
 export function useCatalogMutation<T, R>(
@@ -55,6 +63,8 @@ export function useCatalogMutation<T, R>(
   const client = useQueryClient();
   return useMutation({
     mutationKey: catalogMutationKey,
+    // Upload variables can contain large Files; do not retain completed writes.
+    gcTime: 0,
     mutationFn: (data: T) => withCsrf(() => request(data)),
     onSuccess: () => {
       const prefixes = [`/api/v1/admin/${resource}`, "/api/v1/motifs"];

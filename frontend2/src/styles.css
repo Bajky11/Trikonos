@@ -792,6 +792,17 @@
   gap: 16px;
   padding: 20px;
 }
+.admin-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+.admin-image-card {
+  min-width: 0;
+}
+.admin-image-card .product-art {
+  height: 200px;
+}
 .catalog-heading h1 {
   font:
     700 clamp(32px, 4vw, 52px)/1.1 Manrope,

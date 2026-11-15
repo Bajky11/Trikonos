@@ -182,7 +182,7 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
             'poli `images` je vždy ten hlavní** zobrazovaný ve výpisu - pořadí '
             'měníš přes `POST /motifs/{id}/images/reorder`.'
         ),
-        request=MotifImageUploadSerializer,
+        request={'multipart/form-data': MotifImageUploadSerializer},
         responses={201: AdminMotifDetailSerializer},
     )
     @action(detail=True, methods=['post'])
@@ -288,6 +288,7 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
         methods=['PATCH'],
         tags=_TAG,
         summary='Upravit popisek/barvu fotky',
+        request=MotifImagePatchSerializer,
         description=(
             'Změní `altText` a/nebo `colorId` jednoho obrázku v poli `images`, '
             'podle jeho `id` (ne indexu v poli). `colorId` musí odkazovat na '

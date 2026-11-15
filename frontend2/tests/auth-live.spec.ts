@@ -49,6 +49,11 @@ test("local Docker login, session after reload and CSRF-protected logout", async
     ).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
   }
+  if (data.count > 0) {
+    await page.getByRole("button", { name: "Fotografie", exact: true }).first().click();
+    await expect(page.getByRole("dialog").getByLabel("Soubor fotografie")).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
+  }
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);
