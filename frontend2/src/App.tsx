@@ -7,6 +7,8 @@ import { HomePage } from "./pages/HomePage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { ProductPage } from "./pages/ProductPage";
 import { useTitle } from "./useTitle";
+import { RequireAuth } from "./auth/RequireAuth";
+import { LoginPage } from "./pages/LoginPage";
 
 // Administration is not needed by storefront visitors.
 const AdminLayout = lazy(() =>
@@ -59,11 +61,14 @@ export function App() {
               <Route index element={<HomePage />} />
               <Route path="tricka" element={<CatalogPage />} />
               <Route path="produkt/:id" element={<ProductPage />} />
+              <Route path="prihlaseni" element={<LoginPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
-            <Route path="admin" element={<AdminLayout />}>
-              <Route index element={<AdminPage section="prehled" />} />
-              <Route path=":section" element={<AdminPage />} />
+            <Route element={<RequireAuth />}>
+              <Route path="admin" element={<AdminLayout />}>
+                <Route index element={<AdminPage section="prehled" />} />
+                <Route path=":section" element={<AdminPage />} />
+              </Route>
             </Route>
           </Routes>
         </Suspense>

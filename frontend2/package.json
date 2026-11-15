@@ -6,6 +6,7 @@
   "scripts": {
     "api:generate": "orval --config orval.config.ts && vp fmt src/api/generated",
     "test:e2e:api": "LIVE_API_TESTS=1 playwright test tests/api-live.spec.ts",
+    "test:e2e:auth": "LIVE_AUTH_TESTS=1 playwright test tests/auth-live.spec.ts",
     "dev": "vp dev",
     "build": "tsc && vp build",
     "check": "vp check",

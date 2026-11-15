@@ -60,7 +60,7 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zatím zahrnuje pouze napojené config/options;
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options a čtyři session endpointy;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -71,7 +71,8 @@ pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
 - Běžný build ani unit testy nevyžadují živý backend ani regenerování klienta.
 - `src/api/http.ts` přidává origin, `credentials: include`, lokální CSRF cookie
   u zápisů a `ApiError` se statusem a původním tělem chyby. Podporuje AbortSignal,
-  FormData a prázdné odpovědi. Token bootstrap a cross-host admin auth jsou další krok.
+  FormData a prázdné odpovědi. Bootstrap a login vracejí token také v CORS-exposed
+  hlavičce; pokud není cookie čitelná, token zůstává pouze v paměti transportu.
   Síťové a parsovací chyby mohou být nativní `Error`; status čti až po `instanceof ApiError`.
 - `src/api/queryClient.ts` nastavuje pětiminutovou čerstvost dat, nejvýše jeden
   retry čtení při síťové/serverové chybě, žádný retry 4xx ani automatický retry mutací.
@@ -79,7 +80,7 @@ pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
   ale katalog a editor zatím stále používají demo varianty. Prázdné kontakty
   se nezastupují vymyšleným e-mailem; chyba API nabízí opakované načtení.
 
-Standardní Playwright testy mockují tyto dva endpointy a nepotřebují backend.
+Standardní Playwright testy mockují API a nepotřebují backend.
 Pro ověření skutečného CORS spojení z browseru se spuštěným Docker backendem:
 
 ```sh
@@ -88,6 +89,29 @@ bun run test:e2e:api
 
 Tento smoke test používá `localhost` pro frontend i backend, ověřuje také
 odeslání testovací cookie, pouze čte a nevytváří objednávky.
+
+### Přihlášení a session
+
+Login v patičce i `/prihlaseni` používají stejný formulář a skutečné session API.
+Přímé otevření `/admin/...` nejprve ověří `/auth/me`; anonymního uživatele pošle
+na přihlášení a po úspěchu vrátí na původní administrační URL. Serverový výpadek
+není považovaný za odhlášení a nabízí opakované ověření. Session se ověřuje také
+po návratu na kartu a každou minutu, pokud je uživatel přihlášený.
+
+Před loginem a logoutem proběhne CSRF bootstrap. Token se po loginu obnoví,
+odhlášení/expirace odstraní chráněná query data. Profil ani přihlašovací údaje
+se nepersistují do web storage; heslo se po pokusu vymaže z formuláře a mutation
+cache. Neúspěšné odhlášení se nevydává za úspěšné.
+
+```sh
+bun run test:e2e:auth
+```
+
+Tento test **provádí login a logout** pouze proti lokálnímu backendu. Výchozí
+dev účet odpovídá Docker seedu (`admin@trikonos.cz` / `change-me`); vlastní
+lokální testovací účet lze zadat přes `API_TEST_ADMIN_EMAIL` a
+`API_TEST_ADMIN_PASSWORD`. Nikdy sem nevkládej produkční údaje. Živý test neběží
+v běžné sadě E2E. Produkční cross-host/HTTPS cookies je nutné ověřit při nasazení.
 
 ```sh
 bun run check       # formátování, lint a typová kontrola
@@ -112,6 +136,7 @@ výběr/nahrávání/úpravy potisku, administrativní vyhledávání a CRUD č�
 - `/` — úvodní stránka, galerie realizací, sezóny, katalog, editor potisku a FAQ
 - `/tricka` — celý katalog (`?kategorie=bitcoin&strana=2` pro filtr a stránku)
 - `/produkt/:id` — detail produktu, například `/produkt/trikonos-1260`
+- `/prihlaseni` — skutečné přihlášení do administrace
 - `/admin` — přehled
 - `/admin/objednavky`, `/admin/produkty`, `/admin/sezony`, `/admin/klienti`, `/admin/ciselniky`
 
@@ -135,13 +160,13 @@ Fontsource; aplikace nepotřebuje Google Fonts ani síťové načítání katalo
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config a katalogové číselníky. Skutečná autentizace,
-  katalog, platby a objednávání zatím napojené nejsou.
+- Na backend jsou napojené config, katalogové číselníky a session autentizace.
+  Katalog, platby a objednávání zatím napojené nejsou.
 - Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
   klíči `trikonos-react-demo-cart-v1` a `trikonos-react-dictionaries-v1`.
 - Nahrané obrázky zůstávají v prohlížeči; větší soubor může přesáhnout jeho
   úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
-- Login v patičce pouze otevře demo administraci; údaje neodesílá ani neukládá.
+- Obnova a změna hesla zatím nemají frontendové rozhraní.
 - Statistiky, objednávky a recenze jsou ukázkové. Sekce Produkty a Klienti mají
   stejné zástupné obrazovky jako HTML předloha, Sezóny obsahují informační seznam.
 - Vzhled byl laděn pro desktop. Mobilní rozložení není součástí této migrace.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Button, Dialog, DialogContent, DialogTitle, IconButton, TextField } from "@mui/material";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import { Button, Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
 import Close from "@mui/icons-material/Close";
 import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined";
 import Undo from "@mui/icons-material/Undo";
@@ -9,6 +9,7 @@ import Checkroom from "@mui/icons-material/Checkroom";
 import { useShop } from "./ShopContext";
 import { useConfigRetrieve } from "../api/generated/api";
 import { useStoreData } from "../api/useStoreData";
+import { LoginForm } from "../auth/LoginForm";
 
 const navigation = [
   ["nase-prace", "Naše práce"],
@@ -130,7 +131,6 @@ function Footer() {
   const { config, options } = useStoreData();
   const shopName = config.data?.shopName || "Trikonoš";
   const [login, setLogin] = useState(false);
-  const navigate = useNavigate();
   return (
     <>
       <footer className="store-footer" id="kontakt">
@@ -216,34 +216,7 @@ function Footer() {
         </DialogTitle>
         <DialogContent>
           <p className="section-label">Trikonoš admin</p>
-          <form
-            className="dialog-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.currentTarget.reset();
-              setLogin(false);
-              void navigate("/admin");
-            }}
-          >
-            <TextField
-              label="Přihlašovací jméno"
-              name="username"
-              autoComplete="username"
-              autoFocus
-            />
-            <TextField
-              label="Heslo"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-            />
-            <Button variant="contained" type="submit">
-              Přihlásit se →
-            </Button>
-            <small className="muted">
-              Ukázková administrace. Přihlašovací údaje se nikam neposílají ani neukládají.
-            </small>
-          </form>
+          <LoginForm />
         </DialogContent>
       </Dialog>
     </>

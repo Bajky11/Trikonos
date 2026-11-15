@@ -1,10 +1,12 @@
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.tokens import default_token_generator
 from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils.translation import gettext as _
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from django.views.decorators.csrf import csrf_protect
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -22,6 +24,10 @@ from .serializers import (
 User = get_user_model()
 
 _TAG = ['Admin - přihlášení']
+_CSRF_RESPONSE_HEADER = OpenApiParameter(
+    'X-CSRFToken', type=str, location=OpenApiParameter.HEADER,
+    response=[200, 204], description='CSRF token pro další zápis; po loginu je obnovený.',
+)
 
 
 class CsrfView(APIView):
@@ -38,16 +44,20 @@ class CsrfView(APIView):
             'cookie `csrftoken` v odpovědi. Hodnotu z cookie si frontend musí přečíst '
             '(JS má k ní přístup, cookie není httpOnly) a poslat v headeru '
             '`X-CSRFToken` u všech dalších nebezpečných requestů na `/admin/...`. '
-            'Žádné tělo požadavku ani odpovědi.'
+            'Žádné tělo požadavku ani odpovědi. Token je také v response headeru '
+            '`X-CSRFToken`, dostupném přes CORS i frontendu na jiném hostname.'
         ),
         request=None,
+        parameters=[_CSRF_RESPONSE_HEADER],
         responses={204: OpenApiResponse(description='CSRF cookie nastavena v odpovědi.')},
     )
     def get(self, request):
-        get_token(request)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={
+            'X-CSRFToken': get_token(request), 'Cache-Control': 'no-store',
+        })
 
 
+@method_decorator(csrf_protect, name='dispatch')
 class LoginView(APIView):
     """Přihlášení e-mailem a heslem, založí session."""
     permission_classes = [AllowAny]
@@ -65,9 +75,11 @@ class LoginView(APIView):
             'překročení 429. Před tímto voláním musí proběhnout `GET /auth/csrf`.'
         ),
         request=LoginSerializer,
+        parameters=[_CSRF_RESPONSE_HEADER],
         responses={
             200: MeSerializer,
             401: OpenApiResponse(description='Nesprávný e-mail nebo heslo.'),
+            403: OpenApiResponse(description='Chybějící/neplatný CSRF token nebo nepovolený origin.'),
             429: OpenApiResponse(description='Překročen limit pokusů o přihlášení.'),
         },
     )
@@ -94,7 +106,11 @@ class LoginView(APIView):
             )
 
         login(request, user)
-        return Response(MeSerializer(user).data)
+        # Django rotates the CSRF secret during login. Cross-host clients cannot
+        # read this cookie, so return the new masked token in a CORS-exposed header.
+        return Response(MeSerializer(user).data, headers={
+            'X-CSRFToken': get_token(request), 'Cache-Control': 'no-store',
+        })
 
 
 class LogoutView(APIView):
@@ -106,7 +122,10 @@ class LogoutView(APIView):
         summary='Odhlásit se',
         description='Zruší session aktuálně přihlášeného uživatele. Bez těla požadavku.',
         request=None,
-        responses={204: OpenApiResponse(description='Session zrušena.')},
+        responses={
+            204: OpenApiResponse(description='Session zrušena.'),
+            403: OpenApiResponse(description='Chybí přihlášení nebo platný CSRF token.'),
+        },
     )
     def post(self, request):
         logout(request)
@@ -125,10 +144,13 @@ class MeView(APIView):
             'Frontend si tím po načtení stránky (nebo po refreshi) ověří, že session '
             'je stále platná.'
         ),
-        responses={200: MeSerializer},
+        responses={
+            200: MeSerializer,
+            403: OpenApiResponse(description='Je nutné přihlášení.'),
+        },
     )
     def get(self, request):
-        return Response(MeSerializer(request.user).data)
+        return Response(MeSerializer(request.user).data, headers={'Cache-Control': 'no-store'})
 
 
 class ChangePasswordView(APIView):

@@ -28,6 +28,8 @@ import { defaultDictionaries, dictionaryTitles, orders } from "../data/content";
 import type { Dictionaries, DictionaryItem, DictionaryKind } from "../data/content";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
+import { useLogout } from "../auth/session";
+import type { Me } from "../api/generated/models";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -38,6 +40,8 @@ const sections = [
   ["ciselniky", "Číselníky"],
 ];
 export function AdminLayout() {
+  const user = useOutletContext<Me>();
+  const logout = useLogout();
   const { section = "prehled" } = useParams();
   const [search, setSearch] = useState("");
   const title = sections.find(([id]) => id === section)?.[1] || "Stránka nenalezena";
@@ -76,11 +80,16 @@ export function AdminLayout() {
               slotProps={{ htmlInput: { "aria-label": "Hledat v objednávkách" } }}
             />
             <Avatar className="admin-avatar" variant="square">
-              TK
+              {(user.name || user.email).slice(0, 2).toLocaleUpperCase("cs")}
             </Avatar>
+            <span>{user.name || user.email}</span>
+            <Button disabled={logout.isPending} onClick={() => logout.mutate()}>
+              Odhlásit se
+            </Button>
           </div>
         </header>
         <main className="admin-content">
+          {logout.isError && <p role="alert">Odhlášení se nezdařilo. Zkuste to znovu.</p>}
           <Outlet context={{ search }} />
         </main>
       </div>

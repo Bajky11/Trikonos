@@ -1,7 +1,8 @@
 # Propojení frontendu a backendu
 
 Průběžný plán a checklist kompletní integrace. Aktualizováno 15. 11. 2026.
-Implementace probíhá: základ čtení API je hotový, autentizace je další krok.
+Implementace probíhá: základ čtení API a session přihlášení jsou hotové;
+další velká etapa je katalog. Obnova a změna hesla na FE ještě zbývají.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
 
@@ -58,13 +59,14 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
   neupravovat ručně; vlastní chování držet mimo něj.
 - [x] Nastavit lokální CORS, credentials a CSRF trusted origins; zdokumentovat
   cookie rozdíl mezi `localhost` a `127.0.0.1`. Produkční session ověření zbývá.
-- [ ] Ověřit získání CSRF tokenu i jeho obnovu po loginu; při odlišném hostname
+- [x] Ověřit získání CSRF tokenu i jeho obnovu po loginu; při odlišném hostname
   nelze automaticky předpokládat čitelnost backendové CSRF cookie z FE.
 - [x] Napojit config a katalogové číselníky, generované query keys, pětiminutovou
   čerstvost cache a omezené retry čtení; zakázat automatické retry mutací.
 - [ ] Doplnit cílené invalidace při zavádění mutací jednotlivých oblastí.
-- [ ] Napojit login, logout, session/me, expiraci session, změnu a obnovu hesla;
+- [x] Napojit login, logout, session/me, expiraci session;
   chránit admin routy a správně obsloužit 401/403.
+- [ ] Doplnit frontendové formuláře změny a obnovy hesla.
 
 **Ověření etapy:** reálné config/options požadavky a session po reloadu;
 úspěšné i zamítnuté CORS/CSRF požadavky, odhlášení a nepovolené admin operace.
@@ -96,6 +98,28 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
   v `implementation_rules/test_services.py`; mimo rozsah této integrace.
 - **Další krok:** skutečné přihlášení, session/me, logout a ochrana admin rout;
   teprve poté pokračovat katalogem. Úplný audit schématu ostatních oblastí zbývá.
+
+### Session přihlášení (15. 11. 2026, navazující změny)
+
+- Předchozí základ integrace je v commitu `b96750d`. Navazující změny se
+  necommitují bez dalšího výslovného rozhodnutí uživatele.
+- Skutečný login v patičce a `/prihlaseni`, kontrola `/auth/me` před admin routou,
+  návrat na původní administrační URL, logout, ověření po reloadu/focus a polling
+  přihlášené session. Síťová chyba není zaměněná za anonymního uživatele.
+- CSRF bootstrap zůstává `204`, navíc vrací token v hlavičce `X-CSRFToken`
+  vystavené přes CORS. Login vynucuje CSRF i anonymně a po rotaci vrací nový token.
+  Není potřeba rozšiřovat cookie doménu ani persistovat token do web storage.
+- Session zůstává v httpOnly cookie, po odhlášení/expiraci se čistí chráněná cache.
+  Heslo se po pokusu odstraní z formuláře a mutation cache. Všechny backendové
+  účty jsou administrátorské; nevymýšlíme nové role.
+- Orval nyní zahrnuje čtyři auth operace, celkem 13 generovaných souborů.
+  Při čištění generovaného adresáře vynechává runtime modul, aby neztratil Vite HMR
+  sledování souboru. Katalog a obsah adminu zůstávají demo.
+- Živý lokální test `bun run test:e2e:auth` ověřil skutečný login, reload a logout.
+  Produkční domény/HTTPS nebyly nasazovány ani ověřovány.
+- Ověření: frontend check/build, 21 unit testů, 16 standardních E2E testů,
+  oba živé API/auth testy; backendové aplikační sady 152 passed, 1 skipped.
+  Obnova/změna hesla a napojení administračních dat nejsou součástí tohoto kroku.
 
 ## 2. Katalog a jeho administrace
 

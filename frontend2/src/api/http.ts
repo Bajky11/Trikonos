@@ -1,4 +1,9 @@
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+let csrfHeaderToken: string | undefined;
+
+export function clearCsrfToken() {
+  csrfHeaderToken = undefined;
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -14,8 +19,8 @@ export class ApiError extends Error {
   }
 }
 
-// Works for local same-host/different-port development. Cross-host admin auth
-// needs a separate CSRF token bootstrap; never widen the session cookie domain.
+// Prefer the current cookie locally (including rotations from another tab).
+// Cross-host clients use the token returned by the CSRF/login response headers.
 function csrfToken() {
   const value = document.cookie
     .split("; ")
@@ -28,7 +33,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const headers = new Headers(options.headers);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (!["GET", "HEAD", "OPTIONS"].includes((options.method ?? "GET").toUpperCase())) {
-    const token = csrfToken();
+    const token = csrfToken() ?? csrfHeaderToken;
     if (token) headers.set("X-CSRFToken", token);
   }
   const response = await fetch(`${baseUrl}${path}`, {
@@ -36,6 +41,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers,
     credentials: "include",
   });
+  const token = response.headers.get("X-CSRFToken");
+  if (token) csrfHeaderToken = token;
   if (response.status === 204 || response.status === 205) return undefined as T;
 
   const isJson = (response.headers.get("Content-Type") ?? "").includes("json");

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Request } from "@playwright/test";
 import { Buffer } from "node:buffer";
-import { mockStoreApi } from "./api-fixtures";
+import { mockStoreApi, mockAuthApi } from "./api-fixtures";
 
 test.beforeEach(async ({ page }) => mockStoreApi(page));
 
@@ -99,6 +99,7 @@ test("custom print selection, editing, upload, removal and cart", async ({ page 
 test("admin search, all routes, dictionaries CRUD, validation and persistence", async ({
   page,
 }) => {
+  await mockAuthApi(page, true);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Přehled", exact: true })).toBeVisible();
   await page.getByRole("searchbox").fill("Petra");
@@ -134,21 +135,32 @@ test("admin search, all routes, dictionaries CRUD, validation and persistence", 
   await expect(page.getByRole("rowheader", { name: "Oversize", exact: true })).toBeVisible();
 });
 
-test("demo login navigates without sending credentials to the backend", async ({ page }) => {
+test("login sends credentials only to the auth endpoint and does not persist them", async ({
+  page,
+}) => {
   const apiCalls: Request[] = [];
   page.on("request", (request) => {
     if (request.url().startsWith("http://localhost:8000/")) apiCalls.push(request);
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Login", exact: true }).click();
-  await page.getByLabel("Přihlašovací jméno").fill("demo");
-  await page.getByLabel("Heslo", { exact: true }).fill("not-stored");
+  await page.getByRole("textbox", { name: "E-mail", exact: true }).fill("admin@example.com");
+  await page.getByLabel(/^Heslo/).fill("not-stored");
   await page.getByRole("button", { name: "Přihlásit se" }).click();
   await expect(page).toHaveURL("/admin");
   for (const request of apiCalls) {
-    expect(request.url()).toMatch(/\/api\/v1\/(config|catalog\/options)$/);
-    expect(request.method()).toBe("GET");
-    expect(request.postData()).toBeNull();
+    if (request.url().endsWith("/admin/auth/login")) {
+      expect(request.method()).toBe("POST");
+      expect(request.postDataJSON()).toEqual({
+        email: "admin@example.com",
+        password: "not-stored",
+      });
+      expect(request.headers()["x-csrftoken"]).toBe("bootstrap-token");
+    } else {
+      expect(request.method()).toBe("GET");
+      expect(request.postData()).toBeNull();
+    }
   }
+  expect(apiCalls.some((request) => request.url().endsWith("/admin/auth/login"))).toBe(true);
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("not-stored");
 });

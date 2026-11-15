@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { apiFetch, ApiError } from "./http";
+import { apiFetch, ApiError, clearCsrfToken } from "./http";
 import { createQueryClient } from "./queryClient";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearCsrfToken();
+});
 
 describe("API transport", () => {
   it("uses the backend origin, credentials and forwards the abort signal", async () => {
@@ -97,6 +100,25 @@ describe("API transport", () => {
     cookie.cookie = "csrftoken=rotated";
     await apiFetch("/api/v1/admin/auth/logout", { method: "POST" });
     expect(fetch.mock.calls[1]![1].headers.get("X-CSRFToken")).toBe("rotated");
+  });
+
+  it("uses and rotates a CORS-exposed CSRF token when the backend cookie is not readable", async () => {
+    vi.stubGlobal("document", { cookie: "" });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, { status: 204, headers: { "X-CSRFToken": "bootstrap" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ id: "user" }, { headers: { "X-CSRFToken": "rotated" } }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+    await apiFetch("/api/v1/admin/auth/csrf");
+    await apiFetch("/api/v1/admin/auth/login", { method: "POST" });
+    await apiFetch("/api/v1/admin/auth/logout", { method: "POST" });
+    expect(fetch.mock.calls[1]![1].headers.get("X-CSRFToken")).toBe("bootstrap");
+    expect(fetch.mock.calls[2]![1].headers.get("X-CSRFToken")).toBe("rotated");
   });
 
   it.each([new TypeError("Network failure"), new DOMException("Aborted", "AbortError")])(

@@ -12,7 +12,8 @@ Nová aplikace je ve složce [`frontend2`](frontend2/README.md) (Vite+, React,
 TypeScript, MUI a Bun). Spuštění: v `frontend2` spusť `bun install` a `bun run dev`.
 Konfiguraci obchodu a katalogové číselníky načítá přímo z backendu přes
 TanStack Query a klienta generovaného Orvalem. Katalog a administrace jsou
-zatím demo. Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
+zatím demo, ale přístup do administrace už vyžaduje skutečné přihlášení.
+Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
 
 ## Vývoj v Dockeru (hot reload)
 
@@ -32,7 +33,7 @@ Linuxové `node_modules` jsou v odděleném volume; hostitelské se nepoužijí.
 Při změně závislostí spusť příkaz znovu s `--build`; frontend při startu také
 synchronizuje balíčky podle `bun.lock`. Jednotlivé aplikace na sobě nezávisí
 a browser volá backend přímo na `http://localhost:8000`, bez frontendové proxy.
-Pro budoucí session přihlašování používej frontend i backend přes `localhost`,
+Pro session přihlašování používej frontend i backend přes `localhost`,
 nikoli kombinaci `127.0.0.1` a `localhost`.
 
 E-maily se vypisují do logu backendu. Není potřeba vytvářet `.env`.
@@ -85,11 +86,12 @@ a `FRONTEND_ORIGINS` na veřejný HTTPS origin frontendu (viz `.env.example`).
 API URL je součástí buildu frontendu, po změně je nutné image znovu sestavit.
 Produkční Compose bez těchto hodnot odmítne start, aby frontend omylem
 nevolal `localhost` na zařízení návštěvníka.
-Produkční cross-origin session tok bude ověřen při implementaci autentizace.
+Přihlášení je ověřené lokálně mezi různými porty; produkční domény a HTTPS
+cookies je před nasazením potřeba ověřit samostatně.
 
-Katalog a administrace stále používají testovací data a Login otevírá demo
-administraci, nikoli skutečnou autentizaci backendu. Konfigurace a katalogové
-číselníky už se načítají ze skutečného API.
+Katalog a obsah administrace stále používají testovací data. Login v patičce
+a `/prihlaseni` používají skutečnou autentizaci backendu; `/admin` je chráněné.
+Konfigurace a katalogové číselníky se také načítají ze skutečného API.
 
 ### HTTPS a přístup z internetu
 
