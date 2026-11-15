@@ -45,10 +45,22 @@ class MotifVariantRefSerializer(serializers.Serializer):
     size = serializers.CharField()
 
 
+class MotifImageSerializer(serializers.Serializer):
+    url = serializers.CharField()
+    alt_text = serializers.CharField(required=False, allow_blank=True)
+    color_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+@extend_schema_field(MotifImageSerializer(many=True))
+class MotifImagesField(serializers.JSONField):
+    """Document the existing JSON shape without changing its representation."""
+
+
 class MotifDetailSerializer(serializers.ModelSerializer):
     category = MotifCategoryRefSerializer(read_only=True)
     currency = serializers.SerializerMethodField()
     variants = serializers.SerializerMethodField()
+    images = MotifImagesField(read_only=True)
 
     class Meta:
         model = Motif

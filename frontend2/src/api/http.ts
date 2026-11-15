@@ -1,4 +1,7 @@
-const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(
+  /\/+$/,
+  "",
+);
 let csrfHeaderToken: string | undefined;
 
 export function clearCsrfToken() {
@@ -36,7 +39,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     const token = csrfToken() ?? csrfHeaderToken;
     if (token) headers.set("X-CSRFToken", token);
   }
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers,
     credentials: "include",

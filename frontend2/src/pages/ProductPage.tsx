@@ -2,31 +2,122 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Accordion, AccordionDetails, AccordionSummary, Button } from "@mui/material";
 import ExpandMore from "@mui/icons-material/ExpandMore";
-import { money, products, shirtColors, shirtTypes } from "../data/catalog";
-import type { Product } from "../data/catalog";
-import { CatalogLink, ProductArt, ProductCard } from "../components/Products";
+import { money } from "../data/catalog";
+import type { CatalogOptionsResponse, MotifDetail } from "../api/generated/models";
+import {
+  useCatalogOptionsRetrieve,
+  useMotifsRetrieve,
+  useMotifsRelatedList,
+} from "../api/generated/api";
+import { ApiError } from "../api/http";
+import { CatalogFeedback, CatalogLink, ProductArt, ProductCard } from "../components/Products";
 import { useShop } from "../components/ShopContext";
 import { useTitle } from "../useTitle";
 
-function ProductDetail({ product }: { product: Product }) {
-  const { add } = useShop();
-  const [type, setType] = useState(
-    product.category === "detska" ? "children" : product.category === "damska" ? "female" : "male",
+function VariantChoice({
+  label,
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  options: { value: string; label: string; color?: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className={`choice-field ${name === "color" ? "color-field" : ""}`}>
+      <legend>{label}</legend>
+      <div>
+        {options.map((option) => (
+          <label key={option.value}>
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              required
+            />
+            <span>
+              {option.color && <i style={{ background: option.color }} />}
+              {option.label}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
+}
+
+function ProductDetail({
+  product,
+  options,
+}: {
+  product: MotifDetail;
+  options: CatalogOptionsResponse;
+}) {
+  const { add } = useShop();
+  const [type, setType] = useState("");
+  const [cut, setCut] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [image, setImage] = useState(0);
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const sizes = shirtTypes.find((item) => item.id === type)!.sizes;
+  const variants = product.variants.filter(
+    (variant) =>
+      options.productTypes.some((item) => item.id === variant.productTypeId) &&
+      options.cuts.some((item) => item.id === variant.cutId) &&
+      options.colors.some((item) => item.id === variant.colorId) &&
+      options.sizes.some((item) => item.value === variant.size),
+  );
+  const types = options.productTypes.filter((item) =>
+    variants.some((variant) => variant.productTypeId === item.id),
+  );
+  const productType = types.find((item) => item.id === type) ?? types[0];
+  const cuts = options.cuts.filter((item) =>
+    variants.some(
+      (variant) => variant.productTypeId === productType?.id && variant.cutId === item.id,
+    ),
+  );
+  const cutId = cuts.find((item) => item.id === cut)?.id ?? cuts[0]?.id;
+  const forCut = variants.filter(
+    (variant) => variant.productTypeId === productType?.id && variant.cutId === cutId,
+  );
+  const colors = options.colors.filter((item) =>
+    forCut.some((variant) => variant.colorId === item.id),
+  );
+  const sizes = options.sizes.filter((item) =>
+    forCut.some((variant) => variant.colorId === color && variant.size === item.value),
+  );
+  const selectedVariant = forCut.find(
+    (variant) => variant.colorId === color && variant.size === size,
+  );
+  const unitPrice = product.price + (productType?.price ?? 0);
+  const coloredImages = color ? product.images.filter((photo) => photo.colorId === color) : [];
+  const images = !color
+    ? product.images
+    : coloredImages.length
+      ? coloredImages
+      : product.images.filter((photo) => !photo.colorId);
+  const activeImage = Math.min(image, Math.max(0, images.length - 1));
   useEffect(() => {
-    if (paused || hovered || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (
+      images.length < 2 ||
+      paused ||
+      hovered ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
     const interval = window.setInterval(() => {
-      if (!document.hidden) setImage((index) => (index + 1) % product.images.length);
+      if (!document.hidden) setImage((index) => (index + 1) % images.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [paused, hovered, product]);
+  }, [paused, hovered, images.length]);
   return (
     <div className="product-layout">
       <div
@@ -39,136 +130,140 @@ function ProductDetail({ product }: { product: Product }) {
         }}
       >
         <div className="product-gallery-main">
-          {product.images.map((photo, index) => (
+          {!images.length && <ProductArt name={product.name} />}
+          {images.map((photo, index) => (
             <div
               key={index}
-              className={`product-slide ${index === image ? "active" : ""}`}
-              aria-hidden={index !== image}
+              className={`product-slide ${index === activeImage ? "active" : ""}`}
+              aria-hidden={index !== activeImage}
             >
-              <ProductArt image={photo} name={product.name} />
+              <ProductArt src={photo.url} name={photo.altText || product.name} />
             </div>
           ))}
         </div>
-        <div className="product-thumbnails" role="group" aria-label="Vybrat obrázek">
-          {product.images.map((photo, index) => (
-            <button
-              key={index}
-              aria-label={`${photo.label}, obrázek ${index + 1}`}
-              aria-pressed={image === index}
-              onClick={() => setImage(index)}
-            >
-              <ProductArt image={photo} />
-            </button>
-          ))}
-        </div>
-        <div className="product-gallery-controls">
-          <span>
-            {image + 1} / {product.images.length}
-          </span>
-          <button className="plain-button" onClick={() => setPaused((value) => !value)}>
-            {paused ? "Spustit střídání" : "Pozastavit střídání"}
-          </button>
-        </div>
+        {images.length > 1 && (
+          <>
+            <div className="product-thumbnails" role="group" aria-label="Vybrat obrázek">
+              {images.map((photo, index) => (
+                <button
+                  key={index}
+                  aria-label={`${photo.altText || "Náhled"}, obrázek ${index + 1}`}
+                  aria-pressed={activeImage === index}
+                  onClick={() => setImage(index)}
+                >
+                  <ProductArt src={photo.url} />
+                </button>
+              ))}
+            </div>
+            <div className="product-gallery-controls">
+              <span>
+                {activeImage + 1} / {images.length}
+              </span>
+              <button className="plain-button" onClick={() => setPaused((value) => !value)}>
+                {paused ? "Spustit střídání" : "Pozastavit střídání"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
       <div className="product-info">
         <h1>{product.name}</h1>
-        <p className="product-description">{product.subtitle}</p>
+        <p className="product-description">{product.description}</p>
         <p className="product-price">
-          {money(product.price)} <span>/ kus</span>
+          {money(unitPrice / 100)} <span>/ kus{!productType && " (základní cena motivu)"}</span>
         </p>
-        <form
-          className="product-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            add({
-              id: product.id,
-              name: product.name,
-              quantity,
-              size,
-              color,
-              type,
-              price: product.price,
-            });
-          }}
-        >
-          <fieldset className="choice-field">
-            <legend>Typ trička</legend>
-            <div>
-              {shirtTypes.map((option) => (
-                <label key={option.id}>
-                  <input
-                    type="radio"
-                    name="type"
-                    value={option.id}
-                    checked={type === option.id}
-                    onChange={() => {
-                      setType(option.id);
-                      setSize("");
-                    }}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
+        {productType && productType.price > 0 && (
+          <p>
+            Základ motivu {money(product.price / 100)} + příplatek za typ oblečení{" "}
+            {money(productType.price / 100)}.
+          </p>
+        )}
+        {variants.length ? (
+          <form
+            className="product-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!selectedVariant) return;
+              add({
+                kind: "catalog",
+                motifId: product.id,
+                ...selectedVariant,
+                name: product.name,
+                quantity,
+                unitPrice,
+              });
+            }}
+          >
+            <VariantChoice
+              label="Typ oblečení"
+              name="type"
+              value={productType?.id ?? ""}
+              options={types.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={(value) => {
+                setType(value);
+                setCut("");
+                setColor("");
+                setSize("");
+                setImage(0);
+              }}
+            />
+            <VariantChoice
+              label="Střih"
+              name="cut"
+              value={cutId ?? ""}
+              options={cuts.map((item) => ({ value: item.id, label: item.name }))}
+              onChange={(value) => {
+                setCut(value);
+                setColor("");
+                setSize("");
+                setImage(0);
+              }}
+            />
+            <VariantChoice
+              label="Barva"
+              name="color"
+              value={color}
+              options={colors.map((item) => ({
+                value: item.id,
+                label: item.name,
+                color: item.hexValue,
+              }))}
+              onChange={(value) => {
+                setColor(value);
+                setSize("");
+                setImage(0);
+              }}
+            />
+            <VariantChoice
+              label="Velikost"
+              name="size"
+              value={size}
+              options={sizes.map((item) => ({ value: item.value, label: item.label }))}
+              onChange={setSize}
+            />
+            {!selectedVariant && <p>Vyberte barvu a velikost.</p>}
+            <div className="product-purchase">
+              <label className="quantity-field">
+                Počet kusů
+                <input
+                  aria-label="Počet kusů"
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  required
+                  value={quantity}
+                  onChange={(event) => setQuantity(Number(event.target.value))}
+                />
+              </label>
+              <Button variant="contained" type="submit" disabled={!selectedVariant}>
+                Přidat do košíku <span>↗</span>
+              </Button>
             </div>
-          </fieldset>
-          <fieldset className="choice-field color-field">
-            <legend>Barva</legend>
-            <div>
-              {shirtColors.map((option) => (
-                <label key={option.name}>
-                  <input
-                    type="radio"
-                    name="color"
-                    value={option.name}
-                    checked={color === option.name}
-                    onChange={() => setColor(option.name)}
-                    required
-                  />
-                  <span>
-                    <i style={{ background: option.hex }} />
-                    {option.name}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset className="choice-field">
-            <legend>Velikost</legend>
-            <div>
-              {sizes.map((option) => (
-                <label key={option}>
-                  <input
-                    type="radio"
-                    name="size"
-                    value={option}
-                    checked={size === option}
-                    onChange={() => setSize(option)}
-                    required
-                  />
-                  <span>{option}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="product-purchase">
-            <label className="quantity-field">
-              Počet kusů
-              <input
-                aria-label="Počet kusů"
-                type="number"
-                min="1"
-                max="99"
-                step="1"
-                required
-                value={quantity}
-                onChange={(event) => setQuantity(Number(event.target.value))}
-              />
-            </label>
-            <Button variant="contained" type="submit">
-              Přidat do košíku <span>↗</span>
-            </Button>
-          </div>
-        </form>
+          </form>
+        ) : (
+          <p role="status">Motiv zatím nemá dostupné varianty.</p>
+        )}
         <div className="product-details">
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>O produktu</AccordionSummary>
@@ -193,9 +288,15 @@ function ProductDetail({ product }: { product: Product }) {
   );
 }
 export function ProductPage() {
-  const { id } = useParams();
-  const product = products.find((item) => item.id === id);
-  useTitle(product?.name || "Produkt nenalezen");
+  const { slug = "" } = useParams();
+  const detail = useMotifsRetrieve(slug, { query: { enabled: !!slug } });
+  const options = useCatalogOptionsRetrieve();
+  const related = useMotifsRelatedList(slug, { query: { enabled: detail.isSuccess } });
+  const product = detail.data;
+  const notFound =
+    detail.isError && detail.error instanceof ApiError && detail.error.status === 404;
+  const title = product?.name ?? (notFound ? "Produkt nenalezen" : "Detail motivu");
+  useTitle(title);
   return (
     <main className="page-main">
       <div className="shell">
@@ -204,32 +305,36 @@ export function ProductPage() {
           <span>/</span>
           <Link to="/tricka">Všechna trička</Link>
           <span>/</span>
-          <span>{product?.name || "Produkt nenalezen"}</span>
+          <span>{title}</span>
         </nav>
-        {product ? (
+        {detail.isSuccess && product ? (
           <>
-            <ProductDetail key={product.id} product={product} />
+            {!options.isSuccess && <h1>{product.name}</h1>}
+            <CatalogFeedback query={options} label="Varianty" />
+            {options.isSuccess && (
+              <ProductDetail key={product.id} product={product} options={options.data} />
+            )}
             <section className="product-related">
               <div className="collection-heading">
                 <h2>Další motivy pro tebe</h2>
                 <CatalogLink />
               </div>
               <div className="related-grid">
-                {products
-                  .filter((item) => item.category === product.category && item.id !== product.id)
-                  .slice(0, 3)
-                  .map((item) => (
-                    <ProductCard key={item.id} product={item} />
-                  ))}
+                {(related.data ?? []).slice(0, 3).map((item) => (
+                  <ProductCard key={item.id} product={item} />
+                ))}
               </div>
+              <CatalogFeedback query={related} label="Související motivy" />
             </section>
           </>
-        ) : (
+        ) : notFound ? (
           <div className="not-found">
             <h1>Tohle tričko jsme nenašli.</h1>
             <p>Vyberte si jiný motiv v kolekci.</p>
             <CatalogLink />
           </div>
+        ) : (
+          <CatalogFeedback query={detail} />
         )}
       </div>
     </main>

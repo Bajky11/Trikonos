@@ -17,7 +17,18 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { CatalogOptionsResponse, ConfigResponse, Login, Me } from "./models";
+import type {
+  CatalogOptionsResponse,
+  CategoriesListParams,
+  Category,
+  ConfigResponse,
+  Login,
+  Me,
+  MotifDetail,
+  MotifList,
+  MotifsListParams,
+  PaginatedMotifListList,
+} from "./models";
 
 import { apiFetch } from "../http.ts";
 import type { ErrorType } from "../http.ts";
@@ -646,6 +657,152 @@ export function useCatalogOptionsRetrieve<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getCategoriesListUrl = (params?: CategoriesListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/categories?${stringifiedParams}`
+    : `/api/v1/categories`;
+};
+
+/**
+ * Aktivní kategorie pro navigační menu, ikony na homepage nebo sidebar. Vždy seřazené podle `position`, pak `name`. `motifCount` je počet **aktivních** motivů v kategorii (ne všech) - použij pro zobrazení počtu u názvu kategorie. Neaktivní kategorie se v tomto seznamu nikdy neobjeví. Bez stránkování (kategorií je málo, vrací se všechny najednou).
+ * @summary Seznam kategorií (menu, homepage)
+ */
+export const categoriesList = async (
+  params?: CategoriesListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<Category[]> => {
+  return apiFetch<Category[]>(getCategoriesListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getCategoriesListQueryKey = (params?: CategoriesListParams) => {
+  return [`/api/v1/categories`, ...(params ? [params] : [])] as const;
+};
+
+export const getCategoriesListQueryOptions = <
+  TData = Awaited<ReturnType<typeof categoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: CategoriesListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof categoriesList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getCategoriesListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof categoriesList>>> = ({ signal }) =>
+    categoriesList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof categoriesList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CategoriesListQueryResult = NonNullable<Awaited<ReturnType<typeof categoriesList>>>;
+export type CategoriesListQueryError = ErrorType<unknown>;
+
+/**
+ * Aktivní kategorie pro navigační menu, ikony na homepage nebo sidebar. Vždy seřazené podle `position`, pak `name`. `motifCount` je počet **aktivních** motivů v kategorii (ne všech) - použij pro zobrazení počtu u názvu kategorie. Neaktivní kategorie se v tomto seznamu nikdy neobjeví. Bez stránkování (kategorií je málo, vrací se všechny najednou).
+ * @summary Seznam kategorií (menu, homepage)
+ */
+export function useCategoriesList<
+  TData = Awaited<ReturnType<typeof categoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | CategoriesListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof categoriesList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof categoriesList>>,
+          TError,
+          Awaited<ReturnType<typeof categoriesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Aktivní kategorie pro navigační menu, ikony na homepage nebo sidebar. Vždy seřazené podle `position`, pak `name`. `motifCount` je počet **aktivních** motivů v kategorii (ne všech) - použij pro zobrazení počtu u názvu kategorie. Neaktivní kategorie se v tomto seznamu nikdy neobjeví. Bez stránkování (kategorií je málo, vrací se všechny najednou).
+ * @summary Seznam kategorií (menu, homepage)
+ */
+export function useCategoriesList<
+  TData = Awaited<ReturnType<typeof categoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: CategoriesListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof categoriesList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof categoriesList>>,
+          TError,
+          Awaited<ReturnType<typeof categoriesList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Aktivní kategorie pro navigační menu, ikony na homepage nebo sidebar. Vždy seřazené podle `position`, pak `name`. `motifCount` je počet **aktivních** motivů v kategorii (ne všech) - použij pro zobrazení počtu u názvu kategorie. Neaktivní kategorie se v tomto seznamu nikdy neobjeví. Bez stránkování (kategorií je málo, vrací se všechny najednou).
+ * @summary Seznam kategorií (menu, homepage)
+ */
+export function useCategoriesList<
+  TData = Awaited<ReturnType<typeof categoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: CategoriesListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof categoriesList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Aktivní kategorie pro navigační menu, ikony na homepage nebo sidebar. Vždy seřazené podle `position`, pak `name`. `motifCount` je počet **aktivních** motivů v kategorii (ne všech) - použij pro zobrazení počtu u názvu kategorie. Neaktivní kategorie se v tomto seznamu nikdy neobjeví. Bez stránkování (kategorií je málo, vrací se všechny najednou).
+ * @summary Seznam kategorií (menu, homepage)
+ */
+export function useCategoriesList<
+  TData = Awaited<ReturnType<typeof categoriesList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: CategoriesListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof categoriesList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCategoriesListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const getConfigRetrieveUrl = () => {
   return `/api/v1/config`;
 };
@@ -764,6 +921,426 @@ export function useConfigRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getConfigRetrieveQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getMotifsListUrl = (params?: MotifsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/motifs?${stringifiedParams}` : `/api/v1/motifs`;
+};
+
+/**
+ * Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a popisu), `ids` (čárkou oddělený seznam UUID - použij pro obnovu košíku po reloadu stránky, abys dostal aktuální ceny/dostupnost pro konkrétní motivy). Řazení parametrem `ordering`: `position` (výchozí, ruční pořadí z administrace), `-createdAt` (nejnovější první, pro homepage "Novinky z hor"), `price`/`-price`, `name`, `popular` (podle počtu prodaných kusů za posledních 90 dní). Vrací jen aktivní motivy - neaktivní se v žádném případě neobjeví, i kdyby odpovídaly filtru.
+ * @summary Výpis motivů (katalog, homepage Novinky)
+ */
+export const motifsList = async (
+  params?: MotifsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedMotifListList> => {
+  return apiFetch<PaginatedMotifListList>(getMotifsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMotifsListQueryKey = (params?: MotifsListParams) => {
+  return [`/api/v1/motifs`, ...(params ? [params] : [])] as const;
+};
+
+export const getMotifsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof motifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: MotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMotifsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof motifsList>>> = ({ signal }) =>
+    motifsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof motifsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type MotifsListQueryResult = NonNullable<Awaited<ReturnType<typeof motifsList>>>;
+export type MotifsListQueryError = ErrorType<unknown>;
+
+/**
+ * Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a popisu), `ids` (čárkou oddělený seznam UUID - použij pro obnovu košíku po reloadu stránky, abys dostal aktuální ceny/dostupnost pro konkrétní motivy). Řazení parametrem `ordering`: `position` (výchozí, ruční pořadí z administrace), `-createdAt` (nejnovější první, pro homepage "Novinky z hor"), `price`/`-price`, `name`, `popular` (podle počtu prodaných kusů za posledních 90 dní). Vrací jen aktivní motivy - neaktivní se v žádném případě neobjeví, i kdyby odpovídaly filtru.
+ * @summary Výpis motivů (katalog, homepage Novinky)
+ */
+export function useMotifsList<
+  TData = Awaited<ReturnType<typeof motifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | MotifsListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsList>>,
+          TError,
+          Awaited<ReturnType<typeof motifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a popisu), `ids` (čárkou oddělený seznam UUID - použij pro obnovu košíku po reloadu stránky, abys dostal aktuální ceny/dostupnost pro konkrétní motivy). Řazení parametrem `ordering`: `position` (výchozí, ruční pořadí z administrace), `-createdAt` (nejnovější první, pro homepage "Novinky z hor"), `price`/`-price`, `name`, `popular` (podle počtu prodaných kusů za posledních 90 dní). Vrací jen aktivní motivy - neaktivní se v žádném případě neobjeví, i kdyby odpovídaly filtru.
+ * @summary Výpis motivů (katalog, homepage Novinky)
+ */
+export function useMotifsList<
+  TData = Awaited<ReturnType<typeof motifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: MotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsList>>,
+          TError,
+          Awaited<ReturnType<typeof motifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a popisu), `ids` (čárkou oddělený seznam UUID - použij pro obnovu košíku po reloadu stránky, abys dostal aktuální ceny/dostupnost pro konkrétní motivy). Řazení parametrem `ordering`: `position` (výchozí, ruční pořadí z administrace), `-createdAt` (nejnovější první, pro homepage "Novinky z hor"), `price`/`-price`, `name`, `popular` (podle počtu prodaných kusů za posledních 90 dní). Vrací jen aktivní motivy - neaktivní se v žádném případě neobjeví, i kdyby odpovídaly filtru.
+ * @summary Výpis motivů (katalog, homepage Novinky)
+ */
+export function useMotifsList<
+  TData = Awaited<ReturnType<typeof motifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: MotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a popisu), `ids` (čárkou oddělený seznam UUID - použij pro obnovu košíku po reloadu stránky, abys dostal aktuální ceny/dostupnost pro konkrétní motivy). Řazení parametrem `ordering`: `position` (výchozí, ruční pořadí z administrace), `-createdAt` (nejnovější první, pro homepage "Novinky z hor"), `price`/`-price`, `name`, `popular` (podle počtu prodaných kusů za posledních 90 dní). Vrací jen aktivní motivy - neaktivní se v žádném případě neobjeví, i kdyby odpovídaly filtru.
+ * @summary Výpis motivů (katalog, homepage Novinky)
+ */
+export function useMotifsList<
+  TData = Awaited<ReturnType<typeof motifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: MotifsListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getMotifsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getMotifsRetrieveUrl = (slug: string) => {
+  return `/api/v1/motifs/${slug}`;
+};
+
+/**
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * @summary Detail motivu podle slugu (konfigurátor)
+ */
+export const motifsRetrieve = async (
+  slug: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<MotifDetail> => {
+  return apiFetch<MotifDetail>(getMotifsRetrieveUrl(slug), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMotifsRetrieveQueryKey = (slug: string) => {
+  return [`/api/v1/motifs/${slug}`] as const;
+};
+
+export const getMotifsRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof motifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMotifsRetrieveQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof motifsRetrieve>>> = ({ signal }) =>
+    motifsRetrieve(slug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: slug !== null && slug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type MotifsRetrieveQueryResult = NonNullable<Awaited<ReturnType<typeof motifsRetrieve>>>;
+export type MotifsRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * @summary Detail motivu podle slugu (konfigurátor)
+ */
+export function useMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof motifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof motifsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * @summary Detail motivu podle slugu (konfigurátor)
+ */
+export function useMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof motifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof motifsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * @summary Detail motivu podle slugu (konfigurátor)
+ */
+export function useMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof motifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * @summary Detail motivu podle slugu (konfigurátor)
+ */
+export function useMotifsRetrieve<
+  TData = Awaited<ReturnType<typeof motifsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRetrieve>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getMotifsRetrieveQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getMotifsRelatedListUrl = (slug: string) => {
+  return `/api/v1/motifs/${slug}/related`;
+};
+
+/**
+ * Max 8 aktivních motivů ze **stejné kategorie** jako zadaný motiv, bez něj samotného, seřazené od nejnovějších. Pokud kategorie nemá dost motivů na doplnění do 8, zbytek se doplní nejnovějšími motivy z jakékoli kategorie (tyto filler položky se mohou měnit mezi requesty, jak přibývají nové motivy). Vrací stejný tvar jako položka ve výpisu `GET /motifs` (ne plný detail).
+ * @summary Doporučené motivy ("Do party se hodí i...")
+ */
+export const motifsRelatedList = async (
+  slug: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<MotifList[]> => {
+  return apiFetch<MotifList[]>(getMotifsRelatedListUrl(slug), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMotifsRelatedListQueryKey = (slug: string) => {
+  return [`/api/v1/motifs/${slug}/related`] as const;
+};
+
+export const getMotifsRelatedListQueryOptions = <
+  TData = Awaited<ReturnType<typeof motifsRelatedList>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMotifsRelatedListQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof motifsRelatedList>>> = ({ signal }) =>
+    motifsRelatedList(slug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: slug !== null && slug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type MotifsRelatedListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof motifsRelatedList>>
+>;
+export type MotifsRelatedListQueryError = ErrorType<unknown>;
+
+/**
+ * Max 8 aktivních motivů ze **stejné kategorie** jako zadaný motiv, bez něj samotného, seřazené od nejnovějších. Pokud kategorie nemá dost motivů na doplnění do 8, zbytek se doplní nejnovějšími motivy z jakékoli kategorie (tyto filler položky se mohou měnit mezi requesty, jak přibývají nové motivy). Vrací stejný tvar jako položka ve výpisu `GET /motifs` (ne plný detail).
+ * @summary Doporučené motivy ("Do party se hodí i...")
+ */
+export function useMotifsRelatedList<
+  TData = Awaited<ReturnType<typeof motifsRelatedList>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsRelatedList>>,
+          TError,
+          Awaited<ReturnType<typeof motifsRelatedList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Max 8 aktivních motivů ze **stejné kategorie** jako zadaný motiv, bez něj samotného, seřazené od nejnovějších. Pokud kategorie nemá dost motivů na doplnění do 8, zbytek se doplní nejnovějšími motivy z jakékoli kategorie (tyto filler položky se mohou měnit mezi requesty, jak přibývají nové motivy). Vrací stejný tvar jako položka ve výpisu `GET /motifs` (ne plný detail).
+ * @summary Doporučené motivy ("Do party se hodí i...")
+ */
+export function useMotifsRelatedList<
+  TData = Awaited<ReturnType<typeof motifsRelatedList>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof motifsRelatedList>>,
+          TError,
+          Awaited<ReturnType<typeof motifsRelatedList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Max 8 aktivních motivů ze **stejné kategorie** jako zadaný motiv, bez něj samotného, seřazené od nejnovějších. Pokud kategorie nemá dost motivů na doplnění do 8, zbytek se doplní nejnovějšími motivy z jakékoli kategorie (tyto filler položky se mohou měnit mezi requesty, jak přibývají nové motivy). Vrací stejný tvar jako položka ve výpisu `GET /motifs` (ne plný detail).
+ * @summary Doporučené motivy ("Do party se hodí i...")
+ */
+export function useMotifsRelatedList<
+  TData = Awaited<ReturnType<typeof motifsRelatedList>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Max 8 aktivních motivů ze **stejné kategorie** jako zadaný motiv, bez něj samotného, seřazené od nejnovějších. Pokud kategorie nemá dost motivů na doplnění do 8, zbytek se doplní nejnovějšími motivy z jakékoli kategorie (tyto filler položky se mohou měnit mezi requesty, jak přibývají nové motivy). Vrací stejný tvar jako položka ve výpisu `GET /motifs` (ne plný detail).
+ * @summary Doporučené motivy ("Do party se hodí i...")
+ */
+export function useMotifsRelatedList<
+  TData = Awaited<ReturnType<typeof motifsRelatedList>>,
+  TError = ErrorType<unknown>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof motifsRelatedList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getMotifsRelatedListQueryOptions(slug, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

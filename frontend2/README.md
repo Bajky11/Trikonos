@@ -60,7 +60,7 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options a čtyři session endpointy;
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session a veřejný katalog;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -76,8 +76,8 @@ pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
   Síťové a parsovací chyby mohou být nativní `Error`; status čti až po `instanceof ApiError`.
 - `src/api/queryClient.ts` nastavuje pětiminutovou čerstvost dat, nejvýše jeden
   retry čtení při síťové/serverové chybě, žádný retry 4xx ani automatický retry mutací.
-- Hlavička/patička používají živou konfiguraci. Číselníky jsou v query cache,
-  ale katalog a editor zatím stále používají demo varianty. Prázdné kontakty
+- Hlavička/patička používají živou konfiguraci. Katalog používá živé kategorie,
+  motivy a povolené varianty; pouze editor vlastního potisku je zatím demo. Prázdné kontakty
   se nezastupují vymyšleným e-mailem; chyba API nabízí opakované načtení.
 
 Standardní Playwright testy mockují API a nepotřebují backend.
@@ -89,6 +89,27 @@ bun run test:e2e:api
 
 Tento smoke test používá `localhost` pro frontend i backend, ověřuje také
 odeslání testovací cookie, pouze čte a nevytváří objednávky.
+Pokud jsou v databázi dostupné varianty, ověří také jejich přidání do lokálního
+košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platný stav.
+
+### Katalog a lokální košík
+
+- `/tricka` načítá seznam po 12 položkách, kategorie, hledání (`q`) a řazení
+  (`razeni`). Filtr `kategorie` a stránka `strana` zůstávají v URL; API dostává
+  `category`, `page` a `pageSize`. Neplatnou stránku lze vrátit na první.
+- `/produkt/:slug` načítá detail a související motivy. Obrázky relativní k backendu
+  se načítají z API originu; chybějící či rozbité náhledy mají neutrální placeholder.
+- Volby typu oblečení, střihu, barvy a velikosti vycházejí z průniku aktivních
+  číselníků a povolených kombinací motivu. Bez variant nelze produkt přidat.
+- Ceny API i katalogové snapshoty jsou v haléřích. Karta označuje základní cenu
+  motivu, detail přičítá příplatek vybraného typu oblečení.
+- `src/cart/storage.ts` ukládá reálná ID a vybranou variantu pod `trikonos-cart-v2`.
+  Staré demo katalogové položky se nepřevádějí, staré návrhy vlastního potisku se
+  zachovají. **Snapshot ceny ani lokální validace nejsou serverové ověření košíku.**
+  Před objednávkou bude nutné napojit `/cart/validate`; checkout zatím neexistuje.
+- Homepage používá ruční pořadí jako „Výběr z kolekce“. Skutečné bestsellery jsou
+  odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
+  varianty se v této integraci neimportují a nedoplňují do databáze.
 
 ### Přihlášení a session
 
@@ -115,7 +136,7 @@ v běžné sadě E2E. Produkční cross-host/HTTPS cookies je nutné ověřit p�
 
 ```sh
 bun run check       # formátování, lint a typová kontrola
-bun run test        # jednotkové testy katalogu a geometrie editoru
+bun run test        # jednotkové testy transportu, session, košíku a geometrie
 bun run build      # TypeScript + produkční build do dist/
 bun run preview    # náhled produkčního buildu
 ```
@@ -135,7 +156,7 @@ výběr/nahrávání/úpravy potisku, administrativní vyhledávání a CRUD č�
 
 - `/` — úvodní stránka, galerie realizací, sezóny, katalog, editor potisku a FAQ
 - `/tricka` — celý katalog (`?kategorie=bitcoin&strana=2` pro filtr a stránku)
-- `/produkt/:id` — detail produktu, například `/produkt/trikonos-1260`
+- `/produkt/:slug` — detail skutečného motivu podle slugu z API
 - `/prihlaseni` — skutečné přihlášení do administrace
 - `/admin` — přehled
 - `/admin/objednavky`, `/admin/produkty`, `/admin/sezony`, `/admin/klienti`, `/admin/ciselniky`
@@ -150,20 +171,21 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
   barvy čerpají z theme přes CSS proměnné, komponenty neopakují vlastní `sx` styly
 - `src/components/` — společný shell, produktové karty, galerie, sezóny, košík a editor
 - `src/pages/` — veřejné stránky a samostatný, líně načítaný administrační modul
-- `src/data/` — typovaná testovací data (8 fotografických + 192 generovaných produktů)
+- `src/data/` — statický obsah, sezónní fotografie a zatím demo číselníky vlastního potisku
+- `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
 - `public/` — samostatné kopie potřebných obrázků z původního frontendu, včetně
   dokumentace jejich zdrojů
 
 Výchozí obrázek úvodu je `background/varianta1.png`. Přepínač alternativních
 pozadí je odstraněný. Fonty DM Sans a Manrope se načítají lokálně z balíčků
-Fontsource; aplikace nepotřebuje Google Fonts ani síťové načítání katalogu.
+Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupné API.
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config, katalogové číselníky a session autentizace.
-  Katalog, platby a objednávání zatím napojené nejsou.
+- Na backend jsou napojené config, katalog, jeho číselníky a session autentizace.
+  Administrace katalogu, serverový košík, platby a objednávání zatím napojené nejsou.
 - Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
-  klíči `trikonos-react-demo-cart-v1` a `trikonos-react-dictionaries-v1`.
+  klíči `trikonos-cart-v2` a `trikonos-react-dictionaries-v1`.
 - Nahrané obrázky zůstávají v prohlížeči; větší soubor může přesáhnout jeho
   úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.

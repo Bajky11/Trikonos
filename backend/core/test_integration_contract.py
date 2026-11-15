@@ -9,6 +9,12 @@ def test_public_schema_matches_camel_case_responses():
     schema_response = client.get('/api/v1/schema/', HTTP_ACCEPT='application/vnd.oai.openapi+json')
     assert schema_response.status_code == 200
     schemas = schema_response.json()['components']['schemas']
+    paths = schema_response.json()['paths']
+    params = {item['name'] for item in paths['/api/v1/motifs']['get']['parameters']}
+    assert {'category', 'q', 'ids', 'ordering', 'page', 'pageSize'} <= params
+    related = paths['/api/v1/motifs/{slug}/related']['get']['responses']['200']['content']['application/json']['schema']
+    assert related['type'] == 'array'
+    assert schemas['MotifDetail']['properties']['images']['type'] == 'array'
     for path, name in [
         ('/api/v1/config', 'ConfigResponse'),
         ('/api/v1/catalog/options', 'CatalogOptionsResponse'),

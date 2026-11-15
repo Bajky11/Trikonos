@@ -1,8 +1,9 @@
 # Propojení frontendu a backendu
 
 Průběžný plán a checklist kompletní integrace. Aktualizováno 15. 11. 2026.
-Implementace probíhá: základ čtení API a session přihlášení jsou hotové;
-další velká etapa je katalog. Obnova a změna hesla na FE ještě zbývají.
+Implementace probíhá: základ čtení API, session a veřejný katalog jsou hotové;
+košík zatím ukládá jen lokální výběr. Admin správa katalogu, skutečný košík
+a obnova/změna hesla na FE ještě zbývají.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
 
@@ -26,6 +27,8 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
   přechody. Peněžní hodnoty backendu jsou v haléřích.
 - Jednotlivé etapy implementovat a ověřovat postupně; tento dokument sám
   neznamená schválení dosud otevřených produktových rozhodnutí.
+- Větší změny backendu předem konzultovat; není automaticky závazným zadáním.
+  Nejprve hledat jednoduché řešení a testovat hlavně důležité chování, ne každou drobnost.
 
 ## Výchozí stav a orientace
 
@@ -123,15 +126,17 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
 
 ## 2. Katalog a jeho administrace
 
-- [ ] Napojit kontakty, hlavičku a patičku na backendovou konfiguraci tam,
+- [x] Napojit kontakty, hlavičku a patičku na backendovou konfiguraci tam,
   kde odpovídá schválenému obsahu; obsahové sekce mohou zůstat statické.
-- [ ] Nahradit demo katalog živými kategoriemi a motivy bez importu demo dat.
-- [ ] Namapovat hledání, filtry, řazení, stránkování a URL parametry.
-- [ ] Dohodnout detailovou URL a mapování slug/ID; napojit detail, obrázky,
-  související motivy a homepage výběry (bestsellery/novinky).
-- [ ] Nahradit lokální varianty backendovými ID a povolenými kombinacemi;
+- [x] Nahradit demo katalog živými kategoriemi a motivy bez importu demo dat.
+- [x] Namapovat hledání, filtry, řazení, stránkování a URL parametry.
+- [x] Použít stávající `/produkt/...` s backendovým slugem; napojit detail,
+  obrázky, související motivy a ručně řazený homepage výběr.
+- [ ] Dohodnout obchodní definici bestsellerů před použitím `popular`:
+  backend nyní počítá i položky nezaplacených/zrušených objednávek.
+- [x] Nahradit lokální varianty backendovými ID a povolenými kombinacemi;
   sjednotit zobrazování cen v Kč z hodnot v haléřích.
-- [ ] Doplnit loading, empty, error, 404 a neaktivní/nedostupné položky.
+- [x] Doplnit loading, empty, error, 404 a nedostupné varianty.
 - [ ] Napojit admin CRUD motivů, obrázky a jejich pořadí, varianty,
   kategorie, typy oblečení, barvy, střihy, velikosti a tiskové plochy
   podle skutečné podpory API; případné mezery dořešit.
@@ -140,13 +145,38 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
 **Ověření etapy:** katalog a detail čerpají z API; admin změna se po načtení
 projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě demem.
 
+### Veřejný katalog a položka košíku (15. 11. 2026)
+
+- Session je v commitu `1600c27`; tato navazující práce se necommituje automaticky.
+- Uživatel schválil přibrat k veřejnému katalogu minimální úpravu katalogové
+  položky košíku; checkout a editor vlastního potisku se funkčně nemění.
+- Katalog, hledání, kategorie, řazení, detail, fotografie a související motivy
+  jsou napojené přes Orval. Backend dostal opravy OpenAPI popisu filtrů,
+  nepaginovaného related a tvaru obrázků. U řazení podle ceny/data se doplnilo ID
+  jako stabilní poslední klíč pro stránkování; obchodní logika se nemění.
+- Odstraněn generovaný demo katalog. Statické sezónní fotografie zůstávají v kódu.
+  URL používá slug; košík ukládá UUID motivu a všech součástí vybrané varianty.
+- `trikonos-cart-v2` zachovává staré custom drafty, ale nepřebírá falešné demo
+  katalogové položky. Cena je pouze snapshot v haléřích, server ji musí znovu ověřit.
+- Ve skutečné lokální DB nemají první ověřené motivy povolené varianty;
+  frontend je správně nepovažuje za objednatelné. Do DB se nic nepřidávalo.
+- Testy jsou soustředěné na katalog → varianta → košík → reload, prázdný/error stav
+  a migraci úložiště. Nejde o dokončení celé etapy 2 (správa katalogu zbývá).
+- Ověření: check/build, 20 unit testů, 17 standardních E2E, 2 živé API/auth testy
+  a 30 cílených backendových testů katalogu/kontraktu prošly. Ve skutečné lokální
+  DB se ověřil i nedostupný motiv; přidání povolené varianty pokrývají řízená API data.
+- Zbývá `/cart/validate`, plné uživatelské flow košíku, vlastní upload a checkout.
+
 ## 3. Košík a vlastní potisk
 
-- [ ] Definovat backendové identifikátory položek a verzovaný formát lokálního
-  košíku; bezpečně vyřešit starý demo košík bez převodu demo cen do objednávek.
+- [x] Definovat backendové identifikátory katalogových položek a verzovaný formát
+  lokálního košíku; staré demo ceny se nepřevádějí do objednávek.
+- [ ] Převést vlastní potisk z demo draftu na serverový kontrakt.
 - [ ] Doplnit košíkovou stránku, editaci množství, odebrání a obnovu po reloadu.
 - [ ] Napojit `/cart/validate`; zobrazit změnu ceny, nedostupnost, chyby položek,
   dopravu a příznak požadavku na nacenění. Lokální cena není autoritativní.
+- [ ] Při veřejných POST ověřit CSRF chování hosta i přihlášeného administrátora;
+  současné veřejné API dědí session autentizaci.
 - [ ] Napojit editor na tiskové plochy, rozměry v mm a serverová transformační
   pravidla; otestovat převod souřadnic a meze návrhu.
 - [ ] Napojit multipart upload a `fileToken`, ošetřit limity, formáty,
@@ -216,7 +246,7 @@ produkci; zbývající omezení a odložené úkoly jsou výslovně zaznamenané
 - [ ] **Vyřešit budoucí správu obsahu:** sezóny, galerie, FAQ a recenze jsou
   zatím v kódu. Později rozhodnout rozsah administrace a případné backendové
   modely, API, média a migraci obsahu. Není to blokátor první integrace.
-- [ ] Dohodnout cílové URL produktů a pravidla homepage výběrů (etapa 2).
+- [ ] Dohodnout pravidla skutečných bestsellerů; homepage zatím používá ruční pořadí (etapa 2).
 - [ ] Dohodnout obchodní proces vlastního potisku a schválení ceny (etapa 3).
 - [ ] Dohodnout platby, případnou bránu a výběr výdejních míst (etapa 4).
 - [ ] Dohodnout role a potřebné statistiky administrace (etapa 5).

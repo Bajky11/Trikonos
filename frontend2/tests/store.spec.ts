@@ -27,24 +27,54 @@ test("home, default artwork, gallery, seasonal panels and FAQ", async ({ page })
 test("catalog filters, pagination, product options and persistent cart", async ({ page }) => {
   await page.goto("/tricka");
   await expect(page.locator(".catalog-grid .product-card")).toHaveCount(12);
-  await expect(page.getByRole("status")).toContainText("z 200 triček");
+  await expect(page.locator(".pagination-bar")).toContainText("z 14 motivů");
   await page.getByRole("button", { name: "Bitcoin", exact: true }).click();
   await expect(page).toHaveURL(/kategorie=bitcoin/);
-  await expect(page.getByRole("status")).toContainText("z 16 triček");
+  await expect(page.locator(".pagination-bar")).toContainText("z 13 motivů");
   await page.getByRole("button", { name: "Stránka 2", exact: true }).click();
-  await expect(page.locator(".catalog-grid .product-card")).toHaveCount(4);
+  await expect(page.locator(".catalog-grid .product-card")).toHaveCount(1);
   await page.locator(".product-card-link").first().click();
-  await expect(page).toHaveURL(/\/produkt\/bitcoin-/);
-  await page.getByText("Dětské", { exact: true }).click();
+  await expect(page).toHaveURL(/\/produkt\/motiv-13$/);
   await page.getByText("Bílá", { exact: true }).click();
-  await page.getByText("110/116", { exact: true }).click();
+  await expect(page.getByRole("radio", { name: "M", exact: true })).toHaveCount(0);
+  await page.getByRole("radio", { name: "L", exact: true }).check();
+  await expect(page.locator(".product-price")).toContainText("699 Kč");
   await page.getByLabel("Počet kusů", { exact: true }).fill("2");
   await page.getByRole("button", { name: "Přidat do košíku" }).click();
   await expect(page.getByRole("button", { name: "Košík, počet položek: 2" })).toBeVisible();
+  const stored = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("trikonos-cart-v2") ?? "[]"),
+  );
+  expect(stored[0]).toMatchObject({
+    kind: "catalog",
+    motifId: "10000000-0000-0000-0000-000000000013",
+    unitPrice: 69900,
+    size: "L",
+    quantity: 2,
+  });
   await page.reload();
   await expect(page.getByRole("button", { name: "Košík, počet položek: 2" })).toBeVisible();
   await page.goto("/produkt/neexistuje");
   await expect(page.getByRole("heading", { name: "Tohle tričko jsme nenašli." })).toBeVisible();
+});
+
+test("catalog failure can be retried and an empty catalog does not fall back to demo products", async ({
+  page,
+}) => {
+  let failing = true;
+  await page.route(/\/api\/v1\/motifs(?:\?.*)?$/, (route) =>
+    route.fulfill(
+      failing
+        ? { status: 400, json: {} }
+        : { json: { count: 0, results: [], next: null, previous: null } },
+    ),
+  );
+  await page.goto("/tricka");
+  await expect(page.getByRole("alert")).toContainText("Produkty se nepodařilo načíst.");
+  failing = false;
+  await page.getByRole("button", { name: "Zkusit znovu", exact: true }).click();
+  await expect(page.getByText("Žádné motivy neodpovídají výběru.")).toBeVisible();
+  await expect(page.locator(".product-card")).toHaveCount(0);
 });
 
 test("custom print selection, editing, upload, removal and cart", async ({ page }) => {

@@ -60,7 +60,7 @@ export function App() {
             <Route element={<StoreLayout />}>
               <Route index element={<HomePage />} />
               <Route path="tricka" element={<CatalogPage />} />
-              <Route path="produkt/:id" element={<ProductPage />} />
+              <Route path="produkt/:slug" element={<ProductPage />} />
               <Route path="prihlaseni" element={<LoginPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>

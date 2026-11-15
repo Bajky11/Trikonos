@@ -8,7 +8,7 @@ test("generated hooks load config and options directly and reuse the cache on na
 }) => {
   const calls: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/v1/")) calls.push(request.url());
+    if (/\/api\/v1\/(config|catalog\/options)$/.test(request.url())) calls.push(request.url());
   });
   const optionsResponse = page.waitForResponse("**/api/v1/catalog/options");
   await page.goto("/");

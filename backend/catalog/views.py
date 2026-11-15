@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -67,6 +67,12 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     list=extend_schema(
         tags=['Katalog'],
         summary='Výpis motivů (katalog, homepage Novinky)',
+        parameters=[
+            OpenApiParameter('category', str, description='Slug kategorie.'),
+            OpenApiParameter('q', str, description='Hledání v názvu a popisu.'),
+            OpenApiParameter('ids', str, description='UUID motivů oddělená čárkou.'),
+            OpenApiParameter('ordering', str, enum=['position', '-createdAt', 'price', '-price', 'name', 'popular']),
+        ],
         description=(
             'Stránkovaný seznam aktivních motivů (24/stránku, `page`/`pageSize`). '
             'Filtry: `category` (slug kategorie, ne id), `q` (fulltext v názvu a '
@@ -129,11 +135,11 @@ class MotifViewSet(viewsets.ReadOnlyModelViewSet):
     @staticmethod
     def _ordered(queryset, ordering):
         if ordering == '-createdAt':
-            return queryset.order_by('-created_at')
+            return queryset.order_by('-created_at', 'id')
         if ordering == 'price':
-            return queryset.order_by('price')
+            return queryset.order_by('price', 'id')
         if ordering == '-price':
-            return queryset.order_by('-price')
+            return queryset.order_by('-price', 'id')
         if ordering == 'name':
             return queryset.order_by('name')
         if ordering == 'popular':
@@ -159,7 +165,7 @@ class MotifViewSet(viewsets.ReadOnlyModelViewSet):
         ),
         responses={200: MotifListSerializer(many=True)},
     )
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], pagination_class=None)
     def related(self, request, slug=None):
         """Max 8 active motifs from the same category, topped up with the
         newest overall if the category doesn't have enough.

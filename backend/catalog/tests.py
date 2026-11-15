@@ -14,6 +14,7 @@ from orders.models import Order, OrderStatus
 from orders.services import build_order_item
 
 from .models import Category, Motif, MotifVariant, PrintArea, ProductType
+from .views import MotifViewSet
 
 pytestmark = pytest.mark.django_db
 
@@ -240,6 +241,12 @@ def test_related_motifs_excludes_inactive_motifs(motif, category):
     response = APIClient().get(f'/api/v1/motifs/{motif.slug}/related')
 
     assert response.data == []
+
+
+def test_paginated_ordering_breaks_price_and_date_ties_with_a_unique_key():
+    for ordering, field in [('price', 'price'), ('-price', '-price'), ('-createdAt', '-created_at')]:
+        queryset = MotifViewSet._ordered(Motif.objects.all(), ordering)
+        assert queryset.query.order_by == (field, 'id')
 
 
 def test_inactive_motif_returns_404_on_public_detail(motif):

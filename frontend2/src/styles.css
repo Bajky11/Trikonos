@@ -688,12 +688,17 @@
 }
 .product-art {
   aspect-ratio: 1;
-  background: url("/assets/products-v2.png") var(--x) var(--y) / 300% 200% no-repeat;
+  background: var(--paper);
   position: relative;
   overflow: hidden;
 }
 .product-art-photo {
   background: white;
+}
+.product-art-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 20px;
 }
 .product-art img {
   display: block;
@@ -772,6 +777,13 @@
 }
 .catalog-heading {
   margin-bottom: 28px;
+}
+.catalog-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 .catalog-heading h1 {
   font:
