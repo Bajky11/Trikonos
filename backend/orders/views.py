@@ -252,7 +252,7 @@ class DesignUploadView(APIView):
             data = sanitize_svg(data)
 
         width_px, height_px = get_image_dimensions(data, kind)
-        _, url = save_random_file(data, design_upload_directory(), kind)
+        _saved_path, url = save_random_file(data, design_upload_directory(), kind)
         payload = {
             'url': url,
             'mime_type': MIME_BY_KIND[kind],

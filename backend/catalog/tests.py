@@ -13,7 +13,7 @@ from customers.models import Customer
 from orders.models import Order, OrderStatus
 from orders.services import build_order_item
 
-from .models import Category, Motif, MotifVariant, PrintArea, ProductType
+from .models import Category, Color, Motif, MotifVariant, PrintArea, ProductType
 
 pytestmark = pytest.mark.django_db
 
@@ -136,6 +136,70 @@ def test_update_image_alt_text(admin_client, motif, settings, tmp_path):
     assert response.data['images'][0]['alt_text'] == 'Bitcoin tričko'
 
 
+def test_update_image_color_id(admin_client, motif, color, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    upload = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+    image_id = upload.data['images'][0]['id']
+
+    response = admin_client.patch(
+        f'/api/v1/admin/motifs/{motif.id}/images/{image_id}', {'colorId': str(color.id)}, format='json',
+    )
+
+    assert response.status_code == 200
+    assert response.data['images'][0]['color_id'] == str(color.id)
+
+
+def test_update_unknown_image_returns_404(admin_client, motif):
+    response = admin_client.patch(
+        f'/api/v1/admin/motifs/{motif.id}/images/00000000-0000-0000-0000-000000000000', {'altText': 'x'}, format='json',
+    )
+    assert response.status_code == 404
+
+
+def test_upload_rejects_gif_file(admin_client, motif, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    buffer = BytesIO()
+    Image.new('RGB', (10, 10), color='blue').save(buffer, format='GIF')
+    buffer.seek(0)
+    gif = SimpleUploadedFile('photo.gif', buffer.read(), content_type='image/gif')
+
+    response = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': gif}, format='multipart')
+
+    assert response.status_code == 400
+    assert 'file' in response.data['error']['fields']
+
+
+def test_reorder_images_rejects_unknown_id(admin_client, motif, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+
+    response = admin_client.post(
+        f'/api/v1/admin/motifs/{motif.id}/images/reorder',
+        {'ids': ['00000000-0000-0000-0000-000000000000']}, format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_reorder_images_partial_list_appends_remainder_in_original_order(admin_client, motif, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    first = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+    second = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+    third = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+    first_id = first.data['images'][0]['id']
+    second_id = second.data['images'][1]['id']
+    third_id = third.data['images'][2]['id']
+
+    # Only reorders the first two - the third isn't mentioned, so it must
+    # keep its place at the tail rather than disappearing.
+    response = admin_client.post(
+        f'/api/v1/admin/motifs/{motif.id}/images/reorder', {'ids': [second_id, first_id]}, format='json',
+    )
+
+    assert response.status_code == 200
+    assert [image['id'] for image in response.data['images']] == [second_id, first_id, third_id]
+
+
 def test_deleting_a_motif_used_in_an_order_returns_409(motif, product_type, cut, color, admin_client):
     customer = Customer.objects.create(email='jana@example.cz', first_name='Jana', last_name='Nováková')
     order = Order.objects.create(
@@ -160,6 +224,112 @@ def test_deleting_an_unused_motif_succeeds(motif, admin_client):
 
     assert response.status_code == 204
     assert not Motif.objects.filter(pk=motif.id).exists()
+
+
+def test_deleting_a_motif_with_images_removes_their_files_from_storage(admin_client, motif, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
+    motif.refresh_from_db()
+    stored = motif.images[0]
+
+    response = admin_client.delete(f'/api/v1/admin/motifs/{motif.id}')
+
+    assert response.status_code == 204
+    assert not default_storage.exists(stored['path'])
+    assert not default_storage.exists(stored['thumbnail_small_path'])
+    assert not default_storage.exists(stored['thumbnail_large_path'])
+
+
+# ---------------------------------------------------------------------------
+# Admin motif create/update/reorder
+# ---------------------------------------------------------------------------
+
+def test_admin_motif_list_filters_by_category_isactive_and_q(admin_client, category):
+    matching = Motif.objects.create(name='Hledaný', slug='hledany', price=10000, category=category)
+    Motif.objects.create(name='Neaktivní', slug='admin-neaktivni', price=10000, category=category, is_active=False)
+    other_category = Category.objects.create(name='Jiná kategorie', slug='jina-kategorie-2')
+    Motif.objects.create(name='Jinde', slug='admin-jinde', price=10000, category=other_category)
+
+    by_category = admin_client.get('/api/v1/admin/motifs', {'category': str(category.id)})
+    assert str(matching.id) in [row['id'] for row in by_category.data['results']]
+    assert all(row['category']['id'] == str(category.id) for row in by_category.data['results'])
+
+    by_active = admin_client.get('/api/v1/admin/motifs', {'isActive': 'false'})
+    assert any(row['name'] == 'Neaktivní' for row in by_active.data['results'])
+    assert all(row['is_active'] is False for row in by_active.data['results'])
+
+    by_search = admin_client.get('/api/v1/admin/motifs', {'q': 'Hledaný'})
+    assert [row['id'] for row in by_search.data['results']] == [str(matching.id)]
+
+
+def test_admin_can_retrieve_motif_detail(admin_client, motif):
+    response = admin_client.get(f'/api/v1/admin/motifs/{motif.id}')
+
+    assert response.status_code == 200
+    assert response.data['slug'] == motif.slug
+
+
+def test_admin_can_create_motif_with_auto_generated_slug(admin_client, category):
+    response = admin_client.post(
+        '/api/v1/admin/motifs', {'name': 'Horský vrchol', 'category': str(category.id), 'price': 59900}, format='json',
+    )
+
+    assert response.status_code == 201
+    assert response.data['slug'] == 'horsky-vrchol'
+    assert response.data['images'] == []
+
+
+def test_create_motif_with_duplicate_slug_returns_400(admin_client, category, motif):
+    response = admin_client.post(
+        '/api/v1/admin/motifs',
+        {'name': 'Jiný název', 'slug': motif.slug, 'category': str(category.id), 'price': 10000},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'slug' in response.data['error']['fields']
+
+
+def test_update_motif_with_auto_generated_colliding_slug_returns_400(admin_client, category, motif):
+    # Same reasoning as the category test: a client-supplied duplicate slug
+    # (or name) is already caught by the model fields' own unique=True
+    # before validate() runs - this targets the one case that can't:
+    # renaming (no explicit slug, different exact name string) to something
+    # whose auto-generated slug still collides with a different motif.
+    other = Motif.objects.create(name='Les a hory', slug='les-a-hory', price=50000, category=category)
+
+    response = admin_client.patch(f'/api/v1/admin/motifs/{other.id}', {'name': f'{motif.name},'}, format='json')
+
+    assert response.status_code == 400
+    assert 'slug' in response.data['error']['fields']
+
+
+def test_admin_can_update_motif_price(admin_client, motif):
+    response = admin_client.patch(f'/api/v1/admin/motifs/{motif.id}', {'price': 123400}, format='json')
+
+    assert response.status_code == 200
+    motif.refresh_from_db()
+    assert motif.price == 123400
+
+
+def test_admin_can_reorder_motifs(admin_client, category):
+    first = Motif.objects.create(name='Druhý v pořadí', slug='druhy-v-poradi', price=10000, category=category)
+    second = Motif.objects.create(name='První v pořadí', slug='prvni-v-poradi', price=10000, category=category)
+
+    response = admin_client.post('/api/v1/admin/motifs/reorder', {'ids': [str(second.id), str(first.id)]}, format='json')
+
+    assert response.status_code == 204
+    second.refresh_from_db()
+    first.refresh_from_db()
+    assert second.position < first.position
+
+
+def test_reorder_motifs_rejects_unknown_id(admin_client, motif):
+    response = admin_client.post(
+        '/api/v1/admin/motifs/reorder', {'ids': ['00000000-0000-0000-0000-000000000000']}, format='json',
+    )
+
+    assert response.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +375,79 @@ def test_motifs_ordering_popular_ignores_sales_older_than_90_days(category, prod
 
     slugs = [item['slug'] for item in response.data['results']]
     assert slugs.index('hory') < slugs.index('les')
+
+
+def test_categories_list_is_active_only_ordered_by_position(category):
+    Category.objects.create(name='Neaktivní', slug='neaktivni', is_active=False)
+    other = Category.objects.create(name='Dámská', slug='damska', position=5)
+    category.position = 1
+    category.save(update_fields=['position'])
+
+    response = APIClient().get('/api/v1/categories')
+
+    slugs = [item['slug'] for item in response.data]
+    assert slugs == [category.slug, other.slug]
+
+
+def test_category_detail_by_slug(category):
+    response = APIClient().get(f'/api/v1/categories/{category.slug}')
+
+    assert response.status_code == 200
+    assert response.data['slug'] == category.slug
+
+
+def test_inactive_category_detail_returns_404(category):
+    category.is_active = False
+    category.save(update_fields=['is_active'])
+
+    response = APIClient().get(f'/api/v1/categories/{category.slug}')
+
+    assert response.status_code == 404
+
+
+def test_motifs_filtered_by_category(category):
+    matching = Motif.objects.create(name='V kategorii', slug='v-kategorii', price=10000, category=category)
+    other_category = Category.objects.create(name='Jiná', slug='jina')
+    Motif.objects.create(name='Jinde', slug='jinde', price=10000, category=other_category)
+
+    response = APIClient().get('/api/v1/motifs', {'category': category.slug})
+
+    assert [item['slug'] for item in response.data['results']] == [matching.slug]
+
+
+def test_motifs_filtered_by_fulltext_search(category):
+    matching = Motif.objects.create(name='Bitcoin raketa', slug='bitcoin-raketa', price=10000, category=category)
+    Motif.objects.create(name='Jiný motiv', slug='jiny-motiv-2', price=10000, category=category)
+
+    response = APIClient().get('/api/v1/motifs', {'q': 'raketa'})
+
+    assert [item['slug'] for item in response.data['results']] == [matching.slug]
+
+
+def test_motifs_filtered_by_ids(category):
+    first = Motif.objects.create(name='První', slug='prvni', price=10000, category=category)
+    Motif.objects.create(name='Druhý', slug='druhy', price=10000, category=category)
+
+    response = APIClient().get('/api/v1/motifs', {'ids': str(first.id)})
+
+    assert [item['slug'] for item in response.data['results']] == [first.slug]
+
+
+def test_motifs_ordering_created_at_price_and_name(category):
+    old_cheap = Motif.objects.create(name='Zebra', slug='zebra', price=10000, category=category)
+    new_expensive = Motif.objects.create(name='Alfa', slug='alfa', price=90000, category=category)
+
+    by_created = APIClient().get('/api/v1/motifs', {'ordering': '-createdAt'}).data['results']
+    assert [item['slug'] for item in by_created] == [new_expensive.slug, old_cheap.slug]
+
+    by_price = APIClient().get('/api/v1/motifs', {'ordering': 'price'}).data['results']
+    assert [item['slug'] for item in by_price] == [old_cheap.slug, new_expensive.slug]
+
+    by_price_desc = APIClient().get('/api/v1/motifs', {'ordering': '-price'}).data['results']
+    assert [item['slug'] for item in by_price_desc] == [new_expensive.slug, old_cheap.slug]
+
+    by_name = APIClient().get('/api/v1/motifs', {'ordering': 'name'}).data['results']
+    assert [item['slug'] for item in by_name] == [new_expensive.slug, old_cheap.slug]  # Alfa < Zebra
 
 
 def test_related_motifs_prefers_same_category(motif, category):
@@ -295,6 +538,148 @@ def test_deleting_a_category_used_by_a_motif_returns_409(motif, category, admin_
     assert Category.objects.filter(id=category.id).exists()
 
 
+def test_lookup_isactive_and_q_filters(admin_client, category):
+    inactive = Category.objects.create(name='Skrytá', slug='skryta', is_active=False)
+
+    only_inactive = admin_client.get('/api/v1/admin/categories', {'isActive': 'false'})
+    assert [row['id'] for row in only_inactive.data['results']] == [str(inactive.id)]
+
+    by_search = admin_client.get('/api/v1/admin/categories', {'q': category.name})
+    assert [row['id'] for row in by_search.data['results']] == [str(category.id)]
+
+
+def test_lookup_reorder_rejects_unknown_id(admin_client, category):
+    response = admin_client.post(
+        '/api/v1/admin/categories/reorder', {'ids': ['00000000-0000-0000-0000-000000000000']}, format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_print_areas_filtered_by_product_type(admin_client, product_type):
+    other_type = ProductType.objects.create(name='Mikina')
+    matching = PrintArea.objects.create(product_type=product_type, name='Přední', width_mm=100, height_mm=100)
+    PrintArea.objects.create(product_type=other_type, name='Záda', width_mm=100, height_mm=100)
+
+    response = admin_client.get('/api/v1/admin/print-areas', {'productType': str(product_type.id)})
+
+    assert [row['id'] for row in response.data['results']] == [str(matching.id)]
+
+
+def test_create_category_auto_generates_slug(admin_client):
+    response = admin_client.post('/api/v1/admin/categories', {'name': 'Dětská trička'}, format='json')
+
+    assert response.status_code == 201
+    assert response.data['slug'] == 'detska-tricka'
+
+
+def test_create_category_with_duplicate_slug_returns_400(admin_client, category):
+    response = admin_client.post('/api/v1/admin/categories', {'name': 'Jiný název', 'slug': category.slug}, format='json')
+
+    assert response.status_code == 400
+
+
+def test_update_category_with_auto_generated_colliding_slug_returns_400(admin_client):
+    # A client-supplied duplicate slug (or name) is already caught by the
+    # model fields' own unique=True (DRF's auto UniqueValidator) before this
+    # serializer's custom validate() even runs. This targets the one case
+    # the model-level validators *can't* catch: renaming a category (no
+    # explicit slug in the PATCH, and a `name` that's a different exact
+    # string) to something whose auto-generated slug still collides with a
+    # different category - validate() must regenerate the slug itself and
+    # re-check it, since neither unique=True field was handed a literal
+    # duplicate value.
+    Category.objects.create(name='Summer Sale', slug='summer-sale')
+    other = Category.objects.create(name='Winter Sale', slug='winter-sale')
+
+    response = admin_client.patch(f'/api/v1/admin/categories/{other.id}', {'name': 'Summer, Sale'}, format='json')
+
+    assert response.status_code == 400
+    assert 'slug' in response.data['error']['fields']
+
+
+def test_create_color_with_invalid_hex_returns_400(admin_client):
+    # '#GGGGGG' is within the model's max_length=7 (so DRF's own length
+    # check doesn't short-circuit first) but fails the #RRGGBB regex.
+    response = admin_client.post('/api/v1/admin/colors', {'name': 'Zelená', 'hexValue': '#GGGGGG'}, format='json')
+
+    assert response.status_code == 400
+    assert 'hex_value' in response.data['error']['fields']
+
+
+def test_create_color_normalizes_hex_to_uppercase(admin_client):
+    response = admin_client.post('/api/v1/admin/colors', {'name': 'Zelená', 'hexValue': '#00ff00'}, format='json')
+
+    assert response.status_code == 201
+    assert response.data['hex_value'] == '#00FF00'
+
+
+def test_create_print_area_with_non_positive_width_returns_400(admin_client, product_type):
+    response = admin_client.post(
+        '/api/v1/admin/print-areas',
+        {'name': 'Přední', 'productType': str(product_type.id), 'widthMm': 0, 'heightMm': 100},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'width_mm' in response.data['error']['fields']
+
+
+def test_create_print_area_with_non_positive_height_returns_400(admin_client, product_type):
+    response = admin_client.post(
+        '/api/v1/admin/print-areas',
+        {'name': 'Přední', 'productType': str(product_type.id), 'widthMm': 100, 'heightMm': 0},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'height_mm' in response.data['error']['fields']
+
+
+def test_create_print_area_with_duplicate_name_for_same_product_type_returns_400(admin_client, product_type, print_area):
+    response = admin_client.post(
+        '/api/v1/admin/print-areas',
+        {'name': print_area.name, 'productType': str(product_type.id), 'widthMm': 50, 'heightMm': 50},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'name' in response.data['error']['fields']
+
+
+def test_create_print_area_succeeds(admin_client, product_type):
+    response = admin_client.post(
+        '/api/v1/admin/print-areas',
+        {'name': 'Rukáv', 'productType': str(product_type.id), 'widthMm': 50, 'heightMm': 50},
+        format='json',
+    )
+
+    assert response.status_code == 201
+
+
+def test_update_print_area_keeping_its_own_name_succeeds(admin_client, print_area):
+    # Exercises the self.instance branch (excluding the print area's own
+    # row from the duplicate-name check) on the non-colliding path.
+    response = admin_client.patch(f'/api/v1/admin/print-areas/{print_area.id}', {'widthMm': 150}, format='json')
+
+    assert response.status_code == 200
+    print_area.refresh_from_db()
+    assert print_area.width_mm == 150
+
+
+def test_updating_motif_variant_to_a_duplicate_combination_returns_409(admin_client, motif, product_type, cut, color):
+    other_color = Color.objects.create(name='Bílá', hex_value='#FFFFFF')
+    MotifVariant.objects.create(motif=motif, product_type=product_type, cut=cut, color=other_color, size='M')
+    variant_to_update = motif.variants.get(color=color, size='M')
+
+    response = admin_client.patch(
+        f'/api/v1/admin/motif-variants/{variant_to_update.id}', {'colorId': str(other_color.id)}, format='json',
+    )
+
+    assert response.status_code == 409
+    assert response.data['error']['code'] == 'DUPLICATE_VARIANT'
+
+
 # ---------------------------------------------------------------------------
 # No N+1 queries on list endpoints
 # ---------------------------------------------------------------------------
@@ -322,6 +707,17 @@ def test_catalog_options_query_count_does_not_grow_with_product_type_count(djang
     assert len(response.data['product_types']) == 5
 
 
+def test_admin_motif_list_query_count_does_not_grow_with_motif_count(admin_client, category, django_assert_max_num_queries):
+    for i in range(10):
+        Motif.objects.create(name=f'Motif {i}', slug=f'admin-motif-{i}', price=10000, category=category)
+
+    with django_assert_max_num_queries(4):
+        response = admin_client.get('/api/v1/admin/motifs')
+
+    assert response.status_code == 200
+    assert len(response.data['results']) == 10
+
+
 # ---------------------------------------------------------------------------
 # Motif availability matrix (admin CRUD + public exposure)
 # ---------------------------------------------------------------------------
@@ -333,6 +729,15 @@ def test_motif_detail_exposes_variants(motif, product_type, cut, color):
     assert response.data['variants'] == [{
         'product_type_id': str(product_type.id), 'cut_id': str(cut.id), 'color_id': str(color.id), 'size': 'M',
     }]
+
+
+def test_simple_lookup_str_is_name(category):
+    assert str(category) == category.name
+
+
+def test_motif_variant_str(motif, product_type, cut, color):
+    variant = motif.variants.get(product_type=product_type, cut=cut, color=color, size='M')
+    assert str(variant) == f'{motif.name} / {product_type.name} / {cut.name} / {color.name} / M'
 
 
 def test_admin_can_list_motif_variants_for_a_motif(admin_client, motif, product_type, cut, color):

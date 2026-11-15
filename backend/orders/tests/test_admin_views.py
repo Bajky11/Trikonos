@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.core import mail
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -27,12 +28,13 @@ def packeta_carrier(db):
     return Carrier.objects.create(code='PACKETA', name='Zásilkovna')
 
 
-def _order(*, motif, product_type, cut, color, packeta_carrier, delivery_type=DeliveryType.PICKUP_POINT, **extra):
+def _order(*, motif, product_type, cut, color, packeta_carrier, delivery_type=DeliveryType.PICKUP_POINT,
+           email='jana@example.cz', order_number='TRK-2026-0001', **extra):
     customer = Customer.objects.create(
-        email='jana@example.cz', first_name='Jana', last_name='Nováková', phone='+420777123456',
+        email=email, first_name='Jana', last_name='Nováková', phone='+420777123456',
     )
     fields = {
-        'order_number': 'TRK-2026-0001',
+        'order_number': order_number,
         'customer': customer,
         'status': OrderStatus.NEW,
         'subtotal': 59900, 'shipping_cost': 5000, 'total': 64900,
@@ -334,3 +336,493 @@ def test_shipment_status_endpoint_can_correct_tracking_number_before_production(
     assert response.status_code == 409  # CREATED -> CREATED is not "forward"
     order.refresh_from_db()
     assert order.tracking_number == 'Z 999'  # but the correction still landed
+
+
+def test_confirm_sends_confirmation_email_to_customer(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    assert response.status_code == 200
+    order.refresh_from_db()
+    assert order.confirmed_at is not None
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].to == [order.customer.email]
+    assert order.order_number in mail.outbox[0].subject
+
+
+def test_confirm_twice_resends_the_email(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+    with django_capture_on_commit_callbacks(execute=True):
+        second_response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    assert second_response.status_code == 200
+    assert len(mail.outbox) == 2
+
+
+def test_confirm_without_total_returns_422(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, total=None)
+
+    response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    assert response.status_code == 422
+    assert response.data['error']['code'] == 'ORDER_NOT_PRICED'
+
+
+def test_list_query_count_does_not_grow_with_order_count(admin_client, motif, product_type, cut, color, packeta_carrier, django_assert_max_num_queries):
+    for i in range(10):
+        _order(
+            motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+            email=f'customer{i}@example.cz', order_number=f'TRK-2026-{i:04d}',
+        )
+
+    with django_assert_max_num_queries(5):
+        response = admin_client.get('/api/v1/admin/orders')
+
+    assert response.status_code == 200
+    assert len(response.data['results']) == 10
+
+
+# ---------------------------------------------------------------------------
+# List filters
+# ---------------------------------------------------------------------------
+
+def test_list_filters_by_status(admin_client, motif, product_type, cut, color, packeta_carrier):
+    new_order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                        email='new@example.cz', order_number='TRK-2026-0101', status=OrderStatus.NEW)
+    _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+           email='cancelled@example.cz', order_number='TRK-2026-0102', status=OrderStatus.CANCELLED)
+
+    response = admin_client.get('/api/v1/admin/orders', {'status': 'NEW,PAID'})
+
+    ids = [row['id'] for row in response.data['results']]
+    assert ids == [str(new_order.id)]
+
+
+def test_list_filters_by_payment_status_shipment_status_payment_method(admin_client, motif, product_type, cut, color, packeta_carrier):
+    match = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        email='match@example.cz', order_number='TRK-2026-0201',
+        payment_status=PaymentStatus.PAID, shipment_status=ShipmentStatus.HANDED_OVER, payment_method=PaymentMethod.INVOICE,
+    )
+    _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        email='other@example.cz', order_number='TRK-2026-0202',
+    )
+
+    response = admin_client.get('/api/v1/admin/orders', {
+        'paymentStatus': 'PAID', 'shipmentStatus': 'HANDED_OVER', 'paymentMethod': 'INVOICE',
+    })
+
+    assert [row['id'] for row in response.data['results']] == [str(match.id)]
+
+
+def test_list_filters_by_carrier_and_customer(admin_client, motif, product_type, cut, color, packeta_carrier):
+    other_carrier = Carrier.objects.create(code='OTHER', name='Jiný dopravce')
+    match = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    email='match@example.cz', order_number='TRK-2026-0301')
+    _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=other_carrier,
+           email='other@example.cz', order_number='TRK-2026-0302')
+
+    by_carrier = admin_client.get('/api/v1/admin/orders', {'carrier': str(packeta_carrier.id)})
+    assert [row['id'] for row in by_carrier.data['results']] == [str(match.id)]
+
+    by_customer = admin_client.get('/api/v1/admin/orders', {'customer': str(match.customer_id)})
+    assert [row['id'] for row in by_customer.data['results']] == [str(match.id)]
+
+
+def test_list_filters_by_has_custom(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    catalog_order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                            email='catalog@example.cz', order_number='TRK-2026-0401')
+    custom_order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                           email='custom@example.cz', order_number='TRK-2026-0402')
+    build_order_item(custom_order, {
+        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0}],
+    })
+
+    only_custom = admin_client.get('/api/v1/admin/orders', {'hasCustom': 'true'})
+    assert [row['id'] for row in only_custom.data['results']] == [str(custom_order.id)]
+
+    only_catalog = admin_client.get('/api/v1/admin/orders', {'hasCustom': 'false'})
+    assert [row['id'] for row in only_catalog.data['results']] == [str(catalog_order.id)]
+
+    # Regression guard: an order with BOTH a catalog and a custom item must
+    # appear exactly once in the unfiltered list with hasCustom=true - not
+    # twice (one row per distinct has_custom value), which is what happened
+    # when has_custom was computed via Case/When on the same annotate() as
+    # the Count aggregate (see get_queryset's comment).
+    unfiltered = admin_client.get('/api/v1/admin/orders')
+    assert len(unfiltered.data['results']) == 2
+    custom_row = next(row for row in unfiltered.data['results'] if row['id'] == str(custom_order.id))
+    assert custom_row['has_custom'] is True
+
+
+def test_list_filters_by_created_date_range_and_search(admin_client, motif, product_type, cut, color, packeta_carrier):
+    from datetime import timedelta
+    from django.utils import timezone
+
+    old_order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                        email='old@example.cz', order_number='TRK-2026-0501')
+    Order.objects.filter(pk=old_order.pk).update(created_at=timezone.now() - timedelta(days=10))
+    recent_order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                           email='recent@example.cz', order_number='TRK-2026-0502')
+
+    today = timezone.now().date()
+    response = admin_client.get('/api/v1/admin/orders', {'createdFrom': str(today), 'createdTo': str(today)})
+    assert [row['id'] for row in response.data['results']] == [str(recent_order.id)]
+
+    by_search = admin_client.get('/api/v1/admin/orders', {'q': 'recent@example.cz'})
+    assert [row['id'] for row in by_search.data['results']] == [str(recent_order.id)]
+
+
+# ---------------------------------------------------------------------------
+# PATCH /admin/orders/{id} - partial_update
+# ---------------------------------------------------------------------------
+
+def test_partial_update_editable_order_changes_address_and_carrier(admin_client, motif, product_type, cut, color, packeta_carrier):
+    other_carrier = Carrier.objects.create(code='OTHER', name='Jiný dopravce')
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.NEW)
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}', {
+        'billing': {'fullName': 'Nové Jméno', 'street': 'Nová 1', 'city': 'Praha', 'zip': '11000'},
+        'shipping': {'fullName': 'Jiný Příjemce', 'street': 'Doručovací 2', 'city': 'Brno', 'zip': '60200'},
+        'carrierId': str(other_carrier.id),
+        'deliveryType': 'PICKUP_POINT',
+        'pickupPointId': '999',
+        'pickupPointName': 'Z-BOX Brno',
+        'paymentMethod': 'INVOICE',
+        'note': 'Aktualizovaná poznámka',
+    }, format='json')
+
+    assert response.status_code == 200
+    order.refresh_from_db()
+    assert order.billing_full_name == 'Nové Jméno'
+    assert order.shipping_full_name == 'Jiný Příjemce'
+    assert order.shipping_city == 'Brno'
+    assert order.carrier_id == other_carrier.id
+    assert order.delivery_type == 'PICKUP_POINT'
+    assert order.pickup_point_id == '999'
+    assert order.pickup_point_name == 'Z-BOX Brno'
+    assert order.payment_method == 'INVOICE'
+    assert order.note == 'Aktualizovaná poznámka'
+
+
+def test_retrieve_order_detail(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.get(f'/api/v1/admin/orders/{order.id}')
+
+    assert response.status_code == 200
+    assert response.data['order_number'] == order.order_number
+
+
+def test_partial_update_locked_fields_on_locked_order_return_409(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.PROCESSING)
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}', {'note': 'nope'}, format='json')
+
+    assert response.status_code == 409
+    assert response.data['error']['code'] == 'ORDER_LOCKED'
+
+
+def test_partial_update_tracking_number_editable_even_when_locked(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.PROCESSING)
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}', {'trackingNumber': 'Z 123'}, format='json')
+
+    assert response.status_code == 200
+    order.refresh_from_db()
+    assert order.tracking_number == 'Z 123'
+
+
+def test_partial_update_personal_pickup_with_carrier_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.NEW)
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}', {'deliveryType': 'PERSONAL_PICKUP', 'carrierId': str(packeta_carrier.id)},
+        format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_partial_update_delivery_type_without_carrier_returns_400(admin_client, motif, product_type, cut, color):
+    order = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=None,
+        delivery_type=None, status=OrderStatus.NEW,
+    )
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}', {'deliveryType': 'PICKUP_POINT'}, format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_partial_update_pickup_point_without_id_or_name_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        status=OrderStatus.NEW, pickup_point_id='', pickup_point_name='',
+    )
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}', {'deliveryType': 'PICKUP_POINT', 'carrierId': str(packeta_carrier.id)},
+        format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_put_on_order_detail_is_not_allowed(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.put(f'/api/v1/admin/orders/{order.id}', {}, format='json')
+
+    assert response.status_code == 405
+
+
+def test_delete_on_order_detail_is_not_allowed(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.delete(f'/api/v1/admin/orders/{order.id}')
+
+    assert response.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# PATCH /admin/orders/{id}/items/{itemId}
+# ---------------------------------------------------------------------------
+
+def test_update_item_price_via_http_recalculates_total(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None)
+    item = order.items.get()
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}/items/{item.id}', {'unitPrice': 12345}, format='json')
+
+    assert response.status_code == 200
+    item.refresh_from_db()
+    assert item.unit_price == 12345
+
+
+def test_update_item_unknown_item_id_returns_404(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}/items/00000000-0000-0000-0000-000000000000', {'unitPrice': 1}, format='json',
+    )
+
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /admin/orders/{id}/items/{itemId}/placements/{placementId}
+# ---------------------------------------------------------------------------
+
+def _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None, order_number='TRK-2026-CUSTOM')
+    order.items.all().delete()  # drop the default catalog item from the _order helper
+    build_order_item(order, {
+        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0}],
+    })
+    return order
+
+
+def test_update_placement_success(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+    item = order.items.get()
+    placement = item.design_placements.get()
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}',
+        {'x': 5, 'y': 5, 'width': 20, 'height': 20}, format='json',
+    )
+
+    assert response.status_code == 200
+    placement.refresh_from_db()
+    assert placement.width == 20
+
+
+def test_update_placement_item_not_found_returns_404(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}/items/00000000-0000-0000-0000-000000000000/placements/00000000-0000-0000-0000-000000000000',
+        {'width': 20}, format='json',
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_placement_placement_not_found_returns_404(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+    item = order.items.get()
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/00000000-0000-0000-0000-000000000000',
+        {'width': 20}, format='json',
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_placement_mismatched_product_type_returns_422(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    from catalog.models import ProductType, PrintArea
+
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+    item = order.items.get()
+    placement = item.design_placements.get()
+    other_type = ProductType.objects.create(name='Mikina')
+    other_area = PrintArea.objects.create(product_type=other_type, name='Kapuce', width_mm=50, height_mm=50)
+
+    response = admin_client.patch(
+        f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}',
+        {'printAreaId': str(other_area.id)}, format='json',
+    )
+
+    assert response.status_code == 422
+    assert response.data['error']['code'] == 'PRINT_AREA_PRODUCT_TYPE_MISMATCH'
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/orders/{id}/items/{itemId}/placements/{placementId}/file
+# ---------------------------------------------------------------------------
+
+def test_placement_file_redirects_to_stored_url(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+    item = order.items.get()
+    placement = item.design_placements.get()
+
+    response = admin_client.get(f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}/file')
+
+    assert response.status_code == 302
+    assert response['Location'] == placement.url
+
+
+def test_placement_file_item_not_found_returns_404(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+
+    response = admin_client.get(
+        f'/api/v1/admin/orders/{order.id}/items/00000000-0000-0000-0000-000000000000/placements/00000000-0000-0000-0000-000000000000/file',
+    )
+
+    assert response.status_code == 404
+
+
+def test_placement_file_placement_not_found_returns_404(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    order = _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area)
+    item = order.items.get()
+
+    response = admin_client.get(
+        f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/00000000-0000-0000-0000-000000000000/file',
+    )
+
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/orders/{id}/status
+# ---------------------------------------------------------------------------
+
+def test_status_action_to_shipped_sends_email(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.PROCESSING)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = admin_client.post(f'/api/v1/admin/orders/{order.id}/status', {'status': 'SHIPPED'}, format='json')
+
+    assert response.status_code == 200
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].to == [order.customer.email]
+
+
+def test_status_action_to_cancelled_sends_email(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+                    status=OrderStatus.NEW)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = admin_client.post(f'/api/v1/admin/orders/{order.id}/status', {'status': 'CANCELLED'}, format='json')
+
+    assert response.status_code == 200
+    assert len(mail.outbox) == 1
+
+
+def test_status_action_unknown_status_value_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.post(f'/api/v1/admin/orders/{order.id}/status', {'status': 'NOT_A_STATUS'}, format='json')
+
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# PATCH /admin/orders/{id}/payment-status, /shipment-status
+# ---------------------------------------------------------------------------
+
+def test_payment_status_unknown_value_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}/payment-status', {'paymentStatus': 'NOT_A_STATUS'}, format='json')
+
+    assert response.status_code == 400
+
+
+def test_shipment_status_unknown_value_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}/shipment-status', {'shipmentStatus': 'NOT_A_STATUS'}, format='json')
+
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/orders/{id}/resend-email, GET /admin/orders/{id}/print-sheet
+# ---------------------------------------------------------------------------
+
+def test_resend_email_sends_requested_type(
+    admin_client, motif, product_type, cut, color, packeta_carrier,
+):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.post(f'/api/v1/admin/orders/{order.id}/resend-email', {'type': 'ORDER_RECEIVED'}, format='json')
+
+    assert response.status_code == 204
+    assert len(mail.outbox) == 1
+
+
+def test_resend_email_unknown_type_returns_400(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.post(f'/api/v1/admin/orders/{order.id}/resend-email', {'type': 'NOT_A_TYPE'}, format='json')
+
+    assert response.status_code == 400
+
+
+def test_print_sheet_returns_order_detail(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    response = admin_client.get(f'/api/v1/admin/orders/{order.id}/print-sheet')
+
+    assert response.status_code == 200
+    assert response.data['order_number'] == order.order_number

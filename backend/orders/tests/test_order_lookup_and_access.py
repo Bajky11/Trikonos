@@ -95,6 +95,22 @@ def test_access_with_valid_token_returns_order(motif, product_type, cut, color):
     assert response.data['order_number'] == order.order_number
 
 
+def test_access_includes_payment_instructions_for_priced_bank_transfer_order(motif, product_type, cut, color):
+    order = _order(motif, product_type, cut, color)
+    services.set_shipping_cost(order, 9900)
+    order.refresh_from_db()
+    token = sign_order_access_token(order.id)
+    client = APIClient()
+
+    response = client.get(f'/api/v1/orders/access/{token}')
+
+    assert response.status_code == 200
+    instructions = response.data['payment_instructions']
+    assert instructions is not None
+    assert instructions['amount'] == order.total
+    assert instructions['variable_symbol'] == ''.join(ch for ch in order.order_number if ch.isdigit())
+
+
 def test_access_with_forged_token_returns_404(motif, product_type, cut, color):
     order = _order(motif, product_type, cut, color)
     token = sign_order_access_token(order.id)

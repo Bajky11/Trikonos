@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
@@ -77,6 +79,31 @@ def test_login_is_throttled_after_five_attempts_per_minute(admin_user):
 
 
 # ---------------------------------------------------------------------------
+# CSRF / logout / me
+# ---------------------------------------------------------------------------
+
+def test_csrf_view_sets_cookie():
+    response = APIClient().get('/api/v1/admin/auth/csrf')
+
+    assert response.status_code == 204
+    assert 'csrftoken' in response.cookies
+
+
+def test_logout_ends_session(admin_client):
+    response = admin_client.post('/api/v1/admin/auth/logout')
+
+    assert response.status_code == 204
+
+
+def test_me_returns_current_user_profile(admin_client, admin_user):
+    response = admin_client.get('/api/v1/admin/auth/me')
+
+    assert response.status_code == 200
+    assert response.data['email'] == admin_user.email
+    assert response.data['name'] == admin_user.name
+
+
+# ---------------------------------------------------------------------------
 # Change password (self-service, authenticated)
 # ---------------------------------------------------------------------------
 
@@ -86,6 +113,15 @@ def test_change_password_requires_correct_current_password(admin_client):
     )
 
     assert response.status_code == 400
+
+
+def test_change_password_rejects_weak_new_password(admin_client):
+    response = admin_client.post(
+        '/api/v1/admin/auth/password', {'currentPassword': 'correct-horse', 'newPassword': '123'}, format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'new_password' in response.data['error']['fields']
 
 
 def test_change_password_success_allows_login_with_new_password(admin_client, admin_user):
@@ -191,6 +227,34 @@ def test_password_reset_confirm_with_unknown_uid_rejected():
     assert response.status_code == 400
 
 
+def test_password_reset_confirm_with_well_formed_but_nonexistent_uid_rejected():
+    # Distinct from the case above: a syntactically valid UUID that simply
+    # doesn't belong to any user, to specifically exercise the
+    # User.DoesNotExist branch rather than the ValueError-on-decode branch.
+    client = APIClient()
+    response = client.post(
+        '/api/v1/admin/auth/password-reset/confirm',
+        {
+            'uid': urlsafe_base64_encode(force_bytes(str(uuid.uuid4()))),
+            'token': 'whatever', 'newPassword': 'a-new-strong-pass9',
+        },
+        format='json',
+    )
+
+    assert response.status_code == 400
+
+
+def test_password_reset_confirm_rejects_weak_new_password(admin_user):
+    params = _reset_link_params(admin_user)
+    client = APIClient()
+
+    response = client.post(
+        '/api/v1/admin/auth/password-reset/confirm', {**params, 'newPassword': '123'}, format='json',
+    )
+
+    assert response.status_code == 400
+
+
 # ---------------------------------------------------------------------------
 # Admin user management - last-admin / self-delete safeguards
 # ---------------------------------------------------------------------------
@@ -252,6 +316,46 @@ def test_create_user_with_password_does_not_send_email(admin_client):
     assert len(mail.outbox) == 0
 
 
+def test_list_and_retrieve_admin_users(admin_client, admin_user):
+    list_response = admin_client.get('/api/v1/admin/users')
+    assert list_response.status_code == 200
+    assert any(row['email'] == admin_user.email for row in list_response.data['results'])
+
+    detail_response = admin_client.get(f'/api/v1/admin/users/{admin_user.id}')
+    assert detail_response.status_code == 200
+    assert detail_response.data['email'] == admin_user.email
+
+
+def test_partial_update_renames_user(admin_client, admin_user):
+    other_user = User.objects.create_user(email='admin2@trikonos.cz', password='x', name='Admin 2')
+
+    response = admin_client.patch(f'/api/v1/admin/users/{other_user.id}', {'name': 'Nové jméno'}, format='json')
+
+    assert response.status_code == 200
+    other_user.refresh_from_db()
+    assert other_user.name == 'Nové jméno'
+
+
+def test_destroy_fails_when_target_is_the_last_active_admin_even_if_not_self(admin_user):
+    # The acting user is deactivated (but still authenticated - IsAdmin only
+    # checks is_authenticated, not is_active) and tries to delete a
+    # different user who happens to be the only remaining active admin.
+    # Neither safeguard alone would catch this: it's not a self-delete, and
+    # a naive "is there another active user besides me" check keyed off the
+    # acting user (rather than the target) would miss it too.
+    admin_user.is_active = False
+    admin_user.save(update_fields=['is_active'])
+    client = APIClient()
+    client.force_authenticate(user=admin_user)
+    target = User.objects.create_user(email='only-active@trikonos.cz', password='x', name='Only Active')
+
+    response = client.delete(f'/api/v1/admin/users/{target.id}')
+
+    assert response.status_code == 409
+    assert response.data['error']['code'] == 'LAST_ADMIN'
+    assert User.objects.filter(pk=target.pk).exists()
+
+
 def test_create_user_with_duplicate_email_returns_409(admin_client, admin_user):
     response = admin_client.post(
         '/api/v1/admin/users', {'email': admin_user.email, 'name': 'Duplicate'}, format='json',
@@ -259,3 +363,34 @@ def test_create_user_with_duplicate_email_returns_409(admin_client, admin_user):
 
     assert response.status_code == 409
     assert response.data['error']['code'] == 'EMAIL_TAKEN'
+
+
+# ---------------------------------------------------------------------------
+# UserManager / User model
+# ---------------------------------------------------------------------------
+
+def test_create_user_without_email_raises():
+    with pytest.raises(ValueError):
+        User.objects.create_user(email='', password='x', name='Nobody')
+
+
+def test_create_superuser_sets_staff_and_superuser_flags():
+    user = User.objects.create_superuser(email='root@trikonos.cz', password='x', name='Root')
+
+    assert user.is_staff is True
+    assert user.is_superuser is True
+
+
+def test_create_superuser_rejects_is_staff_false():
+    with pytest.raises(ValueError):
+        User.objects.create_superuser(email='root2@trikonos.cz', password='x', name='Root', is_staff=False)
+
+
+def test_create_superuser_rejects_is_superuser_false():
+    with pytest.raises(ValueError):
+        User.objects.create_superuser(email='root3@trikonos.cz', password='x', name='Root', is_superuser=False)
+
+
+def test_user_str_is_email():
+    user = User(email='someone@trikonos.cz', name='Someone')
+    assert str(user) == 'someone@trikonos.cz'

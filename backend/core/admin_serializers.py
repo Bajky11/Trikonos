@@ -25,3 +25,24 @@ class AdminSearchResponseSerializer(serializers.Serializer):
     orders = AdminSearchOrderResultSerializer(many=True)
     customers = AdminSearchCustomerResultSerializer(many=True)
     motifs = AdminSearchMotifResultSerializer(many=True)
+
+
+class AdminDashboardRecentOrderSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    order_number = serializers.CharField()
+    customer_name = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    total = serializers.IntegerField(allow_null=True)
+    status = serializers.CharField()
+
+
+class AdminDashboardResponseSerializer(serializers.Serializer):
+    orders_today = serializers.IntegerField()
+    orders_yesterday = serializers.IntegerField()
+    revenue_today = serializers.IntegerField()
+    revenue_yesterday = serializers.IntegerField()
+    new_customers_7d = serializers.IntegerField()
+    pending_quotes = serializers.IntegerField()
+    orders_to_process = serializers.IntegerField()
+    unpaid_invoices = serializers.IntegerField()
+    recent_orders = AdminDashboardRecentOrderSerializer(many=True)

@@ -38,8 +38,6 @@ def _make_thumbnail(pil_image, max_dimension, extension):
     thumbnail.thumbnail((max_dimension, max_dimension))
     buffer = BytesIO()
     save_format = 'PNG' if extension == 'png' else 'JPEG' if extension == 'jpg' else 'WEBP'
-    if save_format == 'JPEG' and thumbnail.mode in ('RGBA', 'P'):
-        thumbnail = thumbnail.convert('RGB')
     thumbnail.save(buffer, format=save_format)
     return buffer.getvalue()
 

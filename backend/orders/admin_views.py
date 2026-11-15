@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import BooleanField, Case, Count, Q, When
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils.translation import gettext as _
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import serializers, status, viewsets
@@ -25,7 +25,7 @@ from .admin_serializers import (
     AdminShipmentStatusSerializer,
     AdminShippingCostSerializer,
 )
-from .models import Order, OrderStatus, PaymentStatus, ShipmentStatus
+from .models import Order, OrderItem, OrderStatus, PaymentStatus, ShipmentStatus
 from .serializers import OrderCreateSerializer
 
 _TAG = ['Admin - objednávky']
@@ -87,13 +87,21 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
     filter_backends = []  # every filter below is bespoke (comma lists, camelCase params)
 
     def get_queryset(self):
+        # has_custom must be an Exists() subquery, not a Case/When sourced
+        # from the items relation - combining a relation-sourced expression
+        # with the Count aggregate below in one annotate() forces an implicit
+        # GROUP BY that includes has_custom, which produces one row PER
+        # DISTINCT has_custom VALUE for an order that has both a catalog and
+        # a custom item (i.e. the same order twice). Exists() is evaluated
+        # per-outer-row via a correlated subquery and never joins into the
+        # FROM clause, so it can't disturb the Count aggregate.
+        has_custom_item = OrderItem.objects.filter(order=OuterRef('pk'), is_custom=True)
         queryset = (
             Order.objects.select_related('customer', 'carrier')
             .annotate(
                 item_count=Count('items', distinct=True),
-                has_custom=Case(When(items__is_custom=True, then=True), default=False, output_field=BooleanField()),
+                has_custom=Exists(has_custom_item),
             )
-            .distinct()
         )
         params = self.request.query_params
 
@@ -115,8 +123,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         has_custom = params.get('hasCustom')
         if has_custom is not None:
             wants_custom = has_custom.lower() in ('1', 'true', 'yes')
-            queryset = queryset.filter(items__is_custom=True) if wants_custom else queryset.exclude(items__is_custom=True)
-            queryset = queryset.distinct()
+            queryset = queryset.filter(Exists(has_custom_item)) if wants_custom else queryset.exclude(Exists(has_custom_item))
 
         created_from = params.get('createdFrom')
         if created_from:

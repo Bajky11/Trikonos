@@ -821,6 +821,14 @@ Globální hledání (objednávky, zákazníci, motivy)
 - **Tělo požadavku:** —
 - **Úspěšná odpověď:** `200` `AdminSearchResponse`
 
+#### `GET /api/v1/admin/dashboard`
+
+Dashboard: karty s přehledem a posledních 10 objednávek
+
+- **Parametry:** —
+- **Tělo požadavku:** —
+- **Úspěšná odpověď:** `200` `AdminDashboardResponse`
+
 ### Admin - uživatelé
 
 #### `GET /api/v1/admin/users`

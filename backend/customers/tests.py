@@ -24,6 +24,17 @@ def customer():
     )
 
 
+def test_customer_str_is_email():
+    assert str(Customer(email='x@y.cz')) == 'x@y.cz'
+
+
+def test_retrieve_customer_detail(admin_client, customer):
+    response = admin_client.get(f'/api/v1/admin/customers/{customer.id}')
+
+    assert response.status_code == 200
+    assert response.data['email'] == customer.email
+
+
 def test_search_matches_company_name(admin_client, customer):
     response = admin_client.get('/api/v1/admin/customers', {'q': 'Firma'})
     assert response.status_code == 200
@@ -85,3 +96,14 @@ def test_export_consents_only_lists_consenting_customers(admin_client, customer)
     body = response.content.decode('utf-8')
     assert consenting.email in body
     assert customer.email not in body
+
+
+def test_list_query_count_does_not_grow_with_customer_count(admin_client, django_assert_max_num_queries):
+    for i in range(15):
+        Customer.objects.create(email=f'customer{i}@example.cz')
+
+    with django_assert_max_num_queries(4):
+        response = admin_client.get('/api/v1/admin/customers')
+
+    assert response.status_code == 200
+    assert len(response.data['results']) == 15

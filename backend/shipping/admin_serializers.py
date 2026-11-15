@@ -40,10 +40,19 @@ class AdminCodSurchargeSerializer(serializers.ModelSerializer):
 
 
 class AdminPacketaConfigSerializer(serializers.ModelSerializer):
+    # api_password is a third-party credential - never echo it back once
+    # saved. api_password_set lets the frontend show "configured" vs "not
+    # configured" without needing the plaintext value.
+    api_password_set = serializers.SerializerMethodField()
+
     class Meta:
         model = PacketaConfig
-        fields = ['api_password', 'eshop', 'home_delivery_address_id', 'label_format', 'updated_at']
+        fields = ['api_password', 'api_password_set', 'eshop', 'home_delivery_address_id', 'label_format', 'updated_at']
         read_only_fields = ['updated_at']
+        extra_kwargs = {'api_password': {'write_only': True}}
+
+    def get_api_password_set(self, obj):
+        return bool(obj.api_password)
 
 
 class AdminShippingQuantityDiscountSerializer(serializers.ModelSerializer):
