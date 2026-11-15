@@ -183,6 +183,11 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'SCHEMA_PATH_PREFIX': '/api/v1/',
     'CAMELIZE_NAMES': True,
+    # CAMELIZE_NAMES only covers operation IDs/parameters, not serializer fields.
+    'POSTPROCESSING_HOOKS': [
+        'drf_spectacular.hooks.postprocess_schema_enums',
+        'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields',
+    ],
     # Explicit order + description instead of drf-spectacular's default
     # alphabetical sort - without this Swagger UI interleaves public and
     # admin sections and "Admin - číselníky" reads as a random grab-bag.

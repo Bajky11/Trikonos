@@ -33,6 +33,62 @@ Nginx image zkopíruje pouze `dist/`. `nginx.conf` zajišťuje SPA fallback,
 nepřeposílá žádné požadavky do backendu. Produkční spuštění celého stacku,
 konfigurace prostředí a HTTPS jsou popsané v [kořenovém README](../README.md).
 
+## API: TanStack Query a Orval
+
+Browser volá přímo `http://localhost:8000`, bez proxy. Spusť backend s databází:
+
+```sh
+docker compose -f docker-compose.dev.yaml up -d --build backend
+```
+
+Příkaz spouštěj z kořene repozitáře. Pro lokální session/CSRF používej frontend
+i backend přes `localhost`; `127.0.0.1` je jiný cookie host. Dev backend povoluje
+CORS z `http://localhost:5173` i `http://127.0.0.1:5173`.
+
+Výchozí API origin můžeš změnit pomocí `VITE_API_BASE_URL` v `frontend2/.env.local`
+(viz `.env.example`). Hodnota je origin **bez `/api/v1`**. Po změně restartuj Vite.
+Produkční build používá stejnou proměnnou; Docker ji přijímá jako build argument,
+produkční Compose ji předává z `.env.production`. Produkční `FRONTEND_ORIGINS`
+musí povolovat skutečný origin frontendu; vývojové hodnoty se tam nepřenášejí.
+Obě hodnoty jsou pro produkční Compose povinné.
+
+V adresáři `frontend2`:
+
+```sh
+bun run api:generate
+```
+
+Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
+`http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
+Filtr `operationIds` v `orval.config.ts` zatím zahrnuje pouze napojené config/options;
+při integraci dalších endpointů ho rozšiř.
+Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
+kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
+pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
+
+- `src/api/generated/` se verzionuje; neupravuj ručně. Generování ho obnoví
+  a zformátuje. Aktuálnost ověř regenerováním a kontrolou diffu této složky.
+- Běžný build ani unit testy nevyžadují živý backend ani regenerování klienta.
+- `src/api/http.ts` přidává origin, `credentials: include`, lokální CSRF cookie
+  u zápisů a `ApiError` se statusem a původním tělem chyby. Podporuje AbortSignal,
+  FormData a prázdné odpovědi. Token bootstrap a cross-host admin auth jsou další krok.
+  Síťové a parsovací chyby mohou být nativní `Error`; status čti až po `instanceof ApiError`.
+- `src/api/queryClient.ts` nastavuje pětiminutovou čerstvost dat, nejvýše jeden
+  retry čtení při síťové/serverové chybě, žádný retry 4xx ani automatický retry mutací.
+- Hlavička/patička používají živou konfiguraci. Číselníky jsou v query cache,
+  ale katalog a editor zatím stále používají demo varianty. Prázdné kontakty
+  se nezastupují vymyšleným e-mailem; chyba API nabízí opakované načtení.
+
+Standardní Playwright testy mockují tyto dva endpointy a nepotřebují backend.
+Pro ověření skutečného CORS spojení z browseru se spuštěným Docker backendem:
+
+```sh
+bun run test:e2e:api
+```
+
+Tento smoke test používá `localhost` pro frontend i backend, ověřuje také
+odeslání testovací cookie, pouze čte a nevytváří objednávky.
+
 ```sh
 bun run check       # formátování, lint a typová kontrola
 bun run test        # jednotkové testy katalogu a geometrie editoru
@@ -79,7 +135,8 @@ Fontsource; aplikace nepotřebuje Google Fonts ani síťové načítání katalo
 
 ## Záměrná omezení prototypu
 
-- **Žádné napojení na backend**, API, skutečnou autentizaci, platby ani objednávání.
+- Na backend jsou napojené config a katalogové číselníky. Skutečná autentizace,
+  katalog, platby a objednávání zatím napojené nejsou.
 - Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
   klíči `trikonos-react-demo-cart-v1` a `trikonos-react-dictionaries-v1`.
 - Nahrané obrázky zůstávají v prohlížeči; větší soubor může přesáhnout jeho

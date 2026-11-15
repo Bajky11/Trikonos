@@ -7,6 +7,8 @@ import Undo from "@mui/icons-material/Undo";
 import VerifiedUserOutlined from "@mui/icons-material/VerifiedUserOutlined";
 import Checkroom from "@mui/icons-material/Checkroom";
 import { useShop } from "./ShopContext";
+import { useConfigRetrieve } from "../api/generated/api";
+import { useStoreData } from "../api/useStoreData";
 
 const navigation = [
   ["nase-prace", "Naše práce"],
@@ -17,6 +19,8 @@ const navigation = [
   ["kontakt", "Kontakty"],
 ];
 function Header() {
+  const { data: config } = useConfigRetrieve();
+  const shopName = config?.shopName || "Trikonoš";
   const location = useLocation();
   const home = location.pathname === "/";
   const [position, setPosition] = useState({ solid: !home, ribbon: !home, active: "" });
@@ -65,8 +69,8 @@ function Header() {
       className={`site-header ${position.solid ? "solid" : ""} ${position.ribbon ? "has-ribbon" : ""}`}
     >
       <nav className="nav shell" aria-label="Hlavní navigace">
-        <Link className="brand" to="/#domu" aria-label="Trikonoš, úvodní stránka">
-          Trikonoš
+        <Link className="brand" to="/#domu" aria-label={`${shopName}, úvodní stránka`}>
+          {shopName}
         </Link>
         <div className="nav-links">
           {navigation.map(([id, label]) => (
@@ -123,6 +127,8 @@ function Header() {
   );
 }
 function Footer() {
+  const { config, options } = useStoreData();
+  const shopName = config.data?.shopName || "Trikonoš";
   const [login, setLogin] = useState(false);
   const navigate = useNavigate();
   return (
@@ -132,7 +138,7 @@ function Footer() {
           <div className="footer-grid">
             <div>
               <Link to="/#domu" className="footer-logo">
-                Trikonoš
+                {shopName}
               </Link>
               <p>Triko z hor, které má duši.</p>
             </div>
@@ -144,7 +150,21 @@ function Footer() {
             </div>
             <div>
               <h3>Ozvi se</h3>
-              <a href="mailto:ahoj@trikonos.cz">ahoj@trikonos.cz</a>
+              {config.isPending && <p aria-live="polite">Načítání kontaktních údajů…</p>}
+              {config.data?.contactEmail && (
+                <a href={`mailto:${config.data.contactEmail}`}>{config.data.contactEmail}</a>
+              )}
+              {config.data?.contactPhone && (
+                <a href={`tel:${config.data.contactPhone}`}>{config.data.contactPhone}</a>
+              )}
+              {config.data?.instagramUrl && (
+                <a href={config.data.instagramUrl} target="_blank" rel="noreferrer">
+                  Instagram
+                </a>
+              )}
+              {config.isSuccess && !config.data.contactEmail && !config.data.contactPhone && (
+                <p>Kontaktní údaje zatím nejsou vyplněné.</p>
+              )}
               <a
                 href="#"
                 onClick={(event) => {
@@ -156,8 +176,27 @@ function Footer() {
               </a>
             </div>
           </div>
+          {(config.isError || options.isError) && (
+            <div role="alert">
+              <p>
+                {config.isError
+                  ? "Konfiguraci obchodu se nepodařilo načíst."
+                  : "Katalogové číselníky se nepodařilo načíst."}
+              </p>
+              <Button
+                onClick={() => {
+                  if (config.isError) void config.refetch();
+                  if (options.isError) void options.refetch();
+                }}
+              >
+                Zkusit načíst znovu
+              </Button>
+            </div>
+          )}
           <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} Trikonoš</span>
+            <span>
+              © {new Date().getFullYear()} {shopName}
+            </span>
             <button onClick={() => setLogin(true)} className="plain-button">
               Login
             </button>

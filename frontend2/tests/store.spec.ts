@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
+import type { Request } from "@playwright/test";
 import { Buffer } from "node:buffer";
+import { mockStoreApi } from "./api-fixtures";
+
+test.beforeEach(async ({ page }) => mockStoreApi(page));
 
 test("home, default artwork, gallery, seasonal panels and FAQ", async ({ page }) => {
   const errors: string[] = [];
@@ -130,11 +134,10 @@ test("admin search, all routes, dictionaries CRUD, validation and persistence", 
   await expect(page.getByRole("rowheader", { name: "Oversize", exact: true })).toBeVisible();
 });
 
-test("demo login navigates without sending credentials or calling backend", async ({ page }) => {
-  const apiCalls: string[] = [];
+test("demo login navigates without sending credentials to the backend", async ({ page }) => {
+  const apiCalls: Request[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/") || request.url().includes(":8000"))
-      apiCalls.push(request.url());
+    if (request.url().startsWith("http://localhost:8000/")) apiCalls.push(request);
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Login", exact: true }).click();
@@ -142,6 +145,10 @@ test("demo login navigates without sending credentials or calling backend", asyn
   await page.getByLabel("Heslo", { exact: true }).fill("not-stored");
   await page.getByRole("button", { name: "Přihlásit se" }).click();
   await expect(page).toHaveURL("/admin");
-  expect(apiCalls).toEqual([]);
+  for (const request of apiCalls) {
+    expect(request.url()).toMatch(/\/api\/v1\/(config|catalog\/options)$/);
+    expect(request.method()).toBe("GET");
+    expect(request.postData()).toBeNull();
+  }
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("not-stored");
 });

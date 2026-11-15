@@ -39,6 +39,7 @@ services:
       DJANGO_DEBUG: "True"
       DJANGO_SECRET_KEY: dev-only-not-for-production
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       DB_NAME: trikonos
       DB_USER: trikonos
       DB_PASSWORD: trikonos

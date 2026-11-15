@@ -1,10 +1,18 @@
 # Trikonos
 
+Plán propojení aplikací: [Integrace frontendu a backendu](docs/integrace-frontend-backend.md).
+
+## Start
+
+docker compose -f docker-compose.dev.yaml up --build
+
 ## React frontend
 
 Nová aplikace je ve složce [`frontend2`](frontend2/README.md) (Vite+, React,
 TypeScript, MUI a Bun). Spuštění: v `frontend2` spusť `bun install` a `bun run dev`.
-Obsahuje pouze testovací data, backend pro její provoz není potřeba.
+Konfiguraci obchodu a katalogové číselníky načítá přímo z backendu přes
+TanStack Query a klienta generovaného Orvalem. Katalog a administrace jsou
+zatím demo. Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
 
 ## Vývoj v Dockeru (hot reload)
 
@@ -23,7 +31,9 @@ Frontend používá polling pro spolehlivé sledování souborů i na Docker Des
 Linuxové `node_modules` jsou v odděleném volume; hostitelské se nepoužijí.
 Při změně závislostí spusť příkaz znovu s `--build`; frontend při startu také
 synchronizuje balíčky podle `bun.lock`. Jednotlivé aplikace na sobě nezávisí
-a frontend nevolá backend.
+a browser volá backend přímo na `http://localhost:8000`, bez frontendové proxy.
+Pro budoucí session přihlašování používej frontend i backend přes `localhost`,
+nikoli kombinaci `127.0.0.1` a `localhost`.
 
 E-maily se vypisují do logu backendu. Není potřeba vytvářet `.env`.
 Při startu se provedou migrace a naplní výchozí data včetně vývojového
@@ -70,8 +80,16 @@ docker compose --env-file .env.production -f docker-compose.yaml up -d --build
 docker compose --env-file .env.production -f docker-compose.yaml exec backend python manage.py createsuperuser
 ```
 
-Frontend stále zobrazuje pouze testovací data a jeho Login otevírá demo
-administraci, nikoli skutečnou autentizaci backendu.
+V `.env.production` nastav `VITE_API_BASE_URL` na veřejný HTTPS origin backendu
+a `FRONTEND_ORIGINS` na veřejný HTTPS origin frontendu (viz `.env.example`).
+API URL je součástí buildu frontendu, po změně je nutné image znovu sestavit.
+Produkční Compose bez těchto hodnot odmítne start, aby frontend omylem
+nevolal `localhost` na zařízení návštěvníka.
+Produkční cross-origin session tok bude ověřen při implementaci autentizace.
+
+Katalog a administrace stále používají testovací data a Login otevírá demo
+administraci, nikoli skutečnou autentizaci backendu. Konfigurace a katalogové
+číselníky už se načítají ze skutečného API.
 
 ### HTTPS a přístup z internetu
 
