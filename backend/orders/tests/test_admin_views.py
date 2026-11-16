@@ -1,3 +1,4 @@
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
@@ -918,3 +919,59 @@ def test_print_sheet_returns_order_detail(admin_client, motif, product_type, cut
 
     assert response.status_code == 200
     assert response.data['order_number'] == order.order_number
+
+
+# ---------------------------------------------------------------------------
+# Order export (Excel) - GET /admin/orders/export
+# ---------------------------------------------------------------------------
+
+def test_export_returns_xlsx_with_matching_order_row(admin_client, motif, product_type, cut, color, packeta_carrier):
+    import openpyxl
+
+    order = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        note='Prosím do pátku',
+    )
+
+    response = admin_client.get('/api/v1/admin/orders/export')
+
+    assert response.status_code == 200
+    assert response['Content-Type'] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    assert response['Content-Disposition'] == 'attachment; filename="objednavky.xlsx"'
+
+    workbook = openpyxl.load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    header = [cell.value for cell in sheet[1]]
+    assert header[0] == 'Číslo objednávky'
+    row = [cell.value for cell in sheet[2]]
+    assert row[0] == order.order_number
+    assert row[sheet.max_column - 1] == order.note  # poslední sloupec = poznámka
+    # Mezisoučet/doprava/celkem jsou v Kč, ne v haléřích jako jinde v API.
+    money_columns = {header.index('Mezisoučet (Kč)'): 599.0, header.index('Celkem (Kč)'): 649.0}
+    for index, expected in money_columns.items():
+        assert row[index] == expected
+
+
+def test_export_respects_list_filters(admin_client, motif, product_type, cut, color, packeta_carrier):
+    import openpyxl
+
+    matching = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        order_number='TRK-2026-0001', email='a@example.cz', status=OrderStatus.NEW,
+    )
+    _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        order_number='TRK-2026-0002', email='b@example.cz', status=OrderStatus.CANCELLED,
+    )
+
+    response = admin_client.get('/api/v1/admin/orders/export', {'status': 'NEW'})
+
+    workbook = openpyxl.load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    order_numbers = [row[0].value for row in sheet.iter_rows(min_row=2)]
+    assert order_numbers == [matching.order_number]
+
+
+def test_export_requires_admin_login():
+    response = APIClient().get('/api/v1/admin/orders/export')
+    assert response.status_code in (401, 403)

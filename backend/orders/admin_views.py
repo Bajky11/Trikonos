@@ -449,6 +449,44 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         tags=_TAG,
+        summary='Export seznamu objednávek (Excel)',
+        parameters=[OpenApiParameter(name, str, OpenApiParameter.QUERY) for name in (
+            'status', 'paymentStatus', 'shipmentStatus', 'paymentMethod', 'carrier',
+            'customer', 'hasCustom', 'createdFrom', 'createdTo', 'q', 'ordering',
+        )],
+        description=(
+            'Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil '
+            '`GET /admin/orders` se stejnými filtry (žádné stránkování - export '
+            'vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu '
+            'stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v '
+            'API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování '
+            'přes API.'
+        ),
+        responses={
+            200: OpenApiResponse(
+                description='Soubor .xlsx, Content-Type application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.',
+            ),
+        },
+    )
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from io import BytesIO
+
+        from django.http import HttpResponse
+
+        workbook = services.build_orders_export_workbook(self.get_queryset())
+        buffer = BytesIO()
+        workbook.save(buffer)
+
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename="objednavky.xlsx"'
+        return response
+
+    @extend_schema(
+        tags=_TAG,
         summary='Založit zásilku u Packety',
         description=(
             'Zavolá Packeta API a založí zásilku - funguje pro výdejní místo '

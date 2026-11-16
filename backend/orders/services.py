@@ -6,6 +6,10 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+import openpyxl
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
+
 from django.db import connection, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -727,3 +731,61 @@ def sync_shipment_status(order):
         order.save(update_fields=['shipment_status', 'updated_at'])
 
     return order
+
+
+# ---------------------------------------------------------------------------
+# Order list export (Excel) - GET /admin/orders/export. Money columns are
+# converted from haléře to Kč here, unlike everywhere else in the API -
+# this file is opened by a person in Excel, not consumed by code.
+# ---------------------------------------------------------------------------
+
+def _money_to_czk(value):
+    return value / 100 if value is not None else None
+
+
+_EXPORT_COLUMNS = [
+    ('Číslo objednávky', 22, lambda o: o.order_number),
+    ('Vytvořeno', 18, lambda o: timezone.localtime(o.created_at).replace(tzinfo=None)),
+    ('Zákazník', 25, lambda o: f'{o.customer.first_name} {o.customer.last_name}'.strip()),
+    ('E-mail', 28, lambda o: o.customer.email),
+    ('Telefon', 16, lambda o: o.customer.phone),
+    ('Firma', 25, lambda o: o.customer.company_name),
+    ('Stav objednávky', 20, lambda o: o.get_status_display()),
+    ('Stav platby', 16, lambda o: o.get_payment_status_display()),
+    ('Způsob platby', 16, lambda o: o.get_payment_method_display() if o.payment_method else ''),
+    ('Stav zásilky', 16, lambda o: o.get_shipment_status_display()),
+    ('Dopravce', 18, lambda o: o.carrier.name if o.carrier_id else ''),
+    ('Sledovací číslo', 20, lambda o: o.tracking_number),
+    ('Počet kusů', 10, lambda o: o.item_count),
+    ('Vlastní potisk', 12, lambda o: 'Ano' if o.has_custom else 'Ne'),
+    ('Mezisoučet (Kč)', 14, lambda o: _money_to_czk(o.subtotal)),
+    ('Doprava (Kč)', 12, lambda o: _money_to_czk(o.shipping_cost)),
+    ('Celkem (Kč)', 14, lambda o: _money_to_czk(o.total)),
+    ('Poznámka', 30, lambda o: o.note),
+]
+
+
+def build_orders_export_workbook(orders):
+    """GET /admin/orders/export. Builds an .xlsx workbook from the given
+    orders - the caller passes AdminOrderViewSet.get_queryset() so the
+    export always matches whatever filters/ordering produced the on-screen
+    list, with no separate filtering logic to keep in sync. Expects the
+    queryset's select_related/annotate (customer, carrier, item_count,
+    has_custom) already applied by the caller - this function only reads
+    attributes, it never queries.
+    """
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = 'Objednávky'
+
+    sheet.append([label for label, _width, _getter in _EXPORT_COLUMNS])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+
+    for order in orders:
+        sheet.append([getter(order) for _label, _width, getter in _EXPORT_COLUMNS])
+
+    for index, (_label, width, _getter) in enumerate(_EXPORT_COLUMNS, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+
+    return workbook

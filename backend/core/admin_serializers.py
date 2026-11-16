@@ -46,3 +46,16 @@ class AdminDashboardResponseSerializer(serializers.Serializer):
     orders_to_process = serializers.IntegerField()
     unpaid_invoices = serializers.IntegerField()
     recent_orders = AdminDashboardRecentOrderSerializer(many=True)
+
+
+class AdminRevenuePeriodSerializer(serializers.Serializer):
+    period = serializers.DateField()
+    revenue = serializers.IntegerField()
+    orders_count = serializers.IntegerField()
+
+
+class AdminTopMotifSerializer(serializers.Serializer):
+    motif_id = serializers.UUIDField()
+    motif_name = serializers.CharField()
+    quantity = serializers.IntegerField()
+    revenue = serializers.IntegerField()

@@ -295,3 +295,107 @@ def test_send_templated_email_swallows_and_logs_send_failure():
             'order_cancelled', {'order_number': 'TRK-2026-0001'},
             subject='Test', recipient_list=['jana@example.cz'],
         )  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/stats/revenue
+# ---------------------------------------------------------------------------
+
+def test_revenue_stats_requires_admin_login():
+    response = APIClient().get('/api/v1/admin/stats/revenue')
+    assert response.status_code in (401, 403)
+
+
+def test_revenue_stats_groups_by_day_and_excludes_cancelled_and_refunded(admin_client):
+    today = timezone.now()
+    _order(email='a@example.cz', status=OrderStatus.NEW, total=10000, created_at=today)
+    _order(email='b@example.cz', status=OrderStatus.PAID, total=5000, created_at=today)
+    _order(email='c@example.cz', status=OrderStatus.CANCELLED, total=99999, created_at=today)
+    _order(email='d@example.cz', status=OrderStatus.REFUNDED, total=99999, created_at=today)
+
+    response = admin_client.get('/api/v1/admin/stats/revenue', {
+        'createdFrom': today.date().isoformat(), 'createdTo': today.date().isoformat(),
+    })
+
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert response.data[0]['revenue'] == 15000
+    assert response.data[0]['orders_count'] == 2
+
+
+def test_revenue_stats_defaults_to_last_30_days(admin_client):
+    recent = timezone.now()
+    old = recent - timedelta(days=45)
+    _order(email='recent@example.cz', status=OrderStatus.NEW, total=10000, created_at=recent)
+    _order(email='old@example.cz', status=OrderStatus.NEW, total=20000, created_at=old)
+
+    response = admin_client.get('/api/v1/admin/stats/revenue')
+
+    assert response.status_code == 200
+    assert sum(row['revenue'] for row in response.data) == 10000
+
+
+def test_revenue_stats_monthly_interval_groups_whole_month(admin_client):
+    early = timezone.make_aware(timezone.datetime(2026, 3, 2))
+    late = timezone.make_aware(timezone.datetime(2026, 3, 20))
+    _order(email='early@example.cz', status=OrderStatus.NEW, total=10000, created_at=early)
+    _order(email='late@example.cz', status=OrderStatus.NEW, total=5000, created_at=late)
+    params = {'createdFrom': '2026-03-01', 'createdTo': '2026-03-31'}
+
+    daily = admin_client.get('/api/v1/admin/stats/revenue', {**params, 'interval': 'DAY'})
+    monthly = admin_client.get('/api/v1/admin/stats/revenue', {**params, 'interval': 'MONTH'})
+
+    assert len(daily.data) == 2
+    assert len(monthly.data) == 1
+    assert monthly.data[0]['revenue'] == 15000
+    assert monthly.data[0]['orders_count'] == 2
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/stats/top-motifs
+# ---------------------------------------------------------------------------
+
+def test_top_motifs_requires_admin_login():
+    response = APIClient().get('/api/v1/admin/stats/top-motifs')
+    assert response.status_code in (401, 403)
+
+
+def test_top_motifs_excludes_custom_items_and_cancelled_orders(
+    admin_client, motif, product_type, cut, color, print_area,
+):
+    from catalog.models import Motif, MotifVariant
+    from orders.services import build_order_item
+
+    # unit_price = motif.price + product_type.price (300 + 500 = 800) * 10 pieces
+    # ranks higher by quantity but lower by revenue than `motif` below.
+    cheap_motif = Motif.objects.create(name='Hory', slug='hory', price=300, category=motif.category)
+    MotifVariant.objects.create(motif=cheap_motif, product_type=product_type, cut=cut, color=color, size='M')
+
+    order = _order(email='x@example.cz', status=OrderStatus.NEW, total=0, created_at=timezone.now())
+    build_order_item(order, {
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    })
+    build_order_item(order, {
+        'is_custom': False, 'motif': cheap_motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 10, 'placements': [],
+    })
+    build_order_item(order, {
+        'is_custom': True, 'motif': None, 'custom_text': 'Logo', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 50,
+        'placements': [{'print_area': print_area, 'url': 'https://example.cz/f.png', 'width': 100, 'height': 100}],
+    })
+    cancelled_order = _order(email='y@example.cz', status=OrderStatus.CANCELLED, total=0, created_at=timezone.now())
+    build_order_item(cancelled_order, {
+        'is_custom': False, 'motif': cheap_motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 400, 'placements': [],
+    })
+
+    by_quantity = admin_client.get('/api/v1/admin/stats/top-motifs')
+    by_revenue = admin_client.get('/api/v1/admin/stats/top-motifs', {'metric': 'REVENUE'})
+
+    assert by_quantity.status_code == 200
+    quantities = {row['motif_name']: row['quantity'] for row in by_quantity.data}
+    assert quantities == {motif.name: 1, cheap_motif.name: 10}  # custom item and cancelled order excluded
+    assert by_quantity.data[0]['motif_name'] == cheap_motif.name  # ranked by quantity: 10 > 1
+    assert by_revenue.data[0]['motif_name'] == motif.name  # ranked by revenue: pricier motif wins despite fewer units
