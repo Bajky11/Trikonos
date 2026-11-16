@@ -144,6 +144,39 @@ def test_admin_quote_lifecycle_requires_session_csrf_and_respects_separate_payme
     assert client.patch(base, {'trackingNumber': 'Z123456'}, format='json', HTTP_X_CSRFTOKEN=token).status_code == 200
 
 
+def test_production_filters_print_sheet_and_original_use_existing_contract(admin_client, motif, product_type, cut, color, packeta_carrier, print_area):
+    from orders.models import CustomDesignPlacement
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, status=OrderStatus.PROCESSING)
+    item = order.items.first()
+    item.quantity = 2
+    item.is_custom = True
+    item.motif = None
+    item.save()
+    placement = CustomDesignPlacement.objects.create(order_item=item, print_area=print_area, url='/media/designs/team.png', x=10, y=20, width=100, height=80, rotation_deg=0)
+    summary = admin_client.get('/api/v1/admin/production/summary', {'status': 'PROCESSING'})
+    assert summary.status_code == 200
+    assert summary.json()[0]['quantity'] == 2
+    assert 'no-store' in summary['Cache-Control']
+    placements = admin_client.get('/api/v1/admin/production/placements', {'status': 'PROCESSING', 'printArea': str(print_area.id)})
+    assert placements.status_code == 200
+    assert placements.json() == [{
+        'orderNumber': order.order_number, 'itemLabel': item.item_label, 'printArea': print_area.name,
+        'width': 100, 'height': 80, 'rotationDeg': 0, 'url': '/media/designs/team.png',
+    }]
+    for endpoint in ['summary', 'placements']:
+        assert admin_client.get(f'/api/v1/admin/production/{endpoint}', {'status': 'NEW'}).json() == []
+        assert admin_client.get(f'/api/v1/admin/production/{endpoint}', {'status': 'PROCESSING', 'createdTo': '2000-01-01'}).json() == []
+        assert APIClient().get(f'/api/v1/admin/production/{endpoint}').status_code == 403
+    sheet = admin_client.get(f'/api/v1/admin/orders/{order.id}/print-sheet')
+    assert sheet.status_code == 200
+    assert sheet.json()['items'][0]['quantity'] == 2
+    assert sheet.json()['items'][0]['placements'][0]['x'] == 10
+    assert 'no-store' in sheet['Cache-Control']
+    download = admin_client.get(f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}/file')
+    assert download.status_code == 302
+    assert download['Location'] == placement.url
+
+
 def test_create_shipment_pickup_point_success(admin_client, motif, product_type, cut, color, packeta_carrier):
     order = _order(
         motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,

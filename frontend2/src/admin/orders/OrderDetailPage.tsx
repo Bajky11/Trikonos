@@ -17,6 +17,7 @@ import { CatalogFeedback } from "../../components/Products";
 import { catalogError, formText } from "../catalog/forms";
 import { OrderEditor } from "./OrderEditor";
 import { OrderPricing, amount } from "./OrderPricing";
+import { OrderShipping } from "./OrderShipping";
 import {
   dateTime,
   orderStatuses,
@@ -78,7 +79,10 @@ function OrderDetail({ orderId }: { orderId: string }) {
         setMessage(success);
         await client.invalidateQueries({
           predicate: (query) =>
-            query.queryKey[0] === "/api/v1/admin/orders" || query.queryKey[0] === "order-receipt",
+            query.queryKey[0] === "/api/v1/admin/orders" ||
+            query.queryKey[0] === "order-receipt" ||
+            (typeof query.queryKey[0] === "string" &&
+              query.queryKey[0].startsWith("/api/v1/admin/production/")),
         });
       })
       .catch((error: unknown) => {
@@ -248,6 +252,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
           </Button>
         ))}
       </section>
+      <OrderShipping order={order} disabled={disabled} save={save} />
       <OrderEditor
         key={`${order.id}-${order.updatedAt}`}
         order={order}

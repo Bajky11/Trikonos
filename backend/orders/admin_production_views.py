@@ -1,4 +1,6 @@
 from django.db.models import Sum
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -33,6 +35,7 @@ class ProductionPlacementRowSerializer(serializers.Serializer):
     url = serializers.CharField()
 
 
+@method_decorator(never_cache, name='dispatch')
 class ProductionSummaryView(APIView):
     """Kolik kusů od každé kombinace typ/střih/barva/velikost vyrobit."""
     permission_classes = [IsAdmin]
@@ -85,6 +88,7 @@ class ProductionSummaryView(APIView):
         ])
 
 
+@method_decorator(never_cache, name='dispatch')
 class ProductionPlacementsView(APIView):
     """Seznam umístění vlastního potisku připravených k tisku."""
     permission_classes = [IsAdmin]

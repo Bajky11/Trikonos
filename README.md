@@ -99,8 +99,12 @@ včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy o
 a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
 `/admin/objednavky` používá skutečný seznam, filtry a detail. Umožňuje upravit
 adresy/dopravu, nacenit položky, potvrdit cenu zákazníkovi a evidovat platbu nebo
-změnit povolený stav. Evidence platby neprovádí bankovní operaci. Zásilky, štítky
-a výrobní přehledy ještě nejsou napojené; statistiky přehledu zůstávají demo.
+změnit povolený stav. Evidence platby neprovádí bankovní operaci.
+`/admin/vyroba` čte výrobní souhrny a podklady; detail nabízí výrobní list,
+expedici Packety, PDF štítek a přeposlání e-mailů podle existujícího API.
+Nejasné vytvoření zásilky vyžaduje ověření přímo u Packety před novým pokusem.
+Statistiky přehledu zůstávají demo. Backendové funkce, které API nemá,
+v této integraci nedoprogramováváme.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
 katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
 smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,

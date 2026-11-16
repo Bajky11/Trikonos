@@ -7,10 +7,12 @@ import type { Me } from "../api/generated/models";
 import { ProductsPanel } from "../admin/catalog/ProductsPanel";
 import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
 import { OrdersPanel } from "../admin/orders/OrdersPanel";
+import { ProductionPanel } from "../admin/production/ProductionPanel";
 
 const sections = [
   ["prehled", "Přehled"],
   ["objednavky", "Objednávky"],
+  ["vyroba", "Výroba"],
   ["produkty", "Produkty"],
   ["sezony", "Sezóny"],
   ["klienti", "Klienti"],
@@ -51,7 +53,8 @@ export function AdminLayout() {
           <div className="admin-tools">
             <TextField
               className="admin-search"
-              placeholder="Hledat…"
+              placeholder={section === "vyroba" ? "Použijte filtry výroby" : "Hledat…"}
+              disabled={section === "vyroba" || !!orderId}
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -115,6 +118,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         <OrdersPanel search={search} overview={section === "prehled"} />
       )}
       {section === "ciselniky" && <DictionariesPanel search={search} />}
+      {section === "vyroba" && <ProductionPanel />}
       {section === "sezony" && (
         <Paper className="admin-panel" variant="outlined">
           <h2>Sezóny do budoucna</h2>

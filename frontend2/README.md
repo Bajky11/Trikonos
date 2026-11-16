@@ -259,11 +259,44 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   Při nejasném výsledku se další změny zablokují do načtení aktuálního stavu;
   před opakováním potvrzení vždy zkontroluj, zda už nebylo přijato. Odpovědi admin
   objednávek mají `no-store`, jejich query cache se odstraňuje při odhlášení.
-- Založení nové ruční objednávky, editace geometrie, zásilky/štítky, tiskové listy
-  a samostatné přeposlání e-mailu zatím nejsou napojené. Podklady jsou existující
+- Založení nové ruční objednávky a editace geometrie zatím nejsou napojené.
+  Výrobu a expedici popisuje následující část. Podklady jsou existující
   media odkazy, nikoli nové privátní úložiště. Skutečné SMTP je nutné ověřit před produkcí.
 - `tests/admin-orders.spec.ts` ověřuje workflow ve stavovém mock API; reálné objednávky
   nemění. Živý auth test čte skutečný seznam a detail jen pokud nějaká objednávka existuje.
+
+### Výroba, expedice a tisk
+
+- `/admin/vyroba` používá existující souhrn oděvů a seznam podkladů. Oběma
+  požadavkům vždy předává stejný explicitní filtr stavů (výchozí PAID,PROCESSING)
+  a data vytvoření. Tisková plocha se vztahuje jen na podklady. Datum/ID se validují
+  na frontendu, neplatné filtry se na backend neposílají.
+- Seznam podkladů podle kontraktu nemá počty, x/y ani ID objednávky. Řádek proto
+  vede do hledání objednávky podle čísla. Kompletní data jsou v existujícím výrobním
+  listu `/admin/objednavky/:orderId/tisk`, který se tiskne přes browser. Náhled
+  podkladů není fyzický tisk 1:1; před tiskem ověř načtení obrázků a rozměry.
+- V detailu objednávky je expedice: založení zásilky Packeta, skutečná hmotnost
+  (kg, 3 desetinná místa), PDF štítek, ruční kontrola u Packety, dopředná evidence
+  stavu zásilky a přeposlání e-mailů po potvrzení. Konfiguraci Packety musí mít
+  připravenou backend; ostatní dopravci tímto API zásilky nezakládají.
+- UI nabízí založení jen pro oceněnou objednávku ve výrobě a podporované doručení.
+  Backend předává Packetě jméno/firmu zákazníka místo odlišného příjemce: pokud se
+  liší od doručovací adresy, UI vytvoření zablokuje. Řešením je operátor u dopravce
+  nebo změna od vlastníka backendu, nikoli doprogramování nové feature zde.
+- **Nejisté vytvoření zásilky neopakuj naslepo.** Existující backend nemá spolehlivou
+  idempotenci při timeoutu. Před POST se uloží pouze UUID objednávky a čas do klíče
+  `trikonos-shipment-attempt-v1:<id>` v localStorage. Po síti/5xx zůstává marker
+  i po reloadu a odhlášení. Prázdné ID v detailu neprokazuje, že nic nevzniklo.
+  Nový pokus povol až po ověření přímo u Packety. Bez dostupného úložiště se požadavek
+  neodešle. Ochrana není globální mezi zařízeními; operátoři se musí koordinovat.
+- PDF se stáhne přes generovaný klient s cookies jako Blob, nikoli přes FE proxy.
+  Stažení štítku může posunout stav na LABEL_PRINTED; GET synchronizace také zapisuje
+  stav. Proto se obě akce spouštějí jen ručně, bez retry, pollingu nebo refetch na focus.
+  Stav zásilky nemění sám stav objednávky či platby. E-maily používají aktuální data.
+- Backend jsme funkčně nerozšiřovali: pouze správný PDF typ v OpenAPI a no-store
+  u výrobních odpovědí. Nejsou přidané endpointy, serverové PDF ani soukromé úložiště.
+- `tests/production-shipping.spec.ts` používá mock Packetu/PDF a nic u dopravce
+  skutečně nezakládá. Živý auth test pouze čte výrobní přehled a případný existující list.
 
 ### Administrace motivů, variant a fotografií
 

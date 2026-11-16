@@ -36,6 +36,9 @@ const ContactPage = lazy(() =>
 const OrderDetailPage = lazy(() =>
   import("./admin/orders/OrderDetailPage").then((module) => ({ default: module.OrderDetailPage })),
 );
+const OrderPrintPage = lazy(() =>
+  import("./admin/orders/OrderPrintPage").then((module) => ({ default: module.OrderPrintPage })),
+);
 
 function ScrollToLocation() {
   const { pathname, hash } = useLocation();
@@ -90,6 +93,7 @@ export function App() {
               <Route path="*" element={<NotFound />} />
             </Route>
             <Route element={<RequireAuth />}>
+              <Route path="admin/objednavky/:orderId/tisk" element={<OrderPrintPage />} />
               <Route path="admin" element={<AdminLayout />}>
                 <Route index element={<AdminPage section="prehled" />} />
                 <Route path="objednavky/:orderId" element={<OrderDetailPage />} />

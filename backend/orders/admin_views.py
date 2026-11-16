@@ -3,7 +3,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.utils.translation import gettext as _
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import MethodNotAllowed, NotFound
@@ -484,7 +484,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'z CREATED na LABEL_PRINTED.'
         ),
         responses={
-            200: OpenApiResponse(description='PDF se štítkem (application/pdf).'),
+            (200, 'application/pdf'): OpenApiResponse(response=OpenApiTypes.BINARY, description='PDF se štítkem.'),
             422: OpenApiResponse(description='SHIPMENT_NOT_CREATED - zásilka pro tuto objednávku ještě nebyla založena.'),
             502: OpenApiResponse(description='CARRIER_API_ERROR - Packeta vrátila chybu.'),
         },

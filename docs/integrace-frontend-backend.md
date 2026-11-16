@@ -1,9 +1,9 @@
 # Propojení frontendu a backendu
 
-Průběžný plán a checklist kompletní integrace. Aktualizováno 15. 11. 2026.
-Implementace probíhá: základ čtení API, session a veřejný katalog jsou hotové;
-košík zatím ukládá jen lokální výběr. Admin správa katalogu, skutečný košík
-a obnova/změna hesla na FE ještě zbývají.
+Průběžný plán a checklist kompletní integrace. Aktualizováno 16. 11. 2026.
+Napojené jsou veřejná nákupní cesta, zákaznické formuláře, katalogové číselníky,
+administrace objednávek a výroba/expedice v rozsahu existujícího API.
+Zbývá další provozní správa, účty a produkční předpoklady; omezení jsou u etap níže.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
 
@@ -29,6 +29,9 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
   neznamená schválení dosud otevřených produktových rozhodnutí.
 - Větší změny backendu předem konzultovat; není automaticky závazným zadáním.
   Nejprve hledat jednoduché řešení a testovat hlavně důležité chování, ne každou drobnost.
+- **Upřesnění uživatele:** backend vyvíjí jiný tým. Vycházíme z existujících funkcí
+  a děláme jen nezbytné drobné integrační opravy. Chybějící backendové features
+  neimplementovat na sílu; zaznamenat omezení a přizpůsobit frontend.
 
 ## Výchozí stav a orientace
 
@@ -460,8 +463,8 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
 - [ ] Nahradit demo statistiky přehledu; dohodnout agregace a skutečné globální hledání.
 - [x] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
   platební stavy a akce podle `allowedTransitions` a uzamčení objednávky.
-- [ ] Doplnit zásilky, štítky, tiskové listy, stažení binárních souborů a e-maily.
-- [ ] Napojit výrobu: tiskové podklady, souhrny a příslušné filtry.
+- [x] Napojit existující zásilky Packety, PDF štítky, tiskové listy a přeposlání e-mailů.
+- [x] Napojit výrobu: existující tiskové podklady, souhrny a příslušné filtry.
 - [ ] Napojit zákazníky, historii objednávek, souhlasy a jejich export.
 - [ ] Napojit dopravce, ceny dopravy, množstevní slevy a nastavení Packety.
 - [ ] Napojit správu uživatelů včetně bezpečného vytvoření a změn účtů.
@@ -517,6 +520,55 @@ nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
   tento krok. Detail nabízí uložené media podklady, ne nové privátní úložiště.
   Uživatel schválil commit tohoto kroku včetně předchozích veřejných formulářů;
   bez pushe. Další bod: výroba a expedice.
+
+### Výroba a expedice podle existujícího API (16. 11. 2026)
+
+- Předchozí administrace objednávek a veřejné formuláře jsou commitnuté jako
+  `9a2b1c9`; bez pushe. Uživatel schválil commit navazující výroby a expedice;
+  také bez pushe.
+- `/admin/vyroba` čte `/production/summary` a `/production/placements`; filtr
+  stavů je vždy explicitní a shodný pro obě odpovědi (výchozí PAID,PROCESSING).
+  Backend má bez explicitního filtru rozdílné výchozí chování; to neměníme.
+  Data vytvoření jsou společná, tisková plocha filtruje pouze podklady.
+- API přehledu podkladů neobsahuje počty, x/y ani ID objednávky. Nic se na backendu
+  nedoplňovalo: řádek vede přes serverové hledání čísla do existujícího detailu.
+  Plná geometrie a počty jsou v existujícím `/orders/{id}/print-sheet`.
+- `/admin/objednavky/:orderId/tisk` je chráněný výrobní list s údaji objednávky,
+  příjemcem, položkami a podklady včetně geometrie. Tisk provádí browser; backendové
+  generování PDF se nepřidávalo. Náhledy nejsou v měřítku 1:1. Tiskové CSS skryje
+  navigaci a tlačítka. Souhrn výroby lze také vytisknout.
+- Detail objednávky nabízí vytvoření zásilky přes existující Packeta endpoint
+  (skutečná hmotnost v kg), stažení PDF štítku jako Blob, ruční dopředné stavy
+  zásilky, ruční ověření stavu u Packety a výslovné přeposlání existujících e-mailů.
+  UI nabízí založení až u oceněné objednávky ve výrobě s podporovaným doručením.
+  Synchronizace a ruční evidence nemění hlavní stav objednávky ani platby.
+- Backend při vytváření zásilky používá jméno/firmu zákazníka, ne odlišného
+  doručovacího příjemce. Při rozdílu UI vytvoření zablokuje s vysvětlením; tuto
+  chybějící podporu má vyřešit vlastník backendu, nebo operátor přímo u dopravce.
+- Vytvoření zásilky není na serveru idempotentní při nejasném výsledku. UI před
+  požadavkem uloží do localStorage pouze UUID objednávky a čas, ne osobní údaje.
+  Při síti/5xx marker zůstává i po reloadu. Samotné načtení objednávky bez ID zásilky
+  jej neodblokuje: operátor musí ověřit nevzniklou zásilku přímo u Packety a teprve
+  potom výslovně povolit nový pokus. Nedostupné úložiště blokuje vytvoření.
+  Toto není serverová idempotence ani ochrana souběžných pokusů z různých zařízení;
+  operátoři musí koordinovat zakládání. Backendová feature se nepřidávala.
+- Štítek a synchronizace používají jen ručně spuštěné akce, nikoli automatické
+  query/refetch: oba GET endpointy mohou na backendu změnit stav zásilky.
+  PDF se stáhne přes generovaný klient s cookies a ověřeným typem Blob; nevzniká
+  frontendová proxy. Přeposlání e-mailu vyžaduje potvrzení, bez automatického retry.
+- Backendové změny jsou pouze technické: PDF odpověď má v OpenAPI správný binární
+  typ `application/pdf`, výrobní odpovědi mají no-store. Žádné nové endpointy,
+  datové modely, výroba PDF ani změny obchodních pravidel zásilek.
+- Ověření: check bez chyb (6 známých Orval warnings), 26 unit testů, build,
+  37 standardních E2E, oba živé API/auth testy a 159 backendových testů (1 skipped).
+  Nové scénáře pokrývají filtry a chybu souhrnu, výrobní list/print CSS, PDF download,
+  zásilku, samostatné stavy, e-mail a trvalou blokaci nejasného vytvoření i omezení příjemce.
+  Backendový kontraktní test pouze ověřuje existující výrobu, print-sheet a redirect
+  originálu; nijak tato API nerozšiřuje.
+- Skutečné Packetě se v testech nevolalo a SMTP se neověřovalo. Živé testy pouze
+  čtou výrobu a případný výrobní list existující objednávky, bez založení zásilek,
+  stažení štítků či odesílání zpráv. Konfigurace Packety zůstává nutným předpokladem.
+- Další krok: zákazníci a historie objednávek podle existujících endpointů.
 
 ## 6. Nasazení, testy a úplnost
 

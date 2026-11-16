@@ -830,6 +830,40 @@
 .checkout-fields[hidden] {
   display: none;
 }
+.print-design {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+@media print {
+  .admin-sidebar,
+  .admin-header,
+  .admin-prototype,
+  .print-controls {
+    display: none !important;
+  }
+  .admin-app,
+  .admin-workspace,
+  .admin-content,
+  .order-print-sheet {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .admin-panel {
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  .print-item {
+    break-inside: avoid;
+  }
+  .print-design {
+    max-width: 150mm;
+    max-height: 90mm;
+  }
+}
 .admin-image-card {
   min-width: 0;
 }

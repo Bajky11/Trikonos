@@ -35,6 +35,11 @@ test("local Docker login, session after reload and CSRF-protected logout", async
     await expect(
       page.getByRole("heading", { name: `Objednávka ${first.orderNumber}`, exact: true }),
     ).toBeVisible();
+    await page.getByRole("link", { name: "Výrobní list", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: `Výrobní list — ${first.orderNumber}`, exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Zpět na detail objednávky", exact: true }).click();
     await page.getByRole("link", { name: "Zpět na objednávky", exact: true }).click();
   }
   await page.reload();
@@ -85,6 +90,13 @@ test("local Docker login, session after reload and CSRF-protected logout", async
   await expect(
     page.getByText("Velikosti jsou pevný seznam backendu", { exact: false }),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Administrace" })
+    .getByRole("link", { name: "Výroba", exact: true })
+    .click();
+  await expect(page.getByRole("table", { name: "Souhrn výroby", exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Výrobní podklady", exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);

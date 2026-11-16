@@ -23,6 +23,7 @@ import type {
   AdminColor,
   AdminColorsListParams,
   AdminConfirmOrder,
+  AdminCreateShipment,
   AdminCut,
   AdminCutsListParams,
   AdminMotifDetail,
@@ -37,6 +38,9 @@ import type {
   AdminPrintAreasListParams,
   AdminProductType,
   AdminProductTypesListParams,
+  AdminProductionPlacementsListParams,
+  AdminProductionSummaryListParams,
+  AdminResendEmail,
   AdminShippingCost,
   CartValidate,
   CartValidateResponse,
@@ -77,7 +81,10 @@ import type {
   PatchedAdminPaymentStatus,
   PatchedAdminPrintArea,
   PatchedAdminProductType,
+  PatchedAdminShipmentStatus,
   PatchedMotifImagePatch,
+  ProductionPlacementRow,
+  ProductionSummaryRow,
 } from "./models";
 
 import { apiFetch } from "../http.ts";
@@ -3912,6 +3919,747 @@ export const useAdminOrdersPaymentStatusPartialUpdate = <
   return useMutation(getAdminOrdersPaymentStatusPartialUpdateMutationOptions(options), queryClient);
 };
 
+export const getAdminOrdersPrintSheetRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/print-sheet`;
+};
+
+/**
+ * Podklad pro tisknutelný výrobní list jedné objednávky - aktuálně vrací stejná data jako `GET /admin/orders/{id}`; samotné generování PDF/tisknutelného formátu je na frontendu.
+ * @summary Data pro výrobní list (volitelné)
+ */
+export const adminOrdersPrintSheetRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersPrintSheetRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersPrintSheetRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/orders/${id}/print-sheet`] as const;
+};
+
+export const getAdminOrdersPrintSheetRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersPrintSheetRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>> = ({
+    signal,
+  }) => adminOrdersPrintSheetRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type AdminOrdersPrintSheetRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>
+>;
+export type AdminOrdersPrintSheetRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Podklad pro tisknutelný výrobní list jedné objednávky - aktuálně vrací stejná data jako `GET /admin/orders/{id}`; samotné generování PDF/tisknutelného formátu je na frontendu.
+ * @summary Data pro výrobní list (volitelné)
+ */
+export function useAdminOrdersPrintSheetRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Podklad pro tisknutelný výrobní list jedné objednávky - aktuálně vrací stejná data jako `GET /admin/orders/{id}`; samotné generování PDF/tisknutelného formátu je na frontendu.
+ * @summary Data pro výrobní list (volitelné)
+ */
+export function useAdminOrdersPrintSheetRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Podklad pro tisknutelný výrobní list jedné objednávky - aktuálně vrací stejná data jako `GET /admin/orders/{id}`; samotné generování PDF/tisknutelného formátu je na frontendu.
+ * @summary Data pro výrobní list (volitelné)
+ */
+export function useAdminOrdersPrintSheetRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Podklad pro tisknutelný výrobní list jedné objednávky - aktuálně vrací stejná data jako `GET /admin/orders/{id}`; samotné generování PDF/tisknutelného formátu je na frontendu.
+ * @summary Data pro výrobní list (volitelné)
+ */
+export function useAdminOrdersPrintSheetRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersPrintSheetRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersPrintSheetRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminOrdersResendEmailCreateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/resend-email`;
+};
+
+/**
+ * Ruční přeposlání jednoho z automatických e-mailů, pro případ že zákazník tvrdí, že mu nic nedošlo (spam, překlep v adrese po opravě...). `type` je jeden z `ORDER_RECEIVED`, `ORDER_CONFIRMED`, `ORDER_SHIPPED`, `ORDER_CANCELLED` - obsah e-mailu se vygeneruje z aktuálních dat objednávky, ne z historie.
+ * @summary Znovu odeslat e-mail k objednávce
+ */
+export const adminOrdersResendEmailCreate = async (
+  id: string,
+  adminResendEmail: AdminResendEmail,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminOrdersResendEmailCreateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminResendEmail),
+  });
+};
+
+export const getAdminOrdersResendEmailCreateMutationKey = () =>
+  ["adminOrdersResendEmailCreate"] as const;
+
+export const getAdminOrdersResendEmailCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>,
+    TError,
+    AdminOrdersResendEmailCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>,
+  TError,
+  AdminOrdersResendEmailCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersResendEmailCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>,
+    AdminOrdersResendEmailCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersResendEmailCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersResendEmailCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>
+>;
+export type AdminOrdersResendEmailCreateMutationBody = AdminResendEmail;
+export type AdminOrdersResendEmailCreateMutationError = ErrorType<unknown>;
+export type AdminOrdersResendEmailCreateMutationVariables = { id: string; data: AdminResendEmail };
+
+/**
+ * Ruční přeposlání jednoho z automatických e-mailů, pro případ že zákazník tvrdí, že mu nic nedošlo (spam, překlep v adrese po opravě...). `type` je jeden z `ORDER_RECEIVED`, `ORDER_CONFIRMED`, `ORDER_SHIPPED`, `ORDER_CANCELLED` - obsah e-mailu se vygeneruje z aktuálních dat objednávky, ne z historie.
+ * @summary Znovu odeslat e-mail k objednávce
+ */
+export const useAdminOrdersResendEmailCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>,
+      TError,
+      AdminOrdersResendEmailCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersResendEmailCreate>>,
+  TError,
+  AdminOrdersResendEmailCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersResendEmailCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersShipmentCreateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipment`;
+};
+
+/**
+ * Zavolá Packeta API a založí zásilku - funguje pro výdejní místo i doručení na adresu podle `deliveryType` objednávky. `weight` (kg) je povinné, nic v systému váhu balíku nepočítá, admin ji zadá podle skutečnosti. `value` (haléře) je nepovinný override pojistné hodnoty, jinak se použije `total` objednávky. Vyžaduje nastaveného dopravce PACKETA a `deliveryType` na objednávce. Výsledné `trackingNumber` a `carrierShipmentId` se uloží na objednávku. Nejde zavolat podruhé pro stejnou objednávku (409 `SHIPMENT_ALREADY_CREATED`) - zásilka u Packety by se zdvojila.
+ * @summary Založit zásilku u Packety
+ */
+export const adminOrdersShipmentCreate = async (
+  id: string,
+  adminCreateShipment: AdminCreateShipment,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersShipmentCreateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminCreateShipment),
+  });
+};
+
+export const getAdminOrdersShipmentCreateMutationKey = () => ["adminOrdersShipmentCreate"] as const;
+
+export const getAdminOrdersShipmentCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersShipmentCreate>>,
+    TError,
+    AdminOrdersShipmentCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersShipmentCreate>>,
+  TError,
+  AdminOrdersShipmentCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersShipmentCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersShipmentCreate>>,
+    AdminOrdersShipmentCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersShipmentCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersShipmentCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShipmentCreate>>
+>;
+export type AdminOrdersShipmentCreateMutationBody = AdminCreateShipment;
+export type AdminOrdersShipmentCreateMutationError = ErrorType<void>;
+export type AdminOrdersShipmentCreateMutationVariables = { id: string; data: AdminCreateShipment };
+
+/**
+ * Zavolá Packeta API a založí zásilku - funguje pro výdejní místo i doručení na adresu podle `deliveryType` objednávky. `weight` (kg) je povinné, nic v systému váhu balíku nepočítá, admin ji zadá podle skutečnosti. `value` (haléře) je nepovinný override pojistné hodnoty, jinak se použije `total` objednávky. Vyžaduje nastaveného dopravce PACKETA a `deliveryType` na objednávce. Výsledné `trackingNumber` a `carrierShipmentId` se uloží na objednávku. Nejde zavolat podruhé pro stejnou objednávku (409 `SHIPMENT_ALREADY_CREATED`) - zásilka u Packety by se zdvojila.
+ * @summary Založit zásilku u Packety
+ */
+export const useAdminOrdersShipmentCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersShipmentCreate>>,
+      TError,
+      AdminOrdersShipmentCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersShipmentCreate>>,
+  TError,
+  AdminOrdersShipmentCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersShipmentCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersShipmentStatusPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipment-status`;
+};
+
+/**
+ * `shipmentStatus` a nepovinně `trackingNumber` najednou - typicky při vytištění štítku nebo předání dopravci, bez nutnosti měnit hlavní `status` objednávky.
+ *
+ * `shipmentStatus` jde jen **dopředu** (`CREATED → LABEL_PRINTED → HANDED_OVER → IN_TRANSIT → DELIVERED`); `RETURNED` jen od `HANDED_OVER` a dál. Mění se jen u objednávky, která je už ve výrobě nebo dál (`PROCESSING`/`SHIPPED`/`DELIVERED`) - jiná kombinace 409. `trackingNumber` lze opravit kdykoli, nezávisle na tomhle omezení.
+ * @summary Změnit stav zásilky
+ */
+export const adminOrdersShipmentStatusPartialUpdate = async (
+  id: string,
+  patchedAdminShipmentStatus?: PatchedAdminShipmentStatus,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersShipmentStatusPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminShipmentStatus),
+  });
+};
+
+export const getAdminOrdersShipmentStatusPartialUpdateMutationKey = () =>
+  ["adminOrdersShipmentStatusPartialUpdate"] as const;
+
+export const getAdminOrdersShipmentStatusPartialUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>,
+    TError,
+    AdminOrdersShipmentStatusPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>,
+  TError,
+  AdminOrdersShipmentStatusPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersShipmentStatusPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>,
+    AdminOrdersShipmentStatusPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersShipmentStatusPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersShipmentStatusPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>
+>;
+export type AdminOrdersShipmentStatusPartialUpdateMutationBody =
+  | PatchedAdminShipmentStatus
+  | undefined;
+export type AdminOrdersShipmentStatusPartialUpdateMutationError = ErrorType<void>;
+export type AdminOrdersShipmentStatusPartialUpdateMutationVariables = {
+  id: string;
+  data?: PatchedAdminShipmentStatus;
+};
+
+/**
+ * `shipmentStatus` a nepovinně `trackingNumber` najednou - typicky při vytištění štítku nebo předání dopravci, bez nutnosti měnit hlavní `status` objednávky.
+ *
+ * `shipmentStatus` jde jen **dopředu** (`CREATED → LABEL_PRINTED → HANDED_OVER → IN_TRANSIT → DELIVERED`); `RETURNED` jen od `HANDED_OVER` a dál. Mění se jen u objednávky, která je už ve výrobě nebo dál (`PROCESSING`/`SHIPPED`/`DELIVERED`) - jiná kombinace 409. `trackingNumber` lze opravit kdykoli, nezávisle na tomhle omezení.
+ * @summary Změnit stav zásilky
+ */
+export const useAdminOrdersShipmentStatusPartialUpdate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>,
+      TError,
+      AdminOrdersShipmentStatusPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersShipmentStatusPartialUpdate>>,
+  TError,
+  AdminOrdersShipmentStatusPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getAdminOrdersShipmentStatusPartialUpdateMutationOptions(options),
+    queryClient,
+  );
+};
+
+export const getAdminOrdersShipmentLabelRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipment/label`;
+};
+
+/**
+ * Stáhne PDF se štítkem zásilky od Packety (vyžaduje už založenou zásilku, jinak 422). Při prvním stažení posune `shipmentStatus` z CREATED na LABEL_PRINTED.
+ * @summary Stáhnout štítek zásilky
+ */
+export const adminOrdersShipmentLabelRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<Blob> => {
+  return apiFetch<Blob>(getAdminOrdersShipmentLabelRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersShipmentLabelRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/orders/${id}/shipment/label`] as const;
+};
+
+export const getAdminOrdersShipmentLabelRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersShipmentLabelRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>> = ({
+    signal,
+  }) => adminOrdersShipmentLabelRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminOrdersShipmentLabelRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>
+>;
+export type AdminOrdersShipmentLabelRetrieveQueryError = ErrorType<void>;
+
+/**
+ * Stáhne PDF se štítkem zásilky od Packety (vyžaduje už založenou zásilku, jinak 422). Při prvním stažení posune `shipmentStatus` z CREATED na LABEL_PRINTED.
+ * @summary Stáhnout štítek zásilky
+ */
+export function useAdminOrdersShipmentLabelRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stáhne PDF se štítkem zásilky od Packety (vyžaduje už založenou zásilku, jinak 422). Při prvním stažení posune `shipmentStatus` z CREATED na LABEL_PRINTED.
+ * @summary Stáhnout štítek zásilky
+ */
+export function useAdminOrdersShipmentLabelRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stáhne PDF se štítkem zásilky od Packety (vyžaduje už založenou zásilku, jinak 422). Při prvním stažení posune `shipmentStatus` z CREATED na LABEL_PRINTED.
+ * @summary Stáhnout štítek zásilky
+ */
+export function useAdminOrdersShipmentLabelRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Stáhne PDF se štítkem zásilky od Packety (vyžaduje už založenou zásilku, jinak 422). Při prvním stažení posune `shipmentStatus` z CREATED na LABEL_PRINTED.
+ * @summary Stáhnout štítek zásilky
+ */
+export function useAdminOrdersShipmentLabelRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentLabelRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersShipmentLabelRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminOrdersShipmentStatusRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipment/status`;
+};
+
+/**
+ * Zavolá Packeta API (`packetStatus`) a zjistí aktuální stav zásilky v jejich síti. Pokud se mapuje na náš `shipmentStatus` (CREATED/IN_TRANSIT/DELIVERED/RETURNED) a je to posun **dopředu**, uloží se - stav nikdy nejde zpátky, i kdyby Packeta vrátila zastaralá data. Vyžaduje už založenou zásilku (422 `SHIPMENT_NOT_CREATED`, pokud ne).
+ * @summary Zjistit aktuální stav zásilky u Packety
+ */
+export const adminOrdersShipmentStatusRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersShipmentStatusRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersShipmentStatusRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/orders/${id}/shipment/status`] as const;
+};
+
+export const getAdminOrdersShipmentStatusRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersShipmentStatusRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>> = ({
+    signal,
+  }) => adminOrdersShipmentStatusRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminOrdersShipmentStatusRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>
+>;
+export type AdminOrdersShipmentStatusRetrieveQueryError = ErrorType<void>;
+
+/**
+ * Zavolá Packeta API (`packetStatus`) a zjistí aktuální stav zásilky v jejich síti. Pokud se mapuje na náš `shipmentStatus` (CREATED/IN_TRANSIT/DELIVERED/RETURNED) a je to posun **dopředu**, uloží se - stav nikdy nejde zpátky, i kdyby Packeta vrátila zastaralá data. Vyžaduje už založenou zásilku (422 `SHIPMENT_NOT_CREATED`, pokud ne).
+ * @summary Zjistit aktuální stav zásilky u Packety
+ */
+export function useAdminOrdersShipmentStatusRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Zavolá Packeta API (`packetStatus`) a zjistí aktuální stav zásilky v jejich síti. Pokud se mapuje na náš `shipmentStatus` (CREATED/IN_TRANSIT/DELIVERED/RETURNED) a je to posun **dopředu**, uloží se - stav nikdy nejde zpátky, i kdyby Packeta vrátila zastaralá data. Vyžaduje už založenou zásilku (422 `SHIPMENT_NOT_CREATED`, pokud ne).
+ * @summary Zjistit aktuální stav zásilky u Packety
+ */
+export function useAdminOrdersShipmentStatusRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Zavolá Packeta API (`packetStatus`) a zjistí aktuální stav zásilky v jejich síti. Pokud se mapuje na náš `shipmentStatus` (CREATED/IN_TRANSIT/DELIVERED/RETURNED) a je to posun **dopředu**, uloží se - stav nikdy nejde zpátky, i kdyby Packeta vrátila zastaralá data. Vyžaduje už založenou zásilku (422 `SHIPMENT_NOT_CREATED`, pokud ne).
+ * @summary Zjistit aktuální stav zásilky u Packety
+ */
+export function useAdminOrdersShipmentStatusRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Zavolá Packeta API (`packetStatus`) a zjistí aktuální stav zásilky v jejich síti. Pokud se mapuje na náš `shipmentStatus` (CREATED/IN_TRANSIT/DELIVERED/RETURNED) a je to posun **dopředu**, uloží se - stav nikdy nejde zpátky, i kdyby Packeta vrátila zastaralá data. Vyžaduje už založenou zásilku (422 `SHIPMENT_NOT_CREATED`, pokud ne).
+ * @summary Zjistit aktuální stav zásilky u Packety
+ */
+export function useAdminOrdersShipmentStatusRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersShipmentStatusRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersShipmentStatusRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const getAdminOrdersShippingCostUpdateUrl = (id: string) => {
   return `/api/v1/admin/orders/${id}/shipping-cost`;
 };
@@ -5043,6 +5791,330 @@ export const useAdminProductTypesDestroy = <TError = ErrorType<unknown>, TContex
 > => {
   return useMutation(getAdminProductTypesDestroyMutationOptions(options), queryClient);
 };
+
+export const getAdminProductionPlacementsListUrl = (
+  params?: AdminProductionPlacementsListParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/production/placements?${stringifiedParams}`
+    : `/api/v1/admin/production/placements`;
+};
+
+/**
+ * Plochý seznam všech umístění vlastního potisku (napříč objednávkami) - číslo objednávky, popisek položky, název tiskového bloku, rozměry, rotace a `url` na soubor ke stažení. Filtry stejné jako u `/production/summary`, navíc `printArea` (id tiskového bloku, pro zobrazení "všechny potisky na záda tento týden" apod.).
+ * @summary Podklady k tisku vlastních potisků
+ */
+export const adminProductionPlacementsList = async (
+  params?: AdminProductionPlacementsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<ProductionPlacementRow[]> => {
+  return apiFetch<ProductionPlacementRow[]>(getAdminProductionPlacementsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminProductionPlacementsListQueryKey = (
+  params?: AdminProductionPlacementsListParams,
+) => {
+  return [`/api/v1/admin/production/placements`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminProductionPlacementsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionPlacementsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionPlacementsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminProductionPlacementsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminProductionPlacementsList>>> = ({
+    signal,
+  }) => adminProductionPlacementsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminProductionPlacementsListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductionPlacementsList>>
+>;
+export type AdminProductionPlacementsListQueryError = ErrorType<unknown>;
+
+/**
+ * Plochý seznam všech umístění vlastního potisku (napříč objednávkami) - číslo objednávky, popisek položky, název tiskového bloku, rozměry, rotace a `url` na soubor ke stažení. Filtry stejné jako u `/production/summary`, navíc `printArea` (id tiskového bloku, pro zobrazení "všechny potisky na záda tento týden" apod.).
+ * @summary Podklady k tisku vlastních potisků
+ */
+export function useAdminProductionPlacementsList<
+  TData = Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminProductionPlacementsListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionPlacementsList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductionPlacementsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plochý seznam všech umístění vlastního potisku (napříč objednávkami) - číslo objednávky, popisek položky, název tiskového bloku, rozměry, rotace a `url` na soubor ke stažení. Filtry stejné jako u `/production/summary`, navíc `printArea` (id tiskového bloku, pro zobrazení "všechny potisky na záda tento týden" apod.).
+ * @summary Podklady k tisku vlastních potisků
+ */
+export function useAdminProductionPlacementsList<
+  TData = Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionPlacementsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionPlacementsList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductionPlacementsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plochý seznam všech umístění vlastního potisku (napříč objednávkami) - číslo objednávky, popisek položky, název tiskového bloku, rozměry, rotace a `url` na soubor ke stažení. Filtry stejné jako u `/production/summary`, navíc `printArea` (id tiskového bloku, pro zobrazení "všechny potisky na záda tento týden" apod.).
+ * @summary Podklady k tisku vlastních potisků
+ */
+export function useAdminProductionPlacementsList<
+  TData = Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionPlacementsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionPlacementsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Plochý seznam všech umístění vlastního potisku (napříč objednávkami) - číslo objednávky, popisek položky, název tiskového bloku, rozměry, rotace a `url` na soubor ke stažení. Filtry stejné jako u `/production/summary`, navíc `printArea` (id tiskového bloku, pro zobrazení "všechny potisky na záda tento týden" apod.).
+ * @summary Podklady k tisku vlastních potisků
+ */
+export function useAdminProductionPlacementsList<
+  TData = Awaited<ReturnType<typeof adminProductionPlacementsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionPlacementsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionPlacementsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminProductionPlacementsListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminProductionSummaryListUrl = (params?: AdminProductionSummaryListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/production/summary?${stringifiedParams}`
+    : `/api/v1/admin/production/summary`;
+};
+
+/**
+ * Součet `quantity` ze všech položek objednávek seskupený podle `productType`/`cut`/`color`/`size` - slouží jako nákupní seznam prázdných triček/mikin před tiskem. Filtr `status` (výchozí `PAID,PROCESSING` - objednávky, které se už opravdu budou vyrábět), `createdFrom`/`createdTo` pro omezení na konkrétní období. Zahrnuje jak katalogové, tak vlastní položky - pro samotné podklady k vlastnímu potisku použij `/production/placements`.
+ * @summary Souhrn kusů k výrobě podle typu/střihu/barvy/velikosti
+ */
+export const adminProductionSummaryList = async (
+  params?: AdminProductionSummaryListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<ProductionSummaryRow[]> => {
+  return apiFetch<ProductionSummaryRow[]>(getAdminProductionSummaryListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminProductionSummaryListQueryKey = (
+  params?: AdminProductionSummaryListParams,
+) => {
+  return [`/api/v1/admin/production/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminProductionSummaryListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminProductionSummaryList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionSummaryListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionSummaryList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminProductionSummaryListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminProductionSummaryList>>> = ({
+    signal,
+  }) => adminProductionSummaryList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminProductionSummaryList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminProductionSummaryListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductionSummaryList>>
+>;
+export type AdminProductionSummaryListQueryError = ErrorType<unknown>;
+
+/**
+ * Součet `quantity` ze všech položek objednávek seskupený podle `productType`/`cut`/`color`/`size` - slouží jako nákupní seznam prázdných triček/mikin před tiskem. Filtr `status` (výchozí `PAID,PROCESSING` - objednávky, které se už opravdu budou vyrábět), `createdFrom`/`createdTo` pro omezení na konkrétní období. Zahrnuje jak katalogové, tak vlastní položky - pro samotné podklady k vlastnímu potisku použij `/production/placements`.
+ * @summary Souhrn kusů k výrobě podle typu/střihu/barvy/velikosti
+ */
+export function useAdminProductionSummaryList<
+  TData = Awaited<ReturnType<typeof adminProductionSummaryList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminProductionSummaryListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionSummaryList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductionSummaryList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductionSummaryList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Součet `quantity` ze všech položek objednávek seskupený podle `productType`/`cut`/`color`/`size` - slouží jako nákupní seznam prázdných triček/mikin před tiskem. Filtr `status` (výchozí `PAID,PROCESSING` - objednávky, které se už opravdu budou vyrábět), `createdFrom`/`createdTo` pro omezení na konkrétní období. Zahrnuje jak katalogové, tak vlastní položky - pro samotné podklady k vlastnímu potisku použij `/production/placements`.
+ * @summary Souhrn kusů k výrobě podle typu/střihu/barvy/velikosti
+ */
+export function useAdminProductionSummaryList<
+  TData = Awaited<ReturnType<typeof adminProductionSummaryList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionSummaryListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionSummaryList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminProductionSummaryList>>,
+          TError,
+          Awaited<ReturnType<typeof adminProductionSummaryList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Součet `quantity` ze všech položek objednávek seskupený podle `productType`/`cut`/`color`/`size` - slouží jako nákupní seznam prázdných triček/mikin před tiskem. Filtr `status` (výchozí `PAID,PROCESSING` - objednávky, které se už opravdu budou vyrábět), `createdFrom`/`createdTo` pro omezení na konkrétní období. Zahrnuje jak katalogové, tak vlastní položky - pro samotné podklady k vlastnímu potisku použij `/production/placements`.
+ * @summary Souhrn kusů k výrobě podle typu/střihu/barvy/velikosti
+ */
+export function useAdminProductionSummaryList<
+  TData = Awaited<ReturnType<typeof adminProductionSummaryList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionSummaryListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionSummaryList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Součet `quantity` ze všech položek objednávek seskupený podle `productType`/`cut`/`color`/`size` - slouží jako nákupní seznam prázdných triček/mikin před tiskem. Filtr `status` (výchozí `PAID,PROCESSING` - objednávky, které se už opravdu budou vyrábět), `createdFrom`/`createdTo` pro omezení na konkrétní období. Zahrnuje jak katalogové, tak vlastní položky - pro samotné podklady k vlastnímu potisku použij `/production/placements`.
+ * @summary Souhrn kusů k výrobě podle typu/střihu/barvy/velikosti
+ */
+export function useAdminProductionSummaryList<
+  TData = Awaited<ReturnType<typeof adminProductionSummaryList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminProductionSummaryListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminProductionSummaryList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminProductionSummaryListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export const getCartValidateCreateUrl = () => {
   return `/api/v1/cart/validate`;
