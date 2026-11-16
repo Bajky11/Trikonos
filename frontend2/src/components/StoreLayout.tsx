@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
 import Close from "@mui/icons-material/Close";
 import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined";
@@ -25,7 +25,8 @@ function Header() {
   const location = useLocation();
   const home = location.pathname === "/";
   const [position, setPosition] = useState({ solid: !home, ribbon: !home, active: "" });
-  const { count, notify } = useShop();
+  const { count } = useShop();
+  const navigate = useNavigate();
   useEffect(() => {
     let frame = 0;
     const update = () => {
@@ -87,13 +88,7 @@ function Header() {
         <IconButton
           className="cart-button"
           aria-label={`Košík, počet položek: ${count}`}
-          onClick={() =>
-            notify(
-              count
-                ? `Počet položek v košíku: ${count}. Objednání zatím není dostupné.`
-                : "Košík je prázdný.",
-            )
-          }
+          onClick={() => navigate("/kosik")}
         >
           <svg
             viewBox="0 0 24 24"

@@ -60,7 +60,7 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku
 a používané administrační operace motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
@@ -91,7 +91,9 @@ bun run test:e2e:api
 Tento smoke test používá `localhost` pro frontend i backend, ověřuje také
 odeslání testovací cookie, pouze čte a nevytváří objednávky.
 Pokud jsou v databázi dostupné varianty, ověří také jejich přidání do lokálního
-košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platný stav.
+košíku, obnovu po reloadu a read-only POST validaci. Bez povolených variant může
+lokálním snapshotem ověřit odmítnutí kombinace; skutečnou databázi nemění.
+Prázdný katalog/nedostupné varianty jsou platný stav.
 
 ### Katalog a lokální košík
 
@@ -107,10 +109,31 @@ košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platn�
 - `src/cart/storage.ts` ukládá reálná ID a vybranou variantu pod `trikonos-cart-v2`.
   Staré demo katalogové položky se nepřevádějí, staré návrhy vlastního potisku se
   zachovají. **Snapshot ceny ani lokální validace nejsou serverové ověření košíku.**
-  Před objednávkou bude nutné napojit `/cart/validate`; checkout zatím neexistuje.
+  `/kosik` nyní katalogové položky serverově ověřuje; před budoucím vytvořením
+  objednávky bude nutné kontrolu zopakovat. Checkout zatím neexistuje.
 - Homepage používá ruční pořadí jako „Výběr z kolekce“. Skutečné bestsellery jsou
   odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
   varianty se v této integraci neimportují a nedoplňují do databáze.
+
+### Košíková stránka a serverová validace
+
+- Tlačítko košíku otevírá `/kosik`. Položky lze odebrat, změnit počet (1–99),
+  obnovit po reloadu a přijmout novou serverovou cenu jako lokální snapshot.
+  Neúspěšný zápis do localStorage se nevydává za úspěch.
+- Při otevření a po uložení změny množství se přes Orval volá `POST /cart/validate`.
+  Odesílají se pouze katalogová ID, velikost a množství, nikdy uložená cena/popisek.
+  CSRF bootstrap funguje pro hosta i administrátora se session. Server nic neukládá.
+- Výsledek patří konkrétním odeslaným položkám: během nové kontroly nebo po chybě
+  se staré ceny netváří jako ověřené. Změna ceny je viditelná, nedostupná varianta
+  má chybu u řádku; neznámé/smazané ID může backend odmítnout globální chybou 400.
+- API má limit 10 kontrol/minutu na IP. Automatický retry a refetch na focus jsou
+  vypnuté; množství se ověřuje až po „Uložit počet“, ne při každém stisku klávesy.
+  Neúspěšné ověření lze ručně opakovat, 429 má zvláštní vysvětlení.
+- Staré návrhy vlastního potisku zůstávají zachované a lze je odebrat nebo změnit
+  počet, ale neposílají se do API. Nemají backendová ID/fileToken; jejich cena není
+  potvrzená a nezapočítává se do ověřeného katalogového mezisoučtu.
+- Doprava, konečná cena smíšeného košíku, checkout a objednání zůstávají nenapojené.
+  `null` v ceně se nezobrazuje jako nula.
 
 ### Administrace motivů, variant a fotografií
 
@@ -198,6 +221,7 @@ a přenos nové ceny typu do veřejného detailu.
 - `/` — úvodní stránka, galerie realizací, sezóny, katalog, editor potisku a FAQ
 - `/tricka` — celý katalog (`?kategorie=bitcoin&strana=2` pro filtr a stránku)
 - `/produkt/:slug` — detail skutečného motivu podle slugu z API
+- `/kosik` — lokální košík se serverovou validací katalogových položek
 - `/prihlaseni` — skutečné přihlášení do administrace
 - `/admin` — přehled
 - `/admin/objednavky`, `/admin/produkty`, `/admin/sezony`, `/admin/klienti`, `/admin/ciselniky`
@@ -225,8 +249,8 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config, katalog a jeho číselníky, správa motivů/variant/fotografií
-  a session autentizace. Serverový košík, platby
+- Na backend jsou napojené config, katalog a jeho číselníky, správa motivů/variant/fotografií,
+  validace katalogových položek košíku a session autentizace. Serverové ukládání košíku, platby
   a objednávání zatím napojené nejsou.
 - Rozpracovaný košík se ukládá do `localStorage` pod `trikonos-cart-v2`. Starý klíč
   `trikonos-react-dictionaries-v1` se již nepoužívá a jeho data se automaticky nepřenášejí.

@@ -242,7 +242,7 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
   a 47 backendových testů (catalog/core 32, shipping 15) prošly. Živé ověření pouze
   četlo; skutečná katalogová DB ani media se neměnily. Build/deprecation warnings
   zůstávají stejné jako v předchozích krocích.
-- Tato práce zůstává necommitnutá a nepushnutá. Další ucelený krok: košíková stránka
+- Číselníky byly na pokyn uživatele commitnuté jako `0427974`; bez pushe. Další ucelený krok: košíková stránka
   a serverová validace katalogových položek přes `/cart/validate`; vlastní potisk
   bude vyžadovat samostatné potvrzení UX a kontraktu.
 
@@ -251,10 +251,13 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
 - [x] Definovat backendové identifikátory katalogových položek a verzovaný formát
   lokálního košíku; staré demo ceny se nepřevádějí do objednávek.
 - [ ] Převést vlastní potisk z demo draftu na serverový kontrakt.
-- [ ] Doplnit košíkovou stránku, editaci množství, odebrání a obnovu po reloadu.
-- [ ] Napojit `/cart/validate`; zobrazit změnu ceny, nedostupnost, chyby položek,
-  dopravu a příznak požadavku na nacenění. Lokální cena není autoritativní.
-- [ ] Při veřejných POST ověřit CSRF chování hosta i přihlášeného administrátora;
+- [x] Doplnit košíkovou stránku, editaci množství, odebrání a obnovu po reloadu.
+- [x] Napojit `/cart/validate` pro katalogové položky; zobrazit změnu ceny,
+  nedostupnost a chyby. Lokální cena není autoritativní.
+- [ ] Rozšířit validaci o vlastní potisk, skutečný `requiresQuote` a volbu dopravy;
+  neznámou cenu/dopravu nyní zobrazovat bez konečného součtu.
+- [x] U `/cart/validate` ověřit CSRF hosta i přihlášeného administrátora.
+- [ ] Stejné ověření provést pro budoucí upload a vytvoření objednávky;
   současné veřejné API dědí session autentizaci.
 - [ ] Napojit editor na tiskové plochy, rozměry v mm a serverová transformační
   pravidla; otestovat převod souřadnic a meze návrhu.
@@ -265,6 +268,40 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
 
 **Ověření etapy:** katalogové i vlastní položky se obnoví a projdou serverovou
 validací; testy pokryjí změnu ceny, neplatnou variantu a expirovaný upload.
+
+### Košíková stránka a validace katalogu (16. 11. 2026)
+
+- `/kosik` používá dosavadní `trikonos-cart-v2`, umožňuje uložit počet kusů,
+  odebrat položku a přijmout novou serverovou cenu jako snapshot. Selhání úložiště
+  nemění zobrazený košík a nehlásí úspěch. Limit množství zůstává frontendových 1–99.
+- Read-only POST `/cart/validate` se volá při otevření a po potvrzené změně počtu.
+  TanStack Query odděluje výsledky podle odeslaných položek; při čekání nebo chybě
+  se starý součet netváří jako ověřený. Neodesílají se snapshoty cen ani názvů.
+- API vrací chyby nedostupných kombinací po řádcích. U neexistujícího ID dnešní
+  serializer odmítá celý požadavek 400 a chybová obálka nezachovává indexy řádků;
+  UI proto ukáže globální chybu a žádný ověřený součet. Kontrakt se neobcházel
+  jednotlivými POST pro každou položku (API má 10 požadavků/min/IP).
+- Opakování kontroly je ruční, bez automatického retry nebo refetch na focus.
+  CSRF používá dosavadní bootstrap a funguje i po reloadu s admin session.
+- Malá backendová oprava vždy ignoruje klientské `unitPrice` také v náhledu
+  košíku, stejně jako veřejné vytvoření objednávky. Jinak šlo podvrhnout cenu
+  validace. Objednávka ani žádná položka se při kontrole nevytváří.
+- Vlastní potisk zůstává výslovně neověřený lokální návrh; neposílá se s katalogem
+  a jeho demo cena není součástí ověřeného mezisoučtu. Chybějící doprava a konečná
+  cena se neprezentují jako zdarma/nula. Checkout ani upload nejsou rozšiřované.
+- Jeden unit test hlídá mapování položek bez cen/custom draftů. Dva ucelené E2E
+  scénáře pokrývají přecenění, množství, reload, mazání, selhání úložiště, chybu API,
+  nedostupnou variantu a smíšený košík. Dva backendové testy ověřují CSRF, přecenění
+  a chování neplatných/smazaných referencí bez perzistence objednávek.
+- Ověření: check bez chyb, 22 unit testů, build, 24 standardních E2E, oba živé testy
+  a 149 backendových testů (1 skipped) prošly. Živý test ověřil také skutečný
+  validační POST; katalogová DB ani media se neměnily.
+- Check nově hlásí dvě neblokující duplicity `NullEnum | null` v Orvalem
+  generovaných volitelných parametrech dopravy/platby. Generované typy nebyly ručně
+  opravované. Stávající varování velikosti JS chunku a Django/DRF zůstávají.
+- Tento krok zůstává necommitnutý a nepushnutý. Další krok vyžaduje upřesnit UX
+  vlastního potisku/nacenění a serverový upload; alternativou je checkout čistě
+  katalogových položek, který ale nesmí potichu zahodit custom návrhy.
 
 ## 4. Checkout a zákaznická cesta
 

@@ -99,6 +99,8 @@ class CartValidateView(APIView):
 
         for raw_item in serializer.validated_data['items']:
             item = OrderItemInputSerializer.to_service_item(raw_item)
+            # Public previews must ignore client prices, just like public checkout.
+            item['unit_price'] = None
             result = services.validate_cart_item(item)
             line_results.append(result)
             total_quantity += item['quantity']

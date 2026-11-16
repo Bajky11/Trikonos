@@ -23,6 +23,7 @@ export interface CatalogCartItem {
 }
 
 interface CustomCartItem {
+  kind?: never;
   id: "custom-print";
   name: string;
   quantity: number;

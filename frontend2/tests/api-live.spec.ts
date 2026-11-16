@@ -45,6 +45,33 @@ test("browser loads real Docker API over CORS with credentials", async ({ page }
   const colors = page.locator('label:has(input[name="color"])');
   if (!(await colors.count())) {
     await expect(page.getByText("Motiv zatím nemá dostupné varianty.")).toBeVisible();
+    const lookups = await options.json();
+    if (
+      !lookups.productTypes.length ||
+      !lookups.cuts.length ||
+      !lookups.colors.length ||
+      !lookups.sizes.length
+    )
+      return;
+    // A local stale snapshot exercises unavailable variants without changing the DB.
+    await page.evaluate(
+      (item) => localStorage.setItem("trikonos-cart-v2", JSON.stringify([item])),
+      {
+        kind: "catalog",
+        motifId: catalog.results[0].id,
+        name: catalog.results[0].name,
+        productTypeId: lookups.productTypes[0].id,
+        cutId: lookups.cuts[0].id,
+        colorId: lookups.colors[0].id,
+        size: lookups.sizes[0].value,
+        quantity: 1,
+        unitPrice: catalog.results[0].price,
+      },
+    );
+    const validation = page.waitForResponse("http://localhost:8000/api/v1/cart/validate");
+    await page.goto("/kosik");
+    expect((await validation).status()).toBe(200);
+    await expect(page.getByText("Položka není dostupná nebo ji nelze ocenit.")).toBeVisible();
     return;
   }
   await colors.first().click();
@@ -52,4 +79,8 @@ test("browser loads real Docker API over CORS with credentials", async ({ page }
   await page.getByRole("button", { name: "Přidat do košíku" }).click();
   await page.reload();
   await expect(page.getByRole("button", { name: "Košík, počet položek: 1" })).toBeVisible();
+  const validation = page.waitForResponse("http://localhost:8000/api/v1/cart/validate");
+  await page.getByRole("button", { name: "Košík, počet položek: 1" }).click();
+  expect((await validation).status()).toBe(200);
+  await expect(page.getByText("Aktuální cena:", { exact: false })).toBeVisible();
 });

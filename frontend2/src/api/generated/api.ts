@@ -33,6 +33,8 @@ import type {
   AdminPrintAreasListParams,
   AdminProductType,
   AdminProductTypesListParams,
+  CartValidate,
+  CartValidateResponse,
   CatalogOptionsResponse,
   CategoriesListParams,
   Category,
@@ -4060,6 +4062,107 @@ export const useAdminProductTypesDestroy = <TError = ErrorType<unknown>, TContex
   TContext
 > => {
   return useMutation(getAdminProductTypesDestroyMutationOptions(options), queryClient);
+};
+
+export const getCartValidateCreateUrl = () => {
+  return `/api/v1/cart/validate`;
+};
+
+/**
+ * Pro krok "Shrnutí" v košíku a jako poslední kontrola před `POST /orders`. Tělo má **stejný tvar jako `items` v `POST /orders`** - žádné údaje o zákazníkovi, adrese ani dopravě, jen položky. **Nic se neukládá** - server jen spočítá, co by se stalo, kdyby se objednávka odeslala s těmito položkami teď.
+ *
+ * Odpověď má pro každou položku (ve stejném pořadí jako v požadavku) `valid`, `errors` (lidsky čitelné české hlášky, prázdné když je vše v pořádku), `itemLabel` (snapshot popisku, null při chybě), `unitPrice` (null u vlastního potisku nebo chybné položky), `lineTotal` (`unitPrice × quantity`, null když cena chybí). Souhrn: `subtotal` je null, pokud je kterákoli položka neplatná NEBO nedocenitelná (vlastní potisk) - tedy "null" neznamená chybu, může to jen znamenat čekání na ocenění adminem. `requiresQuote` je true, pokud košík obsahuje aspoň jednu položku s vlastním potiskem - frontend podle toho může zobrazit "cenu potvrdíme e-mailem" ještě před odeslením objednávky.
+ *
+ * Volej při každém otevření košíku (ceny/aktivita motivů se mohly mezitím změnit) a znovu těsně před `POST /orders`.
+ *
+ * `carrierId`/`deliveryType` jsou nepovinné - bez nich (zákazník ještě nevybral dopravu) je `shippingCost` i `total` `null`. S vybranou dopravou je `shippingCost` cena pro tu konkrétní kombinaci dopravce + typu doručení (se slevou podle celkového počtu kusů v košíku), `null` pokud ji admin pro tuto kombinaci ještě nenastavil v `/admin/shipping-prices`. `PERSONAL_PICKUP` (osobní odběr) je vždy zdarma, bez `carrierId`. Nepovinné `paymentMethod` - s `CASH_ON_DELIVERY` `shippingCost` zahrnuje i příplatek za dobírku (`/admin/cod-surcharge`); bez něj se příplatek do náhledu nepromítne. `total` = `subtotal + shippingCost`, `null`, pokud je cokoliv z toho `null`. Limit 10 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Ověřit košík před odeslením objednávky
+ */
+export const cartValidateCreate = async (
+  cartValidate: CartValidate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<CartValidateResponse> => {
+  return apiFetch<CartValidateResponse>(getCartValidateCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(cartValidate),
+  });
+};
+
+export const getCartValidateCreateMutationKey = () => ["cartValidateCreate"] as const;
+
+export const getCartValidateCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cartValidateCreate>>,
+    TError,
+    CartValidateCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cartValidateCreate>>,
+  TError,
+  CartValidateCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCartValidateCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cartValidateCreate>>,
+    CartValidateCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return cartValidateCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CartValidateCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cartValidateCreate>>
+>;
+export type CartValidateCreateMutationBody = CartValidate;
+export type CartValidateCreateMutationError = ErrorType<void>;
+export type CartValidateCreateMutationVariables = { data: CartValidate };
+
+/**
+ * Pro krok "Shrnutí" v košíku a jako poslední kontrola před `POST /orders`. Tělo má **stejný tvar jako `items` v `POST /orders`** - žádné údaje o zákazníkovi, adrese ani dopravě, jen položky. **Nic se neukládá** - server jen spočítá, co by se stalo, kdyby se objednávka odeslala s těmito položkami teď.
+ *
+ * Odpověď má pro každou položku (ve stejném pořadí jako v požadavku) `valid`, `errors` (lidsky čitelné české hlášky, prázdné když je vše v pořádku), `itemLabel` (snapshot popisku, null při chybě), `unitPrice` (null u vlastního potisku nebo chybné položky), `lineTotal` (`unitPrice × quantity`, null když cena chybí). Souhrn: `subtotal` je null, pokud je kterákoli položka neplatná NEBO nedocenitelná (vlastní potisk) - tedy "null" neznamená chybu, může to jen znamenat čekání na ocenění adminem. `requiresQuote` je true, pokud košík obsahuje aspoň jednu položku s vlastním potiskem - frontend podle toho může zobrazit "cenu potvrdíme e-mailem" ještě před odeslením objednávky.
+ *
+ * Volej při každém otevření košíku (ceny/aktivita motivů se mohly mezitím změnit) a znovu těsně před `POST /orders`.
+ *
+ * `carrierId`/`deliveryType` jsou nepovinné - bez nich (zákazník ještě nevybral dopravu) je `shippingCost` i `total` `null`. S vybranou dopravou je `shippingCost` cena pro tu konkrétní kombinaci dopravce + typu doručení (se slevou podle celkového počtu kusů v košíku), `null` pokud ji admin pro tuto kombinaci ještě nenastavil v `/admin/shipping-prices`. `PERSONAL_PICKUP` (osobní odběr) je vždy zdarma, bez `carrierId`. Nepovinné `paymentMethod` - s `CASH_ON_DELIVERY` `shippingCost` zahrnuje i příplatek za dobírku (`/admin/cod-surcharge`); bez něj se příplatek do náhledu nepromítne. `total` = `subtotal + shippingCost`, `null`, pokud je cokoliv z toho `null`. Limit 10 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Ověřit košík před odeslením objednávky
+ */
+export const useCartValidateCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof cartValidateCreate>>,
+      TError,
+      CartValidateCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof cartValidateCreate>>,
+  TError,
+  CartValidateCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getCartValidateCreateMutationOptions(options), queryClient);
 };
 
 export const getCatalogOptionsRetrieveUrl = () => {

@@ -9,6 +9,7 @@ export default defineConfig({
         operationIds: [
           "configRetrieve",
           "catalogOptionsRetrieve",
+          "cartValidateCreate",
           "adminAuthCsrfRetrieve",
           "adminAuthLoginCreate",
           "adminAuthLogoutCreate",

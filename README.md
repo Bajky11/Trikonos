@@ -97,8 +97,9 @@ Konfigurace, katalogové číselníky, kategorie i motivy se načítají ze skut
 V `/admin/produkty` lze spravovat motivy, jejich povolené varianty a fotografie
 včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy oblečení
 a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
-Přidání katalogové varianty do košíku zatím uloží jen lokální návrh; checkout
-a serverové ověření celého košíku ještě nejsou dostupné.
+`/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
+katalogu přes `/cart/validate`. Košík zůstává lokální; vlastní potisk je zatím
+neověřený návrh, checkout a objednání nejsou dostupné.
 
 ### HTTPS a přístup z internetu
 

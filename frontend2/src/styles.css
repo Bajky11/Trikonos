@@ -797,6 +797,20 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 20px;
 }
+.cart-lines {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0;
+}
+.cart-line {
+  padding: 24px;
+}
+.cart-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
 .admin-image-card {
   min-width: 0;
 }

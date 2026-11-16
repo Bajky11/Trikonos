@@ -6,6 +6,7 @@ import { ShopProvider } from "./components/ShopContext";
 import { HomePage } from "./pages/HomePage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { ProductPage } from "./pages/ProductPage";
+import { CartPage } from "./pages/CartPage";
 import { useTitle } from "./useTitle";
 import { RequireAuth } from "./auth/RequireAuth";
 import { LoginPage } from "./pages/LoginPage";
@@ -61,6 +62,7 @@ export function App() {
               <Route index element={<HomePage />} />
               <Route path="tricka" element={<CatalogPage />} />
               <Route path="produkt/:slug" element={<ProductPage />} />
+              <Route path="kosik" element={<CartPage />} />
               <Route path="prihlaseni" element={<LoginPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
