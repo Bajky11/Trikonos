@@ -24,6 +24,8 @@ import type {
   AdminColorsListParams,
   AdminConfirmOrder,
   AdminCreateShipment,
+  AdminCustomerDetail,
+  AdminCustomersListParams,
   AdminCut,
   AdminCutsListParams,
   AdminMotifDetail,
@@ -64,6 +66,7 @@ import type {
   OrderLookupRequest,
   PaginatedAdminCategoryList,
   PaginatedAdminColorList,
+  PaginatedAdminCustomerListList,
   PaginatedAdminCutList,
   PaginatedAdminMotifListList,
   PaginatedAdminMotifVariantList,
@@ -73,6 +76,7 @@ import type {
   PaginatedMotifListList,
   PatchedAdminCategory,
   PatchedAdminColor,
+  PatchedAdminCustomerUpdate,
   PatchedAdminCut,
   PatchedAdminMotifVariant,
   PatchedAdminMotifWrite,
@@ -1441,6 +1445,554 @@ export const useAdminColorsDestroy = <TError = ErrorType<unknown>, TContext = un
 > => {
   return useMutation(getAdminColorsDestroyMutationOptions(options), queryClient);
 };
+
+export const getAdminCustomersListUrl = (params?: AdminCustomersListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/customers?${stringifiedParams}`
+    : `/api/v1/admin/customers`;
+};
+
+/**
+ * Fulltext `q` hledá v e-mailu, jménu, firmě a telefonu. Filtr `marketingConsent` (true/false). Řazení `ordering`: `-createdAt` (výchozí), `-ordersCount`, `-totalSpent` (a jejich vzestupné varianty bez pomlčky). `ordersCount`, `totalSpent` (součet `total` ze VŠECH objednávek zákazníka, i zrušených) a `lastOrderAt` jsou počítané v databázi (anotace v querysetu) - žádné N+1 dotazy ani při velkém seznamu.
+ * @summary Seznam zákazníků
+ */
+export const adminCustomersList = async (
+  params?: AdminCustomersListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminCustomerListList> => {
+  return apiFetch<PaginatedAdminCustomerListList>(getAdminCustomersListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCustomersListQueryKey = (params?: AdminCustomersListParams) => {
+  return [`/api/v1/admin/customers`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminCustomersListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCustomersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCustomersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCustomersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCustomersListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminCustomersList>>> = ({ signal }) =>
+    adminCustomersList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminCustomersList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminCustomersListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminCustomersList>>
+>;
+export type AdminCustomersListQueryError = ErrorType<unknown>;
+
+/**
+ * Fulltext `q` hledá v e-mailu, jménu, firmě a telefonu. Filtr `marketingConsent` (true/false). Řazení `ordering`: `-createdAt` (výchozí), `-ordersCount`, `-totalSpent` (a jejich vzestupné varianty bez pomlčky). `ordersCount`, `totalSpent` (součet `total` ze VŠECH objednávek zákazníka, i zrušených) a `lastOrderAt` jsou počítané v databázi (anotace v querysetu) - žádné N+1 dotazy ani při velkém seznamu.
+ * @summary Seznam zákazníků
+ */
+export function useAdminCustomersList<
+  TData = Awaited<ReturnType<typeof adminCustomersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminCustomersListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCustomersList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Fulltext `q` hledá v e-mailu, jménu, firmě a telefonu. Filtr `marketingConsent` (true/false). Řazení `ordering`: `-createdAt` (výchozí), `-ordersCount`, `-totalSpent` (a jejich vzestupné varianty bez pomlčky). `ordersCount`, `totalSpent` (součet `total` ze VŠECH objednávek zákazníka, i zrušených) a `lastOrderAt` jsou počítané v databázi (anotace v querysetu) - žádné N+1 dotazy ani při velkém seznamu.
+ * @summary Seznam zákazníků
+ */
+export function useAdminCustomersList<
+  TData = Awaited<ReturnType<typeof adminCustomersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCustomersListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Fulltext `q` hledá v e-mailu, jménu, firmě a telefonu. Filtr `marketingConsent` (true/false). Řazení `ordering`: `-createdAt` (výchozí), `-ordersCount`, `-totalSpent` (a jejich vzestupné varianty bez pomlčky). `ordersCount`, `totalSpent` (součet `total` ze VŠECH objednávek zákazníka, i zrušených) a `lastOrderAt` jsou počítané v databázi (anotace v querysetu) - žádné N+1 dotazy ani při velkém seznamu.
+ * @summary Seznam zákazníků
+ */
+export function useAdminCustomersList<
+  TData = Awaited<ReturnType<typeof adminCustomersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCustomersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCustomersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Fulltext `q` hledá v e-mailu, jménu, firmě a telefonu. Filtr `marketingConsent` (true/false). Řazení `ordering`: `-createdAt` (výchozí), `-ordersCount`, `-totalSpent` (a jejich vzestupné varianty bez pomlčky). `ordersCount`, `totalSpent` (součet `total` ze VŠECH objednávek zákazníka, i zrušených) a `lastOrderAt` jsou počítané v databázi (anotace v querysetu) - žádné N+1 dotazy ani při velkém seznamu.
+ * @summary Seznam zákazníků
+ */
+export function useAdminCustomersList<
+  TData = Awaited<ReturnType<typeof adminCustomersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminCustomersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminCustomersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCustomersListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminCustomersRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/customers/${id}`;
+};
+
+/**
+ * Kontakt, interní poznámka, souhlas s marketingem, souhrny a seznam objednávek zákazníka.
+ * @summary Detail zákazníka
+ */
+export const adminCustomersRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCustomerDetail> => {
+  return apiFetch<AdminCustomerDetail>(getAdminCustomersRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCustomersRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/customers/${id}`] as const;
+};
+
+export const getAdminCustomersRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCustomersRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminCustomersRetrieve>>> = ({ signal }) =>
+    adminCustomersRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type AdminCustomersRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminCustomersRetrieve>>
+>;
+export type AdminCustomersRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Kontakt, interní poznámka, souhlas s marketingem, souhrny a seznam objednávek zákazníka.
+ * @summary Detail zákazníka
+ */
+export function useAdminCustomersRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kontakt, interní poznámka, souhlas s marketingem, souhrny a seznam objednávek zákazníka.
+ * @summary Detail zákazníka
+ */
+export function useAdminCustomersRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kontakt, interní poznámka, souhlas s marketingem, souhrny a seznam objednávek zákazníka.
+ * @summary Detail zákazníka
+ */
+export function useAdminCustomersRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kontakt, interní poznámka, souhlas s marketingem, souhrny a seznam objednávek zákazníka.
+ * @summary Detail zákazníka
+ */
+export function useAdminCustomersRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCustomersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCustomersRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminCustomersPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/customers/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH): `phone`, `firstName`, `lastName`, `companyName`, `marketingConsent`, `note`, `email`. Změna `email` kontroluje unikátnost - pokud už e-mail patří jinému zákazníkovi, vrátí 409 `EMAIL_TAKEN`.
+ * @summary Upravit zákazníka
+ */
+export const adminCustomersPartialUpdate = async (
+  id: string,
+  patchedAdminCustomerUpdate?: PatchedAdminCustomerUpdate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCustomerDetail> => {
+  return apiFetch<AdminCustomerDetail>(getAdminCustomersPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminCustomerUpdate),
+  });
+};
+
+export const getAdminCustomersPartialUpdateMutationKey = () =>
+  ["adminCustomersPartialUpdate"] as const;
+
+export const getAdminCustomersPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCustomersPartialUpdate>>,
+    TError,
+    AdminCustomersPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCustomersPartialUpdate>>,
+  TError,
+  AdminCustomersPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCustomersPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCustomersPartialUpdate>>,
+    AdminCustomersPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminCustomersPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCustomersPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCustomersPartialUpdate>>
+>;
+export type AdminCustomersPartialUpdateMutationBody = PatchedAdminCustomerUpdate | undefined;
+export type AdminCustomersPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminCustomersPartialUpdateMutationVariables = {
+  id: string;
+  data?: PatchedAdminCustomerUpdate;
+};
+
+/**
+ * Částečná úprava (PATCH): `phone`, `firstName`, `lastName`, `companyName`, `marketingConsent`, `note`, `email`. Změna `email` kontroluje unikátnost - pokud už e-mail patří jinému zákazníkovi, vrátí 409 `EMAIL_TAKEN`.
+ * @summary Upravit zákazníka
+ */
+export const useAdminCustomersPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCustomersPartialUpdate>>,
+      TError,
+      AdminCustomersPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCustomersPartialUpdate>>,
+  TError,
+  AdminCustomersPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCustomersPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminCustomersExportConsentsRetrieveUrl = () => {
+  return `/api/v1/admin/customers/export-consents`;
+};
+
+/**
+ * Vrátí CSV soubor (ne JSON) s jedním sloupcem `email` - jen zákazníci s `marketingConsent: true`. Odpověď má `Content-Disposition: attachment`, takže prohlížeč nabídne stažení souboru `marketing-consents.csv` místo zobrazení obsahu.
+ * @summary Export e-mailů se souhlasem s marketingem (CSV)
+ */
+export const adminCustomersExportConsentsRetrieve = async (
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<Blob> => {
+  return apiFetch<Blob>(getAdminCustomersExportConsentsRetrieveUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCustomersExportConsentsRetrieveQueryKey = () => {
+  return [`/api/v1/admin/customers/export-consents`] as const;
+};
+
+export const getAdminCustomersExportConsentsRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCustomersExportConsentsRetrieveQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>
+  > = ({ signal }) => adminCustomersExportConsentsRetrieve({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminCustomersExportConsentsRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>
+>;
+export type AdminCustomersExportConsentsRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí CSV soubor (ne JSON) s jedním sloupcem `email` - jen zákazníci s `marketingConsent: true`. Odpověď má `Content-Disposition: attachment`, takže prohlížeč nabídne stažení souboru `marketing-consents.csv` místo zobrazení obsahu.
+ * @summary Export e-mailů se souhlasem s marketingem (CSV)
+ */
+export function useAdminCustomersExportConsentsRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí CSV soubor (ne JSON) s jedním sloupcem `email` - jen zákazníci s `marketingConsent: true`. Odpověď má `Content-Disposition: attachment`, takže prohlížeč nabídne stažení souboru `marketing-consents.csv` místo zobrazení obsahu.
+ * @summary Export e-mailů se souhlasem s marketingem (CSV)
+ */
+export function useAdminCustomersExportConsentsRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí CSV soubor (ne JSON) s jedním sloupcem `email` - jen zákazníci s `marketingConsent: true`. Odpověď má `Content-Disposition: attachment`, takže prohlížeč nabídne stažení souboru `marketing-consents.csv` místo zobrazení obsahu.
+ * @summary Export e-mailů se souhlasem s marketingem (CSV)
+ */
+export function useAdminCustomersExportConsentsRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí CSV soubor (ne JSON) s jedním sloupcem `email` - jen zákazníci s `marketingConsent: true`. Odpověď má `Content-Disposition: attachment`, takže prohlížeč nabídne stažení souboru `marketing-consents.csv` místo zobrazení obsahu.
+ * @summary Export e-mailů se souhlasem s marketingem (CSV)
+ */
+export function useAdminCustomersExportConsentsRetrieve<
+  TData = Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof adminCustomersExportConsentsRetrieve>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCustomersExportConsentsRetrieveQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export const getAdminCutsListUrl = (params?: AdminCutsListParams) => {
   const normalizedParams = new URLSearchParams();

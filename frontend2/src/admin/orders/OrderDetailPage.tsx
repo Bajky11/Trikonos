@@ -129,6 +129,9 @@ function OrderDetail({ orderId }: { orderId: string }) {
         {order.customer.firstName} {order.customer.lastName} · {order.customer.email} ·{" "}
         {order.customer.phone}
       </p>
+      <Button component={Link} to={`/admin/klienti/${order.customer.id}`}>
+        Profil zákazníka
+      </Button>
       <p>
         Vytvořeno: {dateTime(order.createdAt)} · Stav:{" "}
         <strong>{orderStatuses[order.status ?? ""] ?? order.status}</strong>

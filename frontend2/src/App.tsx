@@ -39,6 +39,11 @@ const OrderDetailPage = lazy(() =>
 const OrderPrintPage = lazy(() =>
   import("./admin/orders/OrderPrintPage").then((module) => ({ default: module.OrderPrintPage })),
 );
+const CustomerDetailPage = lazy(() =>
+  import("./admin/customers/CustomerDetailPage").then((module) => ({
+    default: module.CustomerDetailPage,
+  })),
+);
 
 function ScrollToLocation() {
   const { pathname, hash } = useLocation();
@@ -97,6 +102,7 @@ export function App() {
               <Route path="admin" element={<AdminLayout />}>
                 <Route index element={<AdminPage section="prehled" />} />
                 <Route path="objednavky/:orderId" element={<OrderDetailPage />} />
+                <Route path="klienti/:customerId" element={<CustomerDetailPage />} />
                 <Route path="orders/:orderId" element={<OrderDetailPage />} />
                 <Route path=":section" element={<AdminPage />} />
               </Route>

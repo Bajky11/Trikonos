@@ -33,6 +33,7 @@ async function mockExpedition(page: Page) {
     await route.fulfill({ json: state.order });
   });
   await page.route(`**/api/v1/admin/orders/${adminOrderId}/shipment/label`, async (route) => {
+    expect(route.request().headers()["accept"]).toBe("*/*");
     shipment.labels++;
     state.order.shipmentStatus = "LABEL_PRINTED";
     await route.fulfill({ contentType: "application/pdf", body: "%PDF-1.4\nmock label\n%%EOF" });

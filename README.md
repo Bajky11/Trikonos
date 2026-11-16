@@ -105,6 +105,9 @@ expedici Packety, PDF štítek a přeposlání e-mailů podle existujícího API
 Nejasné vytvoření zásilky vyžaduje ověření přímo u Packety před novým pokusem.
 Statistiky přehledu zůstávají demo. Backendové funkce, které API nemá,
 v této integraci nedoprogramováváme.
+`/admin/klienti` podporuje zákaznický seznam, detail, úpravy kontaktu, historii
+objednávek a globální CSV souhlasících e-mailů. Součet cen není součet úhrad;
+souhlas nemá v API historii ani audit. Zákaznické záznamy nejsou přihlašovací účty.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
 katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
 smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,

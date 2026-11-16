@@ -97,6 +97,31 @@ test("local Docker login, session after reload and CSRF-protected logout", async
   await expect(page.getByRole("table", { name: "Souhrn výroby", exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: "Výrobní podklady", exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
+  const customersResponse = page.waitForResponse(
+    (response) =>
+      response.url().startsWith("http://localhost:8000/api/v1/admin/customers?") &&
+      response.request().method() === "GET",
+  );
+  await page
+    .getByRole("navigation", { name: "Administrace" })
+    .getByRole("link", { name: "Klienti", exact: true })
+    .click();
+  const customers = await customersResponse;
+  expect(customers.status()).toBe(200);
+  expect(customers.headers()["cache-control"]).toContain("no-store");
+  await expect(page.getByRole("table", { name: "Zákazníci", exact: true })).toBeVisible();
+  const customerData = (await customers.json()) as { results: { email: string }[] };
+  if (customerData.results.length) {
+    const first = customerData.results[0]!;
+    await page.getByRole("link", { name: first.email, exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: `Zákazník ${first.email}`, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("table", { name: "Historie objednávek zákazníka", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Zpět na zákazníky", exact: true }).click();
+  }
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);

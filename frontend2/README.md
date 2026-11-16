@@ -61,7 +61,7 @@ bun run api:generate
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
 Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku, upload podkladů, vytvoření objednávky, zákaznický detail/dohledání a kontakt
-a používané administrační operace objednávek, motivů, variant, fotografií a katalogových číselníků;
+a používané administrační operace objednávek, zákazníků, výroby, motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -298,6 +298,32 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
 - `tests/production-shipping.spec.ts` používá mock Packetu/PDF a nic u dopravce
   skutečně nezakládá. Živý auth test pouze čte výrobní přehled a případný existující list.
 
+### Zákazníci a souhlasy
+
+- `/admin/klienti` používá skutečný seznam se serverovým hledáním podle kontaktu
+  a firmy, filtrem marketingového souhlasu, řazením a stránkováním. URL uchovává
+  filtry při návratu z `/admin/klienti/:customerId`.
+- Detail dovoluje upravit kontakt, firmu, poznámku a aktuální souhlas přes existující
+  PATCH se CSRF. Změna e-mailu a souhlasu vyžaduje potvrzení; konflikt `EMAIL_TAKEN`
+  zachovává vyplněný formulář. Při nejasném výsledku načti aktuální stav před dalším
+  zápisem. Nové údaje se projeví také na kontaktu/e-mailech existujících objednávek,
+  nikoli na jejich uložených adresách a položkách.
+- Historie v detailu ukazuje nejvýše 10 řádků z odpovědi backendu. API detailu vrací
+  celou historii; úplný stránkovaný seznam otevři přes tlačítko do objednávek
+  s `customer=<id>`. Z objednávky je dostupný odkaz zpět na profil.
+- Součet známých cen zahrnuje i zrušené a nezaplacené objednávky, není to součet
+  úhrad. Souhlas je jen aktuální bool, ne audit s datem/verzí či historií.
+- CSV export po potvrzení stahuje e-maily všech právě souhlasících zákazníků,
+  **bez ohledu na filtr seznamu**. Obsah zůstává pouze v krátkodobém Blob downloadu,
+  ne v query cache ani browser storage; stažený soubor musí operátor chránit.
+  CSV je přes generovaný klient s cookies a `Accept: */*`; širší Accept vyžaduje
+  DRF vyjednávání HttpResponse downloadů (stejná drobná oprava platí pro PDF štítky).
+- API nenabízí ruční vytvoření, sloučení ani mazání zákazníků; UI je nepředstírá.
+  Zákaznické záznamy nejsou přihlašovací účty. Na backendu se měnilo pouze no-store
+  a OpenAPI popis PATCH/CSV, ne funkce zákazníků.
+- `tests/admin-customers.spec.ts` testuje zápisy a export jen ve stavovém mock API.
+  Živý auth test seznam/profil pouze čte, neexportuje skutečné kontakty ani je nemění.
+
 ### Administrace motivů, variant a fotografií
 
 - `/admin/produkty` používá skutečný seznam motivů, hledání, filtr kategorie/stavu
@@ -425,8 +451,8 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
   Staré demo drafty mohou dosud obsahovat lokální obrázek. Při selhání úložiště aplikace
   zobrazí chybu a nepotvrdí změnu košíku.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.
-- Statistiky a recenze jsou ukázkové; objednávky používají backend. Sekce Klienti má zástupnou
-  obrazovku, Sezóny obsahují informační seznam.
+- Statistiky a recenze jsou ukázkové; objednávky a zákazníci používají backend.
+  Sezóny obsahují informační seznam.
 - Vzhled byl laděn pro desktop. Mobilní rozložení není součástí této migrace.
 - Je to vizuálně věrný přepis, nikoli garantovaná pixelová shoda každého stavu:
   formuláře, dialogy, tabulky a FAQ používají MUI a drobně se liší od nativního HTML.

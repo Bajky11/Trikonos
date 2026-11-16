@@ -2,7 +2,9 @@ import csv
 
 from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema, extend_schema_view
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -31,6 +33,7 @@ _ORDERING_MAP = {
 _TAG = ['Admin - zákazníci']
 
 
+@method_decorator(never_cache, name='dispatch')
 @extend_schema_view(
     list=extend_schema(
         tags=_TAG,
@@ -58,6 +61,8 @@ _TAG = ['Admin - zákazníci']
     partial_update=extend_schema(
         tags=_TAG,
         summary='Upravit zákazníka',
+        request=AdminCustomerUpdateSerializer,
+        responses={200: AdminCustomerDetailSerializer},
         description=(
             'Částečná úprava (PATCH): `phone`, `firstName`, `lastName`, '
             '`companyName`, `marketingConsent`, `note`, `email`. Změna `email` '
@@ -124,6 +129,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
         return Response(AdminCustomerDetailSerializer(detail).data)
 
 
+@method_decorator(never_cache, name='dispatch')
 class CustomerExportConsentsView(APIView):
     """Export e-mailů zákazníků se souhlasem s marketingem."""
     permission_classes = [IsAdmin]
@@ -137,7 +143,7 @@ class CustomerExportConsentsView(APIView):
             '`Content-Disposition: attachment`, takže prohlížeč nabídne stažení '
             'souboru `marketing-consents.csv` místo zobrazení obsahu.'
         ),
-        responses={200: OpenApiResponse(description='CSV soubor, Content-Type: text/csv.')},
+        responses={(200, 'text/csv'): OpenApiResponse(response=OpenApiTypes.BINARY, description='CSV soubor se sloupcem email.')},
     )
     def get(self, request):
         response = HttpResponse(content_type='text/csv')

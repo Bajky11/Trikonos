@@ -8,6 +8,7 @@ import { ProductsPanel } from "../admin/catalog/ProductsPanel";
 import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
 import { OrdersPanel } from "../admin/orders/OrdersPanel";
 import { ProductionPanel } from "../admin/production/ProductionPanel";
+import { CustomersPanel } from "../admin/customers/CustomersPanel";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -21,8 +22,8 @@ const sections = [
 export function AdminLayout() {
   const user = useOutletContext<Me>();
   const logout = useLogout();
-  const { section: routeSection, orderId } = useParams();
-  const section = routeSection ?? (orderId ? "objednavky" : "prehled");
+  const { section: routeSection, orderId, customerId } = useParams();
+  const section = routeSection ?? (orderId ? "objednavky" : customerId ? "klienti" : "prehled");
   const [search, setSearch] = useState("");
   const title = sections.find(([id]) => id === section)?.[1] || "Stránka nenalezena";
   useTitle(`${title} — admin`);
@@ -54,7 +55,7 @@ export function AdminLayout() {
             <TextField
               className="admin-search"
               placeholder={section === "vyroba" ? "Použijte filtry výroby" : "Hledat…"}
-              disabled={section === "vyroba" || !!orderId}
+              disabled={section === "vyroba" || !!orderId || !!customerId}
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -65,7 +66,9 @@ export function AdminLayout() {
                       ? "Hledat v motivech"
                       : section === "ciselniky"
                         ? "Hledat v číselníku"
-                        : "Hledat v objednávkách",
+                        : section === "klienti"
+                          ? "Hledat v zákaznících"
+                          : "Hledat v objednávkách",
                 },
               }}
             />
@@ -129,12 +132,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       {section === "produkty" && <ProductsPanel search={search} />}
-      {section === "klienti" && (
-        <Paper className="admin-panel" variant="outlined">
-          <h2>{sections.find(([id]) => id === section)?.[1]}</h2>
-          <p className="admin-empty">Tuto část administrace připravujeme.</p>
-        </Paper>
-      )}
+      {section === "klienti" && <CustomersPanel search={search} />}
       {!sections.some(([id]) => id === section) && (
         <Paper className="admin-panel" variant="outlined">
           <h2>Stránka nenalezena</h2>
@@ -144,8 +142,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       <p className="admin-prototype">
-        Katalog, číselníky a objednávky používají backend. Statistiky přehledu a ostatní nepřipojené
-        sekce jsou zatím ukázkové.
+        Katalog, číselníky, objednávky a zákazníci používají backend. Statistiky přehledu a ostatní
+        nepřipojené sekce jsou zatím ukázkové.
       </p>
     </>
   );

@@ -78,6 +78,7 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
       page,
       pageSize,
       q: params.get("q") || undefined,
+      customer: params.get("customer") || undefined,
       status: params.get("status") || undefined,
       paymentStatus: params.get("paymentStatus") || undefined,
       paymentMethod: params.get("paymentMethod") || undefined,
@@ -92,6 +93,15 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
   return (
     <Paper className="admin-panel" variant="outlined">
       <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
+      {params.get("customer") && (
+        <p>
+          Aktivní filtr zákazníka.{" "}
+          <Link to={`/admin/klienti/${encodeURIComponent(params.get("customer")!)}`}>
+            Profil zákazníka
+          </Link>{" "}
+          <Button onClick={() => update("customer", "")}>Zrušit filtr zákazníka</Button>
+        </p>
+      )}
       {!overview && (
         <div className="admin-catalog-toolbar">
           {filters.map(([key, label, values]) => (

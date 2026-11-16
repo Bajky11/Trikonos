@@ -272,7 +272,7 @@ def test_shipment_label_success_bumps_shipment_status(admin_client, motif, produ
     assert order.shipment_status == ShipmentStatus.CREATED
 
     with patch('shipping.packeta_client.get_label_pdf', return_value=b'%PDF-1.4 fake') as mock_label:
-        response = admin_client.get(f'/api/v1/admin/orders/{order.id}/shipment/label')
+        response = admin_client.get(f'/api/v1/admin/orders/{order.id}/shipment/label', HTTP_ACCEPT='*/*')
 
     assert response.status_code == 200
     assert response['Content-Type'] == 'application/pdf'

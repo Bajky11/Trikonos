@@ -243,7 +243,7 @@ export function OrderShipping({
           save(async () => {
             const blob = await adminOrdersShipmentLabelRetrieve(order.id, {
               cache: "no-store",
-              headers: { Accept: "application/pdf" },
+              headers: { Accept: "*/*" },
             });
             downloadLabel(blob, order.orderNumber);
             return fresh();

@@ -15,6 +15,9 @@ export async function mockAuthApi(page: Page, authenticated = false) {
   await page.route(/\/api\/v1\/admin\/orders(?:\?.*)?$/, (route) =>
     route.fulfill({ json: { count: 0, results: [], next: null, previous: null } }),
   );
+  await page.route(/\/api\/v1\/admin\/customers(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { count: 0, results: [], next: null, previous: null } }),
+  );
   await page.route("**/api/v1/admin/auth/me", (route) =>
     route.fulfill(
       active

@@ -2,7 +2,7 @@
 
 Průběžný plán a checklist kompletní integrace. Aktualizováno 16. 11. 2026.
 Napojené jsou veřejná nákupní cesta, zákaznické formuláře, katalogové číselníky,
-administrace objednávek a výroba/expedice v rozsahu existujícího API.
+administrace objednávek, zákazníků a výroba/expedice v rozsahu existujícího API.
 Zbývá další provozní správa, účty a produkční předpoklady; omezení jsou u etap níže.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
@@ -465,8 +465,11 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
   platební stavy a akce podle `allowedTransitions` a uzamčení objednávky.
 - [x] Napojit existující zásilky Packety, PDF štítky, tiskové listy a přeposlání e-mailů.
 - [x] Napojit výrobu: existující tiskové podklady, souhrny a příslušné filtry.
-- [ ] Napojit zákazníky, historii objednávek, souhlasy a jejich export.
-- [ ] Napojit dopravce, ceny dopravy, množstevní slevy a nastavení Packety.
+- [x] Napojit zákazníky, historii objednávek, aktuální souhlasy a existující CSV export.
+- [ ] **Odloženo na pokyn uživatele:** správa dopravců, cen dopravy,
+  množstevních slev a nastavení Packety. Backend podle uživatele zatím není
+  dostatečně implementovaný; tuto část nyní přeskočit, nedoplňovat backendové features.
+  Odklad se týká správy nastavení, ne již napojeného checkoutu a expedičních akcí.
 - [ ] Napojit správu uživatelů včetně bezpečného vytvoření a změn účtů.
 
 **Ověření etapy:** oprávněný pracovník zpracuje objednávku od přijetí přes
@@ -569,6 +572,55 @@ nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
   čtou výrobu a případný výrobní list existující objednávky, bez založení zásilek,
   stažení štítků či odesílání zpráv. Konfigurace Packety zůstává nutným předpokladem.
 - Další krok: zákazníci a historie objednávek podle existujících endpointů.
+
+### Zákazníci, historie a export souhlasů (16. 11. 2026)
+
+- Výroba a expedice jsou commitnuté jako `2c87f58`; bez pushe. Uživatel schválil
+  commit navazující správy zákazníků; také bez pushe.
+- `/admin/klienti` čte skutečné zákazníky se serverovým hledáním, filtrem aktuálního
+  marketingového souhlasu, řazením a stránkováním. Filtry jsou v URL a zachovají se
+  při návratu z detailu. Prázdný seznam ani chyba nepoužívají demo fallback.
+- `/admin/klienti/:customerId` zobrazuje kontakt, firmu, interní poznámku, aktuální
+  souhlas a souhrny. PATCH posílá pouze změny, se session a CSRF. Konflikt e-mailu
+  `EMAIL_TAKEN` neznamená úspěch a ponechá formulář vyplněný. Změna e-mailu a
+  souhlasu vyžaduje výslovné potvrzení. Při síti/5xx další zápis čeká na načtení
+  aktuálního serverového stavu, bez automatického retry či optimistického úspěchu.
+- Změna zákaznického kontaktu platí také pro kontakt a e-mailového příjemce
+  existujících objednávek; jejich adresní a položkové snapshoty se nemění.
+  Odpovídající admin objednávkové query se invalidují. Z objednávky lze otevřít profil.
+- Detail zobrazuje posledních nejvýše 10 objednávek z celé historie vrácené API;
+  backendový detail sám historii nestránkuje. Úplný stránkovaný seznam používá již
+  existující `/admin/orders?customer={id}`. Tento filtr je nově skutečně předávaný
+  frontendovým seznamem a lze jej zrušit nebo se z něj vrátit do profilu.
+- `totalSpent` je součet známých total všech objednávek včetně zrušených a
+  nezaplacených, nikoli tržba nebo součet úhrad. UI to výslovně uvádí, null nepřevádí
+  na nulu. API souhlasu nevrací čas, verzi ani historii; žádný audit se nevymýšlí.
+- CSV export je ruční, po potvrzení, a obsahuje e-maily VŠECH aktuálně souhlasících
+  zákazníků nezávisle na filtrech seznamu. Stáhne se jako Blob s cookies, bez FE
+  proxy, logování obsahu či persistence CSV do query/localStorage/sessionStorage.
+  Nejde o kompletní export zákazníků ani právní doklad souhlasu. Soubor po stažení
+  obsahuje osobní údaje a je potřeba jej chránit.
+- Technické opravy backendu jsou pouze no-store a přesné OpenAPI pro PATCH vstup
+  a binární CSV. Nové endpointy, merge/delete/create zákazníků, audit ani workflow
+  se nepřidávaly. Tělo API je ověřené camelCase přes renderer a generovaný klient.
+- Drobná oprava FE stahování: CSV a PDF HttpResponse endpointy potřebují široký
+  Accept `*/*` kvůli vyjednávání DRF rendereru; striktní Accept text/csv či
+  application/pdf mohl vracet 406. Typ samotné odpovědi se stále ověřuje před
+  downloadem. Backendové renderery se kvůli tomu nerozšiřovaly.
+- Ověření: check bez chyb se 6 známými Orval warnings, 26 unit testů, build,
+  40 standardních E2E a oba živé API/auth testy prošly. Rozšířená backendová sada
+  včetně `customers`: 169 passed / 1 skipped. Nové scénáře pokrývají seznam,
+  filtry/stránkování, změny a kolizi kontaktu, souhlas, globální CSV a jeho chybu,
+  zákaznický filtr historie, CSRF, no-store i nejistý výsledek zápisu.
+- Zápisy i exporty se testovaly jen ve stavovém mock API a izolované testovací DB.
+  Živý test čte zákaznický seznam a případný existující profil, nic nemění ani
+  neexportuje skutečné osobní údaje. Vývojový frontend byl kvůli zastaralému modulu
+  jednorázově restartovaný, bez změny konfigurace nebo databáze.
+- Správa dopravců, cen dopravy, množstevních slev a nastavení Packety je na pokyn
+  uživatele odložená kvůli nedostatečně implementovanému backendu.
+- Další část: správa administrátorských účtů, poté obnova/změna hesla podle
+  existujících endpointů. Před implementací ověřit jejich připravenost; nové role
+  ani chybějící backendové features nepřidávat.
 
 ## 6. Nasazení, testy a úplnost
 
