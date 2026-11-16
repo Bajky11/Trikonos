@@ -10,6 +10,7 @@ import { apiBaseUrl } from "../../api/http";
 import { money } from "../../data/catalog";
 import { formText, parsePrice } from "../catalog/forms";
 import type { SaveOrder } from "./OrderEditor";
+import { PlacementEditor } from "./PlacementEditor";
 
 export const amount = (value: number | null | undefined) =>
   value == null ? "K nacenění" : money(value / 100);
@@ -58,6 +59,14 @@ function Item({
               Zobrazit podklad — {placement.printArea.name}
             </a>
           )}
+          <PlacementEditor
+            key={`${placement.id}-${order.updatedAt}`}
+            order={order}
+            item={item}
+            placement={placement}
+            disabled={disabled}
+            save={save}
+          />
         </div>
       ))}
       <form

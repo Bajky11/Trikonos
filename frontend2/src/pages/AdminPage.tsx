@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { Avatar, Button, Paper, TextField } from "@mui/material";
 import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
@@ -9,6 +9,9 @@ import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
 import { OrdersPanel } from "../admin/orders/OrdersPanel";
 import { ProductionPanel } from "../admin/production/ProductionPanel";
 import { CustomersPanel } from "../admin/customers/CustomersPanel";
+import { UsersPanel } from "../admin/accounts/UsersPanel";
+import { PasswordPage } from "../auth/PasswordPage";
+import { GlobalSearch } from "../admin/GlobalSearch";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -17,13 +20,18 @@ const sections = [
   ["produkty", "Produkty"],
   ["sezony", "Sezóny"],
   ["klienti", "Klienti"],
+  ["uzivatele", "Účty"],
+  ["heslo", "Heslo"],
   ["ciselniky", "Číselníky"],
 ];
 export function AdminLayout() {
   const user = useOutletContext<Me>();
   const logout = useLogout();
   const { section: routeSection, orderId, customerId } = useParams();
-  const section = routeSection ?? (orderId ? "objednavky" : customerId ? "klienti" : "prehled");
+  const location = useLocation();
+  const manual = location.pathname === "/admin/objednavky/nova";
+  const section =
+    routeSection ?? (orderId || manual ? "objednavky" : customerId ? "klienti" : "prehled");
   const [search, setSearch] = useState("");
   const title = sections.find(([id]) => id === section)?.[1] || "Stránka nenalezena";
   useTitle(`${title} — admin`);
@@ -55,7 +63,12 @@ export function AdminLayout() {
             <TextField
               className="admin-search"
               placeholder={section === "vyroba" ? "Použijte filtry výroby" : "Hledat…"}
-              disabled={section === "vyroba" || !!orderId || !!customerId}
+              disabled={
+                ["vyroba", "uzivatele", "heslo"].includes(section) ||
+                !!orderId ||
+                !!customerId ||
+                manual
+              }
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -72,6 +85,7 @@ export function AdminLayout() {
                 },
               }}
             />
+            <GlobalSearch />
             <Avatar className="admin-avatar" variant="square">
               {(user.name || user.email).slice(0, 2).toLocaleUpperCase("cs")}
             </Avatar>
@@ -133,6 +147,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
       )}
       {section === "produkty" && <ProductsPanel search={search} />}
       {section === "klienti" && <CustomersPanel search={search} />}
+      {section === "uzivatele" && <UsersPanel />}
+      {section === "heslo" && <PasswordPage key="change" mode="change" />}
       {!sections.some(([id]) => id === section) && (
         <Paper className="admin-panel" variant="outlined">
           <h2>Stránka nenalezena</h2>

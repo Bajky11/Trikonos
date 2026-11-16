@@ -1,4 +1,6 @@
 from django.db.models import Q
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,6 +12,7 @@ from orders.models import Order
 from .admin_serializers import AdminSearchResponseSerializer
 
 
+@method_decorator(never_cache, name='dispatch')
 class AdminSearchView(APIView):
     """Globální vyhledávání v administraci napříč objednávkami, zákazníky a motivy."""
     permission_classes = [IsAdmin]

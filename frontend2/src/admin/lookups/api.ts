@@ -19,6 +19,11 @@ import {
   adminPrintAreasCreate,
   adminPrintAreasPartialUpdate,
   adminPrintAreasDestroy,
+  adminCategoriesReorderCreate,
+  adminColorsReorderCreate,
+  adminCutsReorderCreate,
+  adminProductTypesReorderCreate,
+  adminPrintAreasReorderCreate,
 } from "../../api/generated/api";
 import type {
   AdminCategory,
@@ -70,9 +75,10 @@ type LookupApi = {
   list: (
     params: LookupParams,
     options?: RequestInit,
-  ) => Promise<{ count: number; results: LookupItem[] }>;
+  ) => Promise<{ count: number; results: LookupItem[]; next?: string | null }>;
   save: (id: string | undefined, input: LookupInput) => Promise<LookupItem>;
   remove: (id: string) => Promise<void>;
+  reorder: (body: { ids: string[] }) => Promise<void>;
 };
 const common = ({ name, position, isActive }: LookupInput) => ({ name, position, isActive });
 
@@ -81,6 +87,7 @@ export const lookupApis: Record<LookupKind, LookupApi> = {
   categories: {
     list: adminCategoriesList,
     remove: adminCategoriesDestroy,
+    reorder: adminCategoriesReorderCreate,
     save: (id, input) => {
       const body = { ...common(input), ...(input.slug ? { slug: input.slug } : {}) };
       return id ? adminCategoriesPartialUpdate(id, body) : adminCategoriesCreate(body);
@@ -89,6 +96,7 @@ export const lookupApis: Record<LookupKind, LookupApi> = {
   colors: {
     list: adminColorsList,
     remove: adminColorsDestroy,
+    reorder: adminColorsReorderCreate,
     save: (id, input) => {
       const body = { ...common(input), hexValue: input.hexValue };
       return id ? adminColorsPartialUpdate(id, body) : adminColorsCreate(body);
@@ -97,12 +105,14 @@ export const lookupApis: Record<LookupKind, LookupApi> = {
   cuts: {
     list: adminCutsList,
     remove: adminCutsDestroy,
+    reorder: adminCutsReorderCreate,
     save: (id, input) =>
       id ? adminCutsPartialUpdate(id, common(input)) : adminCutsCreate(common(input)),
   },
   "product-types": {
     list: adminProductTypesList,
     remove: adminProductTypesDestroy,
+    reorder: adminProductTypesReorderCreate,
     save: (id, input) => {
       const body = { ...common(input), price: input.price };
       return id ? adminProductTypesPartialUpdate(id, body) : adminProductTypesCreate(body);
@@ -111,6 +121,7 @@ export const lookupApis: Record<LookupKind, LookupApi> = {
   "print-areas": {
     list: adminPrintAreasList,
     remove: adminPrintAreasDestroy,
+    reorder: adminPrintAreasReorderCreate,
     save: (id, input) => {
       const body = {
         ...common(input),

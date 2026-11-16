@@ -43,12 +43,18 @@ import type {
   AdminProductionPlacementsListParams,
   AdminProductionSummaryListParams,
   AdminResendEmail,
+  AdminSearchResponse,
+  AdminSearchRetrieveParams,
   AdminShippingCost,
+  AdminUser,
+  AdminUserCreate,
+  AdminUsersListParams,
   CartValidate,
   CartValidateResponse,
   CatalogOptionsResponse,
   CategoriesListParams,
   Category,
+  ChangePassword,
   ConfigResponse,
   Contact,
   DesignUploadRequest,
@@ -73,7 +79,10 @@ import type {
   PaginatedAdminOrderListList,
   PaginatedAdminPrintAreaList,
   PaginatedAdminProductTypeList,
+  PaginatedAdminUserList,
   PaginatedMotifListList,
+  PasswordResetConfirm,
+  PasswordResetRequest,
   PatchedAdminCategory,
   PatchedAdminColor,
   PatchedAdminCustomerUpdate,
@@ -83,12 +92,15 @@ import type {
   PatchedAdminOrderItemPrice,
   PatchedAdminOrderUpdate,
   PatchedAdminPaymentStatus,
+  PatchedAdminPlacementUpdate,
   PatchedAdminPrintArea,
   PatchedAdminProductType,
   PatchedAdminShipmentStatus,
+  PatchedAdminUserUpdate,
   PatchedMotifImagePatch,
   ProductionPlacementRow,
   ProductionSummaryRow,
+  Reorder,
 } from "./models";
 
 import { apiFetch } from "../http.ts";
@@ -601,6 +613,278 @@ export function useAdminAuthMeRetrieve<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getAdminAuthPasswordCreateUrl = () => {
+  return `/api/v1/admin/auth/password`;
+};
+
+/**
+ * Uživatel si sám změní heslo - musí znát současné heslo (`currentPassword`), jinak 400 s chybou u pole `currentPassword`. Nové heslo (`newPassword`) musí splnit Django validátory hesel (minimální délka, není příliš podobné e-mailu/jménu, není v seznamu běžných hesel, není čistě numerické) - chyby vrací pole `newPassword` jako seznam zpráv.
+ * @summary Změnit si vlastní heslo
+ */
+export const adminAuthPasswordCreate = async (
+  changePassword: ChangePassword,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminAuthPasswordCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(changePassword),
+  });
+};
+
+export const getAdminAuthPasswordCreateMutationKey = () => ["adminAuthPasswordCreate"] as const;
+
+export const getAdminAuthPasswordCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAuthPasswordCreate>>,
+    TError,
+    AdminAuthPasswordCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminAuthPasswordCreate>>,
+  TError,
+  AdminAuthPasswordCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminAuthPasswordCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminAuthPasswordCreate>>,
+    AdminAuthPasswordCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminAuthPasswordCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminAuthPasswordCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminAuthPasswordCreate>>
+>;
+export type AdminAuthPasswordCreateMutationBody = ChangePassword;
+export type AdminAuthPasswordCreateMutationError = ErrorType<unknown>;
+export type AdminAuthPasswordCreateMutationVariables = { data: ChangePassword };
+
+/**
+ * Uživatel si sám změní heslo - musí znát současné heslo (`currentPassword`), jinak 400 s chybou u pole `currentPassword`. Nové heslo (`newPassword`) musí splnit Django validátory hesel (minimální délka, není příliš podobné e-mailu/jménu, není v seznamu běžných hesel, není čistě numerické) - chyby vrací pole `newPassword` jako seznam zpráv.
+ * @summary Změnit si vlastní heslo
+ */
+export const useAdminAuthPasswordCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminAuthPasswordCreate>>,
+      TError,
+      AdminAuthPasswordCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminAuthPasswordCreate>>,
+  TError,
+  AdminAuthPasswordCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminAuthPasswordCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminAuthPasswordResetCreateUrl = () => {
+  return `/api/v1/admin/auth/password-reset`;
+};
+
+/**
+ * Pro "Zapomenuté heslo" na přihlašovací obrazovce administrace. Pokud e-mail patří existujícímu uživateli, pošle mu e-mail s odkazem na nastavení nového hesla (platnost řeší `PasswordResetTokenGenerator` z Django, typicky pár dní). **Vždy vrací 204**, i když e-mail neexistuje - jinak by šlo podle rozdílné odpovědi zjistit, které e-maily v administraci existují. Limit 5 požadavků/min na IP (`ScopedRateThrottle`) proti zahlcení cizí schránky e-maily.
+ * @summary Vyžádat odkaz na reset hesla
+ */
+export const adminAuthPasswordResetCreate = async (
+  passwordResetRequest: PasswordResetRequest,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminAuthPasswordResetCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(passwordResetRequest),
+  });
+};
+
+export const getAdminAuthPasswordResetCreateMutationKey = () =>
+  ["adminAuthPasswordResetCreate"] as const;
+
+export const getAdminAuthPasswordResetCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>,
+    TError,
+    AdminAuthPasswordResetCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>,
+  TError,
+  AdminAuthPasswordResetCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminAuthPasswordResetCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>,
+    AdminAuthPasswordResetCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminAuthPasswordResetCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminAuthPasswordResetCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>
+>;
+export type AdminAuthPasswordResetCreateMutationBody = PasswordResetRequest;
+export type AdminAuthPasswordResetCreateMutationError = ErrorType<void>;
+export type AdminAuthPasswordResetCreateMutationVariables = { data: PasswordResetRequest };
+
+/**
+ * Pro "Zapomenuté heslo" na přihlašovací obrazovce administrace. Pokud e-mail patří existujícímu uživateli, pošle mu e-mail s odkazem na nastavení nového hesla (platnost řeší `PasswordResetTokenGenerator` z Django, typicky pár dní). **Vždy vrací 204**, i když e-mail neexistuje - jinak by šlo podle rozdílné odpovědi zjistit, které e-maily v administraci existují. Limit 5 požadavků/min na IP (`ScopedRateThrottle`) proti zahlcení cizí schránky e-maily.
+ * @summary Vyžádat odkaz na reset hesla
+ */
+export const useAdminAuthPasswordResetCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>,
+      TError,
+      AdminAuthPasswordResetCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminAuthPasswordResetCreate>>,
+  TError,
+  AdminAuthPasswordResetCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminAuthPasswordResetCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminAuthPasswordResetConfirmCreateUrl = () => {
+  return `/api/v1/admin/auth/password-reset/confirm`;
+};
+
+/**
+ * Druhý krok resetu hesla. `uid` a `token` jsou z odkazu v e-mailu, který poslal `POST /auth/password-reset` (frontend je z URL query stringu přečte a poslal v těle požadavku). Neplatný nebo prošlý token vrací 400 s obecnou zprávou "Odkaz pro nastavení hesla je neplatný nebo prošlý." - frontend by v tom případě měl nabídnout znovu vyžádat reset. Nové heslo podléhá stejným Django validátorům jako `POST /auth/password`. Limit 5 požadavků/min na IP (`ScopedRateThrottle`), stejně jako u přihlášení.
+ * @summary Nastavit nové heslo podle odkazu z e-mailu
+ */
+export const adminAuthPasswordResetConfirmCreate = async (
+  passwordResetConfirm: PasswordResetConfirm,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminAuthPasswordResetConfirmCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(passwordResetConfirm),
+  });
+};
+
+export const getAdminAuthPasswordResetConfirmCreateMutationKey = () =>
+  ["adminAuthPasswordResetConfirmCreate"] as const;
+
+export const getAdminAuthPasswordResetConfirmCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>,
+    TError,
+    AdminAuthPasswordResetConfirmCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>,
+  TError,
+  AdminAuthPasswordResetConfirmCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminAuthPasswordResetConfirmCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>,
+    AdminAuthPasswordResetConfirmCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminAuthPasswordResetConfirmCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminAuthPasswordResetConfirmCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>
+>;
+export type AdminAuthPasswordResetConfirmCreateMutationBody = PasswordResetConfirm;
+export type AdminAuthPasswordResetConfirmCreateMutationError = ErrorType<void>;
+export type AdminAuthPasswordResetConfirmCreateMutationVariables = { data: PasswordResetConfirm };
+
+/**
+ * Druhý krok resetu hesla. `uid` a `token` jsou z odkazu v e-mailu, který poslal `POST /auth/password-reset` (frontend je z URL query stringu přečte a poslal v těle požadavku). Neplatný nebo prošlý token vrací 400 s obecnou zprávou "Odkaz pro nastavení hesla je neplatný nebo prošlý." - frontend by v tom případě měl nabídnout znovu vyžádat reset. Nové heslo podléhá stejným Django validátorům jako `POST /auth/password`. Limit 5 požadavků/min na IP (`ScopedRateThrottle`), stejně jako u přihlášení.
+ * @summary Nastavit nové heslo podle odkazu z e-mailu
+ */
+export const useAdminAuthPasswordResetConfirmCreate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>,
+      TError,
+      AdminAuthPasswordResetConfirmCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminAuthPasswordResetConfirmCreate>>,
+  TError,
+  AdminAuthPasswordResetConfirmCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminAuthPasswordResetConfirmCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminCategoriesListUrl = (params?: AdminCategoriesListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1031,6 +1315,96 @@ export const useAdminCategoriesDestroy = <TError = ErrorType<unknown>, TContext 
   return useMutation(getAdminCategoriesDestroyMutationOptions(options), queryClient);
 };
 
+export const getAdminCategoriesReorderCreateUrl = () => {
+  return `/api/v1/admin/categories/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí kategorií
+ */
+export const adminCategoriesReorderCreate = async (
+  reorder: Reorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminCategoriesReorderCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(reorder),
+  });
+};
+
+export const getAdminCategoriesReorderCreateMutationKey = () =>
+  ["adminCategoriesReorderCreate"] as const;
+
+export const getAdminCategoriesReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCategoriesReorderCreate>>,
+    TError,
+    AdminCategoriesReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCategoriesReorderCreate>>,
+  TError,
+  AdminCategoriesReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCategoriesReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCategoriesReorderCreate>>,
+    AdminCategoriesReorderCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCategoriesReorderCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCategoriesReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCategoriesReorderCreate>>
+>;
+export type AdminCategoriesReorderCreateMutationBody = Reorder;
+export type AdminCategoriesReorderCreateMutationError = ErrorType<unknown>;
+export type AdminCategoriesReorderCreateMutationVariables = { data: Reorder };
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí kategorií
+ */
+export const useAdminCategoriesReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCategoriesReorderCreate>>,
+      TError,
+      AdminCategoriesReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCategoriesReorderCreate>>,
+  TError,
+  AdminCategoriesReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCategoriesReorderCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminColorsListUrl = (params?: AdminColorsListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1444,6 +1818,95 @@ export const useAdminColorsDestroy = <TError = ErrorType<unknown>, TContext = un
   TContext
 > => {
   return useMutation(getAdminColorsDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminColorsReorderCreateUrl = () => {
+  return `/api/v1/admin/colors/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí barev
+ */
+export const adminColorsReorderCreate = async (
+  reorder: Reorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminColorsReorderCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(reorder),
+  });
+};
+
+export const getAdminColorsReorderCreateMutationKey = () => ["adminColorsReorderCreate"] as const;
+
+export const getAdminColorsReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminColorsReorderCreate>>,
+    TError,
+    AdminColorsReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminColorsReorderCreate>>,
+  TError,
+  AdminColorsReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminColorsReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminColorsReorderCreate>>,
+    AdminColorsReorderCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminColorsReorderCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminColorsReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminColorsReorderCreate>>
+>;
+export type AdminColorsReorderCreateMutationBody = Reorder;
+export type AdminColorsReorderCreateMutationError = ErrorType<unknown>;
+export type AdminColorsReorderCreateMutationVariables = { data: Reorder };
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí barev
+ */
+export const useAdminColorsReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminColorsReorderCreate>>,
+      TError,
+      AdminColorsReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminColorsReorderCreate>>,
+  TError,
+  AdminColorsReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminColorsReorderCreateMutationOptions(options), queryClient);
 };
 
 export const getAdminCustomersListUrl = (params?: AdminCustomersListParams) => {
@@ -2407,6 +2870,95 @@ export const useAdminCutsDestroy = <TError = ErrorType<unknown>, TContext = unkn
   TContext
 > => {
   return useMutation(getAdminCutsDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminCutsReorderCreateUrl = () => {
+  return `/api/v1/admin/cuts/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí střihů
+ */
+export const adminCutsReorderCreate = async (
+  reorder: Reorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminCutsReorderCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(reorder),
+  });
+};
+
+export const getAdminCutsReorderCreateMutationKey = () => ["adminCutsReorderCreate"] as const;
+
+export const getAdminCutsReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCutsReorderCreate>>,
+    TError,
+    AdminCutsReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCutsReorderCreate>>,
+  TError,
+  AdminCutsReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCutsReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCutsReorderCreate>>,
+    AdminCutsReorderCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCutsReorderCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCutsReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCutsReorderCreate>>
+>;
+export type AdminCutsReorderCreateMutationBody = Reorder;
+export type AdminCutsReorderCreateMutationError = ErrorType<unknown>;
+export type AdminCutsReorderCreateMutationVariables = { data: Reorder };
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí střihů
+ */
+export const useAdminCutsReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCutsReorderCreate>>,
+      TError,
+      AdminCutsReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCutsReorderCreate>>,
+  TError,
+  AdminCutsReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCutsReorderCreateMutationOptions(options), queryClient);
 };
 
 export const getAdminMotifVariantsListUrl = (params: AdminMotifVariantsListParams) => {
@@ -3925,6 +4477,95 @@ export function useAdminOrdersList<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getAdminOrdersCreateUrl = () => {
+  return `/api/v1/admin/orders`;
+};
+
+/**
+ * Pro objednávky přijaté telefonicky nebo e-mailem, kdy je admin zadává za zákazníka. **Stejné tělo a validace jako veřejné `POST /orders`**, se dvěma rozdíly: `termsAccepted` není povinné a u položek navíc smíš poslat `unitPrice` rovnou (hodí se pro vlastní potisk, kde cenu domlouváš předem telefonem - bez toho zůstane `unitPrice` null jako u veřejné cesty). Zákazník se stejně jako při veřejném checkoutu dohledá/založí podle e-mailu.
+ * @summary Ručně založit objednávku (telefon/e-mail)
+ */
+export const adminOrdersCreate = async (
+  orderCreate: OrderCreate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(orderCreate),
+  });
+};
+
+export const getAdminOrdersCreateMutationKey = () => ["adminOrdersCreate"] as const;
+
+export const getAdminOrdersCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersCreate>>,
+    TError,
+    AdminOrdersCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersCreate>>,
+  TError,
+  AdminOrdersCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersCreate>>,
+    AdminOrdersCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminOrdersCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersCreate>>
+>;
+export type AdminOrdersCreateMutationBody = OrderCreate;
+export type AdminOrdersCreateMutationError = ErrorType<unknown>;
+export type AdminOrdersCreateMutationVariables = { data: OrderCreate };
+
+/**
+ * Pro objednávky přijaté telefonicky nebo e-mailem, kdy je admin zadává za zákazníka. **Stejné tělo a validace jako veřejné `POST /orders`**, se dvěma rozdíly: `termsAccepted` není povinné a u položek navíc smíš poslat `unitPrice` rovnou (hodí se pro vlastní potisk, kde cenu domlouváš předem telefonem - bez toho zůstane `unitPrice` null jako u veřejné cesty). Zákazník se stejně jako při veřejném checkoutu dohledá/založí podle e-mailu.
+ * @summary Ručně založit objednávku (telefon/e-mail)
+ */
+export const useAdminOrdersCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersCreate>>,
+      TError,
+      AdminOrdersCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersCreate>>,
+  TError,
+  AdminOrdersCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminOrdersRetrieveUrl = (id: string) => {
   return `/api/v1/admin/orders/${id}`;
 };
@@ -4366,6 +5007,119 @@ export const useAdminOrdersItemsPartialUpdate = <TError = ErrorType<void>, TCont
   TContext
 > => {
   return useMutation(getAdminOrdersItemsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersItemsPlacementsPartialUpdateUrl = (
+  id: string,
+  itemId: string,
+  placementId: string,
+) => {
+  return `/api/v1/admin/orders/${id}/items/${itemId}/placements/${placementId}`;
+};
+
+/**
+ * Oprava rozměrů/pozice/rotace umístění, nebo přesun na jiný tiskový blok (`printAreaId`) - všechna pole nepovinná, pošli jen co měníš. Server znovu zkontroluje, že (případně nový) tiskový blok patří ke stejnému typu oblečení jako položka a že se (případně nové) rozměry vejdou do bloku - při porušení 422, stejně jako při `POST /orders`. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`.
+ * @summary Upravit umístění vlastního potisku
+ */
+export const adminOrdersItemsPlacementsPartialUpdate = async (
+  id: string,
+  itemId: string,
+  placementId: string,
+  patchedAdminPlacementUpdate?: PatchedAdminPlacementUpdate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(
+    getAdminOrdersItemsPlacementsPartialUpdateUrl(id, itemId, placementId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+      body: JSON.stringify(patchedAdminPlacementUpdate),
+    },
+  );
+};
+
+export const getAdminOrdersItemsPlacementsPartialUpdateMutationKey = () =>
+  ["adminOrdersItemsPlacementsPartialUpdate"] as const;
+
+export const getAdminOrdersItemsPlacementsPartialUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>,
+    TError,
+    AdminOrdersItemsPlacementsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>,
+  TError,
+  AdminOrdersItemsPlacementsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersItemsPlacementsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>,
+    AdminOrdersItemsPlacementsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, itemId, placementId, data } = props ?? {};
+
+    return adminOrdersItemsPlacementsPartialUpdate(id, itemId, placementId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersItemsPlacementsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>
+>;
+export type AdminOrdersItemsPlacementsPartialUpdateMutationBody =
+  | PatchedAdminPlacementUpdate
+  | undefined;
+export type AdminOrdersItemsPlacementsPartialUpdateMutationError = ErrorType<void>;
+export type AdminOrdersItemsPlacementsPartialUpdateMutationVariables = {
+  id: string;
+  itemId: string;
+  placementId: string;
+  data?: PatchedAdminPlacementUpdate;
+};
+
+/**
+ * Oprava rozměrů/pozice/rotace umístění, nebo přesun na jiný tiskový blok (`printAreaId`) - všechna pole nepovinná, pošli jen co měníš. Server znovu zkontroluje, že (případně nový) tiskový blok patří ke stejnému typu oblečení jako položka a že se (případně nové) rozměry vejdou do bloku - při porušení 422, stejně jako při `POST /orders`. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`.
+ * @summary Upravit umístění vlastního potisku
+ */
+export const useAdminOrdersItemsPlacementsPartialUpdate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>,
+      TError,
+      AdminOrdersItemsPlacementsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersItemsPlacementsPartialUpdate>>,
+  TError,
+  AdminOrdersItemsPlacementsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getAdminOrdersItemsPlacementsPartialUpdateMutationOptions(options),
+    queryClient,
+  );
 };
 
 export const getAdminOrdersPaymentStatusPartialUpdateUrl = (id: string) => {
@@ -5914,6 +6668,96 @@ export const useAdminPrintAreasDestroy = <TError = ErrorType<unknown>, TContext 
   return useMutation(getAdminPrintAreasDestroyMutationOptions(options), queryClient);
 };
 
+export const getAdminPrintAreasReorderCreateUrl = () => {
+  return `/api/v1/admin/print-areas/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí tiskových bloků
+ */
+export const adminPrintAreasReorderCreate = async (
+  reorder: Reorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminPrintAreasReorderCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(reorder),
+  });
+};
+
+export const getAdminPrintAreasReorderCreateMutationKey = () =>
+  ["adminPrintAreasReorderCreate"] as const;
+
+export const getAdminPrintAreasReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>,
+    TError,
+    AdminPrintAreasReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>,
+  TError,
+  AdminPrintAreasReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminPrintAreasReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>,
+    AdminPrintAreasReorderCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminPrintAreasReorderCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminPrintAreasReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>
+>;
+export type AdminPrintAreasReorderCreateMutationBody = Reorder;
+export type AdminPrintAreasReorderCreateMutationError = ErrorType<unknown>;
+export type AdminPrintAreasReorderCreateMutationVariables = { data: Reorder };
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí tiskových bloků
+ */
+export const useAdminPrintAreasReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>,
+      TError,
+      AdminPrintAreasReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminPrintAreasReorderCreate>>,
+  TError,
+  AdminPrintAreasReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminPrintAreasReorderCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminProductTypesListUrl = (params?: AdminProductTypesListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6344,6 +7188,96 @@ export const useAdminProductTypesDestroy = <TError = ErrorType<unknown>, TContex
   return useMutation(getAdminProductTypesDestroyMutationOptions(options), queryClient);
 };
 
+export const getAdminProductTypesReorderCreateUrl = () => {
+  return `/api/v1/admin/product-types/reorder`;
+};
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí typů oblečení
+ */
+export const adminProductTypesReorderCreate = async (
+  reorder: Reorder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminProductTypesReorderCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(reorder),
+  });
+};
+
+export const getAdminProductTypesReorderCreateMutationKey = () =>
+  ["adminProductTypesReorderCreate"] as const;
+
+export const getAdminProductTypesReorderCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProductTypesReorderCreate>>,
+    TError,
+    AdminProductTypesReorderCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminProductTypesReorderCreate>>,
+  TError,
+  AdminProductTypesReorderCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminProductTypesReorderCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminProductTypesReorderCreate>>,
+    AdminProductTypesReorderCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminProductTypesReorderCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminProductTypesReorderCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductTypesReorderCreate>>
+>;
+export type AdminProductTypesReorderCreateMutationBody = Reorder;
+export type AdminProductTypesReorderCreateMutationError = ErrorType<unknown>;
+export type AdminProductTypesReorderCreateMutationVariables = { data: Reorder };
+
+/**
+ * Tělo `{"ids": ["uuid1", "uuid2", ...]}` v požadovaném pořadí - server přepíše `position` na 10, 20, 30... podle pořadí v seznamu (mezery po 10 nechávají místo na ruční doladění přímo v DB, kdyby bylo potřeba). Všechna id musí existovat, jinak 400.
+ * @summary Změnit pořadí typů oblečení
+ */
+export const useAdminProductTypesReorderCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminProductTypesReorderCreate>>,
+      TError,
+      AdminProductTypesReorderCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminProductTypesReorderCreate>>,
+  TError,
+  AdminProductTypesReorderCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminProductTypesReorderCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminProductionPlacementsListUrl = (
   params?: AdminProductionPlacementsListParams,
 ) => {
@@ -6667,6 +7601,579 @@ export function useAdminProductionSummaryList<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getAdminSearchRetrieveUrl = (params?: AdminSearchRetrieveParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/search?${stringifiedParams}`
+    : `/api/v1/admin/search`;
+};
+
+/**
+ * Určeno pro vyhledávací pole v horní liště administrace - jedno pole, tři typy výsledků najednou. Prohledává: objednávky (číslo objednávky, e-mail a jméno zákazníka, sledovací číslo), zákazníky (e-mail, jméno, firma, telefon) a motivy (název). Hledání je `icontains` (nerozlišuje velikost písmen, hledá podřetězec, ne jen přesnou shodu). Vrací max 5 výsledků **na každý typ** - není to stránkovaný seznam, je to rychlý náhled; pro kompletní seznam použij `GET /admin/orders`, `/admin/customers` nebo `/admin/motifs` s parametrem `q`. Bez parametru `q` (nebo prázdný) vrátí tři prázdná pole, ne chybu.
+ * @summary Globální hledání (objednávky, zákazníci, motivy)
+ */
+export const adminSearchRetrieve = async (
+  params?: AdminSearchRetrieveParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminSearchResponse> => {
+  return apiFetch<AdminSearchResponse>(getAdminSearchRetrieveUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminSearchRetrieveQueryKey = (params?: AdminSearchRetrieveParams) => {
+  return [`/api/v1/admin/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminSearchRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminSearchRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminSearchRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminSearchRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminSearchRetrieveQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminSearchRetrieve>>> = ({ signal }) =>
+    adminSearchRetrieve(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminSearchRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminSearchRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminSearchRetrieve>>
+>;
+export type AdminSearchRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Určeno pro vyhledávací pole v horní liště administrace - jedno pole, tři typy výsledků najednou. Prohledává: objednávky (číslo objednávky, e-mail a jméno zákazníka, sledovací číslo), zákazníky (e-mail, jméno, firma, telefon) a motivy (název). Hledání je `icontains` (nerozlišuje velikost písmen, hledá podřetězec, ne jen přesnou shodu). Vrací max 5 výsledků **na každý typ** - není to stránkovaný seznam, je to rychlý náhled; pro kompletní seznam použij `GET /admin/orders`, `/admin/customers` nebo `/admin/motifs` s parametrem `q`. Bez parametru `q` (nebo prázdný) vrátí tři prázdná pole, ne chybu.
+ * @summary Globální hledání (objednávky, zákazníci, motivy)
+ */
+export function useAdminSearchRetrieve<
+  TData = Awaited<ReturnType<typeof adminSearchRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminSearchRetrieveParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminSearchRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminSearchRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminSearchRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Určeno pro vyhledávací pole v horní liště administrace - jedno pole, tři typy výsledků najednou. Prohledává: objednávky (číslo objednávky, e-mail a jméno zákazníka, sledovací číslo), zákazníky (e-mail, jméno, firma, telefon) a motivy (název). Hledání je `icontains` (nerozlišuje velikost písmen, hledá podřetězec, ne jen přesnou shodu). Vrací max 5 výsledků **na každý typ** - není to stránkovaný seznam, je to rychlý náhled; pro kompletní seznam použij `GET /admin/orders`, `/admin/customers` nebo `/admin/motifs` s parametrem `q`. Bez parametru `q` (nebo prázdný) vrátí tři prázdná pole, ne chybu.
+ * @summary Globální hledání (objednávky, zákazníci, motivy)
+ */
+export function useAdminSearchRetrieve<
+  TData = Awaited<ReturnType<typeof adminSearchRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminSearchRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminSearchRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminSearchRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminSearchRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Určeno pro vyhledávací pole v horní liště administrace - jedno pole, tři typy výsledků najednou. Prohledává: objednávky (číslo objednávky, e-mail a jméno zákazníka, sledovací číslo), zákazníky (e-mail, jméno, firma, telefon) a motivy (název). Hledání je `icontains` (nerozlišuje velikost písmen, hledá podřetězec, ne jen přesnou shodu). Vrací max 5 výsledků **na každý typ** - není to stránkovaný seznam, je to rychlý náhled; pro kompletní seznam použij `GET /admin/orders`, `/admin/customers` nebo `/admin/motifs` s parametrem `q`. Bez parametru `q` (nebo prázdný) vrátí tři prázdná pole, ne chybu.
+ * @summary Globální hledání (objednávky, zákazníci, motivy)
+ */
+export function useAdminSearchRetrieve<
+  TData = Awaited<ReturnType<typeof adminSearchRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminSearchRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminSearchRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Určeno pro vyhledávací pole v horní liště administrace - jedno pole, tři typy výsledků najednou. Prohledává: objednávky (číslo objednávky, e-mail a jméno zákazníka, sledovací číslo), zákazníky (e-mail, jméno, firma, telefon) a motivy (název). Hledání je `icontains` (nerozlišuje velikost písmen, hledá podřetězec, ne jen přesnou shodu). Vrací max 5 výsledků **na každý typ** - není to stránkovaný seznam, je to rychlý náhled; pro kompletní seznam použij `GET /admin/orders`, `/admin/customers` nebo `/admin/motifs` s parametrem `q`. Bez parametru `q` (nebo prázdný) vrátí tři prázdná pole, ne chybu.
+ * @summary Globální hledání (objednávky, zákazníci, motivy)
+ */
+export function useAdminSearchRetrieve<
+  TData = Awaited<ReturnType<typeof adminSearchRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminSearchRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminSearchRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminSearchRetrieveQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminUsersListUrl = (params?: AdminUsersListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/users?${stringifiedParams}`
+    : `/api/v1/admin/users`;
+};
+
+/**
+ * Všichni uživatelé administrace, bez stránkování navíc k výchozímu.
+ * @summary Seznam uživatelů administrace
+ */
+export const adminUsersList = async (
+  params?: AdminUsersListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminUserList> => {
+  return apiFetch<PaginatedAdminUserList>(getAdminUsersListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminUsersListQueryKey = (params?: AdminUsersListParams) => {
+  return [`/api/v1/admin/users`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminUsersListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminUsersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminUsersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminUsersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminUsersListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminUsersList>>> = ({ signal }) =>
+    adminUsersList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminUsersList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminUsersListQueryResult = NonNullable<Awaited<ReturnType<typeof adminUsersList>>>;
+export type AdminUsersListQueryError = ErrorType<unknown>;
+
+/**
+ * Všichni uživatelé administrace, bez stránkování navíc k výchozímu.
+ * @summary Seznam uživatelů administrace
+ */
+export function useAdminUsersList<
+  TData = Awaited<ReturnType<typeof adminUsersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminUsersListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminUsersList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminUsersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminUsersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Všichni uživatelé administrace, bez stránkování navíc k výchozímu.
+ * @summary Seznam uživatelů administrace
+ */
+export function useAdminUsersList<
+  TData = Awaited<ReturnType<typeof adminUsersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminUsersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminUsersList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminUsersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminUsersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Všichni uživatelé administrace, bez stránkování navíc k výchozímu.
+ * @summary Seznam uživatelů administrace
+ */
+export function useAdminUsersList<
+  TData = Awaited<ReturnType<typeof adminUsersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminUsersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminUsersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Všichni uživatelé administrace, bez stránkování navíc k výchozímu.
+ * @summary Seznam uživatelů administrace
+ */
+export function useAdminUsersList<
+  TData = Awaited<ReturnType<typeof adminUsersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminUsersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminUsersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminUsersListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminUsersCreateUrl = () => {
+  return `/api/v1/admin/users`;
+};
+
+/**
+ * Pole `password` je nepovinné: pokud ho vynecháš, novému uživateli se nastaví nepoužitelné heslo (nemůže se přihlásit heslem, dokud ho nenastaví) a pošle se mu e-mail s odkazem na nastavení hesla - stejný mechanismus jako "Zapomenuté heslo". Pokud `password` pošleš, uživatel se může přihlásit okamžitě a žádný e-mail se neposílá. `email` musí být unikátní, jinak 409 `EMAIL_TAKEN`.
+ * @summary Založit uživatele administrace
+ */
+export const adminUsersCreate = async (
+  adminUserCreate: AdminUserCreate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminUser> => {
+  return apiFetch<AdminUser>(getAdminUsersCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminUserCreate),
+  });
+};
+
+export const getAdminUsersCreateMutationKey = () => ["adminUsersCreate"] as const;
+
+export const getAdminUsersCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUsersCreate>>,
+    TError,
+    AdminUsersCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUsersCreate>>,
+  TError,
+  AdminUsersCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminUsersCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUsersCreate>>,
+    AdminUsersCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminUsersCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUsersCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUsersCreate>>
+>;
+export type AdminUsersCreateMutationBody = AdminUserCreate;
+export type AdminUsersCreateMutationError = ErrorType<unknown>;
+export type AdminUsersCreateMutationVariables = { data: AdminUserCreate };
+
+/**
+ * Pole `password` je nepovinné: pokud ho vynecháš, novému uživateli se nastaví nepoužitelné heslo (nemůže se přihlásit heslem, dokud ho nenastaví) a pošle se mu e-mail s odkazem na nastavení hesla - stejný mechanismus jako "Zapomenuté heslo". Pokud `password` pošleš, uživatel se může přihlásit okamžitě a žádný e-mail se neposílá. `email` musí být unikátní, jinak 409 `EMAIL_TAKEN`.
+ * @summary Založit uživatele administrace
+ */
+export const useAdminUsersCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminUsersCreate>>,
+      TError,
+      AdminUsersCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminUsersCreate>>,
+  TError,
+  AdminUsersCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminUsersCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminUsersPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/users/${id}`;
+};
+
+/**
+ * Lze měnit `name`, `isActive`. Pojistka: pokud by deaktivace znamenala, že nezůstane žádný jiný aktivní uživatel administrace, vrátí 409 `LAST_ADMIN` a změna se neprovede.
+ * @summary Upravit uživatele administrace
+ */
+export const adminUsersPartialUpdate = async (
+  id: string,
+  patchedAdminUserUpdate?: PatchedAdminUserUpdate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminUser> => {
+  return apiFetch<AdminUser>(getAdminUsersPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminUserUpdate),
+  });
+};
+
+export const getAdminUsersPartialUpdateMutationKey = () => ["adminUsersPartialUpdate"] as const;
+
+export const getAdminUsersPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUsersPartialUpdate>>,
+    TError,
+    AdminUsersPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUsersPartialUpdate>>,
+  TError,
+  AdminUsersPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminUsersPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUsersPartialUpdate>>,
+    AdminUsersPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminUsersPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUsersPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUsersPartialUpdate>>
+>;
+export type AdminUsersPartialUpdateMutationBody = PatchedAdminUserUpdate | undefined;
+export type AdminUsersPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminUsersPartialUpdateMutationVariables = {
+  id: string;
+  data?: PatchedAdminUserUpdate;
+};
+
+/**
+ * Lze měnit `name`, `isActive`. Pojistka: pokud by deaktivace znamenala, že nezůstane žádný jiný aktivní uživatel administrace, vrátí 409 `LAST_ADMIN` a změna se neprovede.
+ * @summary Upravit uživatele administrace
+ */
+export const useAdminUsersPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminUsersPartialUpdate>>,
+      TError,
+      AdminUsersPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminUsersPartialUpdate>>,
+  TError,
+  AdminUsersPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminUsersPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminUsersDestroyUrl = (id: string) => {
+  return `/api/v1/admin/users/${id}`;
+};
+
+/**
+ * Dvě pojistky: nejde smazat **sebe sama** (403) a nejde smazat **posledního aktivního uživatele** (409 `LAST_ADMIN`) - systém by jinak zůstal bez nikoho, kdo může správu uživatelů ovládat.
+ * @summary Smazat uživatele administrace
+ */
+export const adminUsersDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminUsersDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminUsersDestroyMutationKey = () => ["adminUsersDestroy"] as const;
+
+export const getAdminUsersDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUsersDestroy>>,
+    TError,
+    AdminUsersDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUsersDestroy>>,
+  TError,
+  AdminUsersDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminUsersDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUsersDestroy>>,
+    AdminUsersDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminUsersDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUsersDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUsersDestroy>>
+>;
+
+export type AdminUsersDestroyMutationError = ErrorType<unknown>;
+export type AdminUsersDestroyMutationVariables = { id: string };
+
+/**
+ * Dvě pojistky: nejde smazat **sebe sama** (403) a nejde smazat **posledního aktivního uživatele** (409 `LAST_ADMIN`) - systém by jinak zůstal bez nikoho, kdo může správu uživatelů ovládat.
+ * @summary Smazat uživatele administrace
+ */
+export const useAdminUsersDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminUsersDestroy>>,
+      TError,
+      AdminUsersDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminUsersDestroy>>,
+  TError,
+  AdminUsersDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminUsersDestroyMutationOptions(options), queryClient);
+};
 
 export const getCartValidateCreateUrl = () => {
   return `/api/v1/cart/validate`;

@@ -3,7 +3,8 @@
 Průběžný plán a checklist kompletní integrace. Aktualizováno 16. 11. 2026.
 Napojené jsou veřejná nákupní cesta, zákaznické formuláře, katalogové číselníky,
 administrace objednávek, zákazníků a výroba/expedice v rozsahu existujícího API.
-Zbývá další provozní správa, účty a produkční předpoklady; omezení jsou u etap níže.
+Napojené jsou také účty, hesla, globální hledání a ruční objednávky.
+Zbývají odložená nastavení dopravy, kontrola úplnosti a produkční předpoklady.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
 
@@ -72,7 +73,7 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
 - [ ] Doplnit cílené invalidace při zavádění mutací jednotlivých oblastí.
 - [x] Napojit login, logout, session/me, expiraci session;
   chránit admin routy a správně obsloužit 401/403.
-- [ ] Doplnit frontendové formuláře změny a obnovy hesla.
+- [x] Doplnit frontendové formuláře změny a obnovy hesla.
 
 **Ověření etapy:** reálné config/options požadavky a session po reloadu;
 úspěšné i zamítnuté CORS/CSRF požadavky, odhlášení a nepovolené admin operace.
@@ -460,7 +461,8 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
   nové role se nezavádějí. UI nesmí nahrazovat serverovou autorizaci.
 - [x] Napojit seznam posledních objednávek v přehledu a serverové hledání,
   filtry, řazení a stránkování objednávek.
-- [ ] Nahradit demo statistiky přehledu; dohodnout agregace a skutečné globální hledání.
+- [ ] Nahradit demo statistiky přehledu, pouze pokud backend dodá odpovídající data.
+- [x] Napojit existující globální hledání objednávek, zákazníků a motivů.
 - [x] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
   platební stavy a akce podle `allowedTransitions` a uzamčení objednávky.
 - [x] Napojit existující zásilky Packety, PDF štítky, tiskové listy a přeposlání e-mailů.
@@ -470,7 +472,10 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
   množstevních slev a nastavení Packety. Backend podle uživatele zatím není
   dostatečně implementovaný; tuto část nyní přeskočit, nedoplňovat backendové features.
   Odklad se týká správy nastavení, ne již napojeného checkoutu a expedičních akcí.
-- [ ] Napojit správu uživatelů včetně bezpečného vytvoření a změn účtů.
+- [x] Napojit správu uživatelů včetně vytvoření pozvánkou, změn, deaktivace a mazání.
+- [x] Doplnit ruční objednávku s katalogovými a vlastními položkami podle API.
+- [x] Doplnit opravu existujících umístění podkladů podle API.
+- [x] Doplnit hromadné pořadí pěti již napojených katalogových číselníků.
 
 **Ověření etapy:** oprávněný pracovník zpracuje objednávku od přijetí přes
 nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
@@ -621,6 +626,66 @@ nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
 - Další část: správa administrátorských účtů, poté obnova/změna hesla podle
   existujících endpointů. Před implementací ověřit jejich připravenost; nové role
   ani chybějící backendové features nepřidávat.
+
+### Účty, hesla, hledání a dokončení dostupných admin funkcí (16. 11. 2026)
+
+- Na pokyn uživatele je napojeno všech šest oblastí: účty, hesla, globální
+  hledání, ruční objednávka, oprava umístění a řazení katalogových číselníků.
+  Tato etapa je zahrnutá v commitu na výslovný pokyn uživatele; push nebyl požadován.
+- `/admin/uzivatele` čte stránkované účty a nabízí založení přes e-mailový odkaz,
+  změnu jména/aktivity a potvrzené smazání. E-mail existujícího účtu je pouze
+  pro čtení podle PATCH kontraktu. Role se nezavádějí. Vlastní smazání je v UI
+  zakázané; LAST_ADMIN a další zamítnutí rozhoduje backend. Deaktivace vlastního
+  účtu vyčistí místní přístup. Nejistý zápis vyžaduje obnovení seznamu.
+- Nový účet se zakládá bez počátečního hesla. Nastaví si jej přes existující
+  backendový e-mail; v UI se neobchází chybějící validace síly hesla při přímém
+  admin vytvoření s heslem. SMTP je stále provozní předpoklad, ne ověřené doručení.
+- `/admin/heslo` mění vlastní heslo; `/zapomenute-heslo` žádá obnovu a vždy uvádí
+  stejnou podmíněnou zprávu bez odhalování existence účtu. E-mailový vstup
+  `/admin/nastavit-heslo?uid=…&token=…` je veřejný a query údaje ihned odstraní
+  z adresy; token zůstane jen v paměti, ne ve storage. Reload vyžaduje znovu otevřít
+  e-mailový odkaz. Hesla se po pokusu vymažou z formuláře i mutation cache.
+  Po změně vlastního hesla se vyčistí admin query/session stav a nabídne nové
+  přihlášení. Prošlé odkazy, validátory, throttling a chyby jsou viditelné.
+- Před produkcí stále redigovat uid/token v přístupových logách e-mailového vstupu;
+  backend dál generuje query-string odkaz. Frontend serverový log zpětně neodstraní.
+- Globální hledání je samostatné tlačítko v hlavičce. Debounce 300 ms, nejvýše
+  5 výsledků na oblast podle API; odkazy vedou do detailu objednávky/zákazníka
+  a přímo do editoru motivu. Stávající hledání v konkrétních seznamech zůstává.
+- `/admin/objednavky/nova` je samostatný návrh, který nemění veřejný košík.
+  Výběr motivu používá skutečné varianty, vlastní PNG/JPG potisk skutečný upload
+  a fileToken. Podporuje více položek, cenu za kus, dopravu, převod/dobírku/fakturu,
+  ručně zadané výdejní místo a adresy v ČR. SVG/PDF se nově nezapínaly.
+- Před POST se přesné tělo a orderId uloží do sessionStorage pod
+  `trikonos-admin-order-attempt-v1`, vázané na původní admin účet. Síť/5xx dovolí
+  jen opakování stejného těla/ID i po reloadu. Po přijetí se záznam nahradí minimálním
+  potvrzením bez kontaktů/podkladů a otevře detail. Při selhání úložiště může na disku
+  zůstat původní bezpečně opakovatelný pokus. Před odesláním se formulář nepersistuje.
+  Bez funkčního uložení se POST neodešle; ztráta záznamu vyžaduje ověřit výsledek.
+- Ruční založení není automatické potvrzení ceny, ale může vyvolat přijetí e-mailem.
+  Server znovu počítá a validuje; prázdná katalogová cena znamená výchozí cenu,
+  prázdná custom cena čekání na nacenění, 0 je zdarma. Backend při dopravci stále
+  potřebuje nakonfigurovanou sazbu před aplikací ručního override; to se neobchází.
+- V detailu objednávky lze opravit tiskovou plochu stejného typu oděvu, x/y,
+  rozměry v celých mm a rotaci. Zamknuté objednávky se needitují; hranice a
+  povolení rozhoduje i backend. Endpoint nenahrazuje soubor ani nepřidává/nemaže
+  umístění. Změna geometrie podle současného API sama neruší potvrzení ceny.
+- Dialog pořadí načte všechny stránky kategorií, barev, střihů, typů oděvů a
+  tiskových ploch včetně neaktivních, bez filtrů seznamu. Šipky upraví návrh,
+  uložení pošle kompletní unikátní seznam ID a invaliduje související cache.
+  Velikosti zůstávají read-only; odložená správa dopravy se tímto znovu neotevírá.
+- Backendové úpravy jsou pouze přesné OpenAPI odpovědi admin účtů a no-store
+  pro účty, hesla a hledání. Bez nových endpointů, modelů nebo obchodních pravidel.
+- Ověření: check bez chyb se 6 známými Orval warnings, 27 unit testů, build,
+  46 standardních E2E, oba živé API/auth testy a 170 backendových testů (1 skipped).
+  Nové testy pokrývají pozvánku, LAST_ADMIN/self-delete, reset/změnu hesla,
+  odstranění tokenu, globální navigaci, hranice potisku, kompletní pořadí napříč
+  stránkami a obnovení smíšené ruční objednávky stejným ID bez zásahu do košíku.
+- Živé testy jen čtou účty a globální hledání; nemění hesla, účty, pořadí ani
+  objednávky a neposílají e-maily. Zápisy probíhaly ve stavových mockách a izolované
+  testovací DB. Frontend byl jednorázově restartovaný kvůli zastaralému Vite modulu.
+- Další krok: finální audit zbývajících demo prvků a produkčních předpokladů;
+  odložené backendové funkce a nastavení dopravy zůstávají odložené.
 
 ## 6. Nasazení, testy a úplnost
 

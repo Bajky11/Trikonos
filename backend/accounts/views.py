@@ -6,6 +6,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -153,6 +154,7 @@ class MeView(APIView):
         return Response(MeSerializer(request.user).data, headers={'Cache-Control': 'no-store'})
 
 
+@method_decorator(never_cache, name='dispatch')
 class ChangePasswordView(APIView):
     """Změna vlastního hesla přihlášeným uživatelem."""
     permission_classes = [IsAuthenticated]
@@ -178,6 +180,7 @@ class ChangePasswordView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@method_decorator(never_cache, name='dispatch')
 class PasswordResetRequestView(APIView):
     """POST /auth/password-reset - always 204, regardless of whether the
     e-mail matches an account, so the response can't be used to enumerate
@@ -217,6 +220,7 @@ class PasswordResetRequestView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@method_decorator(never_cache, name='dispatch')
 class PasswordResetConfirmView(APIView):
     """Dokončení resetu hesla - nastaví nové heslo podle odkazu z e-mailu."""
     permission_classes = [AllowAny]

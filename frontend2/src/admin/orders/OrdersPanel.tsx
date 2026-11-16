@@ -93,6 +93,11 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
   return (
     <Paper className="admin-panel" variant="outlined">
       <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
+      {!overview && (
+        <Button component={Link} to="/admin/objednavky/nova">
+          Ručně založit objednávku
+        </Button>
+      )}
       {params.get("customer") && (
         <p>
           Aktivní filtr zákazníka.{" "}

@@ -259,7 +259,7 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   Při nejasném výsledku se další změny zablokují do načtení aktuálního stavu;
   před opakováním potvrzení vždy zkontroluj, zda už nebylo přijato. Odpovědi admin
   objednávek mají `no-store`, jejich query cache se odstraňuje při odhlášení.
-- Založení nové ruční objednávky a editace geometrie zatím nejsou napojené.
+- Ruční založení objednávky a oprava geometrie jsou popsané níže.
   Výrobu a expedici popisuje následující část. Podklady jsou existující
   media odkazy, nikoli nové privátní úložiště. Skutečné SMTP je nutné ověřit před produkcí.
 - `tests/admin-orders.spec.ts` ověřuje workflow ve stavovém mock API; reálné objednávky
@@ -323,6 +323,46 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   a OpenAPI popis PATCH/CSV, ne funkce zákazníků.
 - `tests/admin-customers.spec.ts` testuje zápisy a export jen ve stavovém mock API.
   Živý auth test seznam/profil pouze čte, neexportuje skutečné kontakty ani je nemění.
+
+### Účty, hesla a globální hledání
+
+- `/admin/uzivatele` je stránkovaný seznam účtů (bez serverového hledání). Nový účet
+  dostane odkaz pro nastavení hesla přes SMTP; UI neposílá počáteční plaintext heslo.
+  Lze měnit jméno a aktivitu a potvrzeně mazat. E-mail stávajícího účtu je read-only.
+  Vlastní smazání je vypnuté, LAST_ADMIN rozhoduje server. Role se nepřidávají.
+- `/admin/heslo` vyžaduje současné heslo a dvakrát nové. Backend změnou zneplatní
+  vlastní session, frontend vyčistí soukromé query a vrátí přihlášení. Hesla se po
+  pokusu mažou, nepersistují se. Stejný princip platí pro potvrzení resetu.
+- `/zapomenute-heslo` neprozrazuje existenci účtu. Backendový e-mail vede na
+  `/admin/nastavit-heslo?uid=…&token=…`; frontend query ihned odstraní z adresy a drží
+  údaje pouze v paměti. Po reloadu otevři původní e-mailový odkaz znovu. Před produkcí
+  maskuj query tokeny v serverových/proxy logách; samotný frontend jejich zápisu nezabrání.
+- Globální hledání v hlavičce má debounce 300 ms a výsledky objednávek, zákazníků
+  a motivů (max. 5 z každé oblasti podle API). Motiv otevře editor přes parametr
+  `motiv`, ostatní výsledky přímo detail. Hledání v jednotlivých seznamech zůstává.
+
+### Ruční objednávka, oprava podkladu a pořadí
+
+- `/admin/objednavky/nova` je nezávislý návrh bez zásahu do veřejného košíku. Položky
+  jsou skutečné katalogové varianty nebo vlastní PNG/JPG uploady s tokenem a geometrií.
+  Cena za kus je volitelný admin override v Kč; prázdné je výchozí katalogová cena
+  nebo custom k nacenění. Lze zadat dopravu, platbu včetně INVOICE a ruční výdejní místo.
+- Formulář je pro adresy v ČR; `termsAccepted` se pro admin API nepředstírá. Založení
+  může vyvolat e-mail o přijetí, ale cenu je nutné potvrdit samostatně. Konečné ceny
+  a dostupnost určuje server. Ruční doprava neobchází požadovaný ceník backendu.
+- Před POST se přesný request a UUID uloží v sessionStorage pod
+  `trikonos-admin-order-attempt-v1`, vázané na účet. Při síti/5xx lze i po reloadu
+  dokončit pouze stejný pokus. Po přijetí se payload nahradí minimálním potvrzením;
+  při zablokovaném úložišti může zůstat původní idempotentní request. Před odesláním
+  se rozpracovaný formulář neukládá. Při ztrátě záznamu nejprve ověř existenci objednávky.
+- Oprava podkladu v detailu mění jen existující umístění: plochu stejného typu,
+  celé mm a rotaci. Nemění soubor, nepřidává/nemaže umístění. Uzamčení i hranice
+  vynucuje backend. Současné API změnou geometrie samo neruší potvrzení ceny.
+- Pořadí v `/admin/ciselniky` načte všechny stránky pěti katalogových číselníků
+  včetně neaktivních, bez filtrů. Šipkami upravíš návrh a jedním POST odešleš všechna
+  ID. Velikosti nemají reorder; odložená doprava zůstává mimo rozsah.
+- `tests/admin-tools.spec.ts`, `tests/manual-order.spec.ts` a unit test persistence
+  ověřují tyto operace bez skutečných e-mailů či změn živých účtů/objednávek.
 
 ### Administrace motivů, variant a fotografií
 
@@ -450,7 +490,7 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 - Nové podklady vlastního potisku jsou na backendu; prohlížeč ukládá jen metadata a token.
   Staré demo drafty mohou dosud obsahovat lokální obrázek. Při selhání úložiště aplikace
   zobrazí chybu a nepotvrdí změnu košíku.
-- Obnova a změna hesla zatím nemají frontendové rozhraní.
+- Správa účtů, změna i obnova hesla používají existující API; doručení SMTP je provozní podmínka.
 - Statistiky a recenze jsou ukázkové; objednávky a zákazníci používají backend.
   Sezóny obsahují informační seznam.
 - Vzhled byl laděn pro desktop. Mobilní rozložení není součástí této migrace.

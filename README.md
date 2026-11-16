@@ -108,6 +108,12 @@ v této integraci nedoprogramováváme.
 `/admin/klienti` podporuje zákaznický seznam, detail, úpravy kontaktu, historii
 objednávek a globální CSV souhlasících e-mailů. Součet cen není součet úhrad;
 souhlas nemá v API historii ani audit. Zákaznické záznamy nejsou přihlašovací účty.
+`/admin/uzivatele` spravuje administrátorské účty a posílá pozvánky pro nastavení
+hesla. `/admin/heslo` mění vlastní heslo, `/zapomenute-heslo` a e-mailový vstup
+`/admin/nastavit-heslo` obsluhují obnovu. SMTP je nutné ověřit samostatně.
+Hlavička nabízí globální hledání, `/admin/objednavky/nova` samostatnou ruční
+objednávku. V detailu lze opravit geometrii podkladu a v číselnících uložit pořadí
+všech položek. Nové backendové funkce se kvůli těmto rozhraním nepřidávaly.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
 katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
 smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,

@@ -170,6 +170,7 @@ export async function mockStoreApi(page: Page) {
     ["product-types", options.productTypes],
     ["cuts", options.cuts],
     ["colors", options.colors],
+    ["print-areas", []],
   ] as const;
   for (const [path, values] of lookups) {
     await page.route(new RegExp(`/api/v1/admin/${path}(?:\\?.*)?$`), (route) => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useIsMutating, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -54,12 +55,29 @@ function EditMotif({ id, onSaved }: { id?: string; onSaved: () => void }) {
 }
 
 export function ProductsPanel({ search }: { search: string }) {
+  const [routeParams, setRouteParams] = useSearchParams();
+  const motifId = routeParams.get("motiv");
   const client = useQueryClient();
   const [q, setQ] = useState(search.trim());
   const [page, setPage] = useState(1);
   const [category, setCategory] = useState("");
   const [active, setActive] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
+  useEffect(() => {
+    if (motifId) setEditor({ mode: "motif", id: motifId });
+  }, [motifId]);
+  const closeEditor = () => {
+    setEditor(null);
+    if (motifId)
+      setRouteParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete("motiv");
+          return next;
+        },
+        { replace: true },
+      );
+  };
   const [deleting, setDeleting] = useState<AdminMotifList | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -216,7 +234,7 @@ export function ProductsPanel({ search }: { search: string }) {
       </Paper>
       <Dialog
         open={editor !== null}
-        onClose={busy ? undefined : () => setEditor(null)}
+        onClose={busy ? undefined : closeEditor}
         maxWidth="md"
         fullWidth
       >
@@ -238,7 +256,7 @@ export function ProductsPanel({ search }: { search: string }) {
                 key={editor.id ?? "new"}
                 id={editor.id}
                 onSaved={() => {
-                  setEditor(null);
+                  closeEditor();
                   setMessage("Motiv byl uložen.");
                   setPage(1);
                 }}
@@ -247,7 +265,7 @@ export function ProductsPanel({ search }: { search: string }) {
           )}
         </DialogContent>
         <DialogActions>
-          <Button disabled={busy} onClick={() => setEditor(null)}>
+          <Button disabled={busy} onClick={closeEditor}>
             Zavřít
           </Button>
         </DialogActions>

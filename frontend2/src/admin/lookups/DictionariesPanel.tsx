@@ -28,6 +28,7 @@ import { catalogError } from "../catalog/forms";
 import { deleteWarning, lookupApis, lookupTitles, useProductTypes } from "./api";
 import type { LookupItem, LookupKind } from "./api";
 import { LookupForm } from "./LookupForm";
+import { ReorderDialog } from "./ReorderDialog";
 
 function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   const [q, setQ] = useState(search.trim());
@@ -39,6 +40,7 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   const [deleting, setDeleting] = useState<LookupItem | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [reordering, setReordering] = useState(false);
   useEffect(() => {
     const next = search.trim();
     if (q === next) return;
@@ -77,6 +79,9 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
             }}
           >
             + Přidat
+          </Button>
+          <Button disabled={busy} onClick={() => setReordering(true)}>
+            Změnit pořadí
           </Button>
           <TextField
             label="Stav"
@@ -205,6 +210,15 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
           </>
         )}
       </Paper>
+      {reordering && (
+        <ReorderDialog
+          kind={kind}
+          close={() => {
+            setReordering(false);
+            setPage(1);
+          }}
+        />
+      )}
       <Dialog
         open={editing !== null}
         onClose={busy ? undefined : () => setEditing(null)}

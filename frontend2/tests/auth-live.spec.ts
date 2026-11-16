@@ -122,6 +122,24 @@ test("local Docker login, session after reload and CSRF-protected logout", async
     ).toBeVisible();
     await page.getByRole("link", { name: "Zpět na zákazníky", exact: true }).click();
   }
+  await page
+    .getByRole("navigation", { name: "Administrace" })
+    .getByRole("link", { name: "Účty", exact: true })
+    .click();
+  await expect(
+    page.getByRole("table", { name: "Administrátorské účty", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Globální hledání", exact: true }).click();
+  const searchResponse = page.waitForResponse(
+    (response) =>
+      response.url().startsWith("http://localhost:8000/api/v1/admin/search?") &&
+      response.request().method() === "GET",
+  );
+  await page
+    .getByRole("textbox", { name: "Hledat objednávky, zákazníky a motivy", exact: true })
+    .fill("opencode-read-only-search-2026");
+  expect((await searchResponse).status()).toBe(200);
+  await page.getByRole("button", { name: "Zavřít hledání", exact: true }).click();
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);

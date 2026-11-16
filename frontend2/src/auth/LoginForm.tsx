@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { Button, TextField } from "@mui/material";
 import { ApiError } from "../api/http";
 import { useLogin, useSession } from "./session";
@@ -71,6 +71,7 @@ export function LoginForm() {
       <Button variant="contained" type="submit" disabled={login.isPending}>
         {login.isPending ? "Přihlašování…" : "Přihlásit se →"}
       </Button>
+      <Link to="/zapomenute-heslo">Zapomenuté heslo</Link>
     </form>
   );
 }

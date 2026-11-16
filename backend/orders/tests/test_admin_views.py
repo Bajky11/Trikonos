@@ -175,6 +175,14 @@ def test_production_filters_print_sheet_and_original_use_existing_contract(admin
     download = admin_client.get(f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}/file')
     assert download.status_code == 302
     assert download['Location'] == placement.url
+    endpoint = f'/api/v1/admin/orders/{order.id}/items/{item.id}/placements/{placement.id}'
+    assert admin_client.patch(endpoint, {'width': 90}, format='json').status_code == 409
+    order.status = OrderStatus.NEW
+    order.save()
+    changed = admin_client.patch(endpoint, {'width': 90, 'height': 60, 'x': 5, 'y': 10}, format='json')
+    assert changed.status_code == 200
+    assert changed.json()['items'][0]['placements'][0]['width'] == 90
+    assert admin_client.patch(endpoint, {'width': 99999}, format='json').status_code == 422
 
 
 def test_create_shipment_pickup_point_success(admin_client, motif, product_type, cut, color, packeta_carrier):

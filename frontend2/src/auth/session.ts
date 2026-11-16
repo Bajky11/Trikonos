@@ -26,7 +26,7 @@ export async function readSession(signal?: AbortSignal): Promise<Me | null> {
   }
 }
 
-async function replaceSession(client: QueryClient, user: Me | null) {
+export async function replaceSession(client: QueryClient, user: Me | null) {
   // An in-flight /me must not restore stale user data after logout.
   await client.cancelQueries({ predicate: isAdminQuery });
   client.removeQueries({ predicate: isPrivateData });

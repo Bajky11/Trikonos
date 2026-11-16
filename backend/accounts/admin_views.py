@@ -2,6 +2,8 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils.translation import gettext as _
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
@@ -22,6 +24,7 @@ def _has_other_active_user(exclude):
     return User.objects.filter(is_active=True).exclude(pk=exclude.pk).exists()
 
 
+@method_decorator(never_cache, name='dispatch')
 @extend_schema_view(
     list=extend_schema(
         tags=_TAG,
@@ -36,6 +39,7 @@ def _has_other_active_user(exclude):
     create=extend_schema(
         tags=_TAG,
         summary='Založit uživatele administrace',
+        responses={201: AdminUserSerializer},
         description=(
             'Pole `password` je nepovinné: pokud ho vynecháš, '
             'novému uživateli se nastaví nepoužitelné heslo (nemůže se přihlásit '
@@ -48,6 +52,7 @@ def _has_other_active_user(exclude):
     partial_update=extend_schema(
         tags=_TAG,
         summary='Upravit uživatele administrace',
+        responses={200: AdminUserSerializer},
         description=(
             'Lze měnit `name`, `isActive`. Pojistka: '
             'pokud by deaktivace znamenala, že '
