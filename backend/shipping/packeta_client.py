@@ -75,3 +75,31 @@ def get_packet_status(*, packet_id: str) -> PacketStatus:
     return PacketStatus(
         status_code=int(result.statusCode), code_text=result.codeText, status_text=result.statusText,
     )
+
+
+@dataclass
+class CreatedCourierPickup:
+    pickup_id: str
+    external_id: str
+
+
+def create_courier_pickup(
+    *, address_id: int, pickup_address: dict, pickup_date: dict, packet_ids: list, note: str = '',
+) -> CreatedCourierPickup:
+    """Calls Packeta's createCourierPickup to schedule a courier collection
+    for a batch of already-created packets - a separate call from
+    createPacket, since a pickup is ordered once for many packets rather
+    than per shipment (see shipping.services.order_courier_pickup).
+    `pickup_address` and `pickup_date` are plain dicts matching Packeta's
+    PickupAddress/PickupDate shapes (zeep maps dicts onto the WSDL types).
+    """
+    config = PacketaConfig.get_solo()
+    try:
+        result = _get_client().service.createCourierPickup(
+            config.api_password, config.eshop, address_id, pickup_address, pickup_date,
+            {'id': packet_ids}, note,
+        )
+    except zeep.exceptions.Fault as exc:
+        raise PacketaApiError(str(exc.message)) from exc
+
+    return CreatedCourierPickup(pickup_id=str(result.pickupId), external_id=str(result.externalId))

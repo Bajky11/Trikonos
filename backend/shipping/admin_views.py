@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import viewsets
 from rest_framework.response import Response
 
@@ -8,11 +8,14 @@ from core.admin_lookup import LookupAdminViewSet, lookup_schema_view
 from .admin_serializers import (
     AdminCarrierSerializer,
     AdminCodSurchargeSerializer,
+    AdminCourierPickupResultSerializer,
+    AdminCourierPickupSerializer,
     AdminPacketaConfigSerializer,
     AdminShippingPriceSerializer,
     AdminShippingQuantityDiscountSerializer,
 )
 from .models import Carrier, CodSurcharge, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
+from .services import order_courier_pickup
 
 
 @lookup_schema_view(
@@ -110,7 +113,10 @@ class AdminCodSurchargeView(viewsets.ViewSet):
             's jasnou chybou. `homeDeliveryAddressId` je ID externího '
             'dopravce pro doručení na adresu (ne ID výdejního místa) - '
             'dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro '
-            'doručení na výdejní místo stačí jen `apiPassword`.'
+            'doručení na výdejní místo stačí jen `apiPassword`.\n\n'
+            'Pole `pickup*` (`pickupAddressId` + adresa provozovny) se '
+            'použijí při objednání svozu přes `POST /admin/courier-pickups` '
+            '- nastavují se tady jednou, ne při každém svozu zvlášť.'
         ),
         responses={200: AdminPacketaConfigSerializer},
     ),
@@ -173,3 +179,52 @@ class AdminShippingQuantityDiscountViewSet(LookupAdminViewSet):
             queryset = queryset.filter(shipping_price_id=shipping_price_id)
 
         return queryset.order_by('min_quantity')
+
+
+@extend_schema_view(
+    create=extend_schema(
+        tags=['Admin - doprava'],
+        summary='Objednat svoz zásilek u Packety',
+        description=(
+            'Zavolá Packeta API (`createCourierPickup`) a objedná svoz pro '
+            'víc objednávek najednou - na rozdíl od založení zásilky, '
+            'štítku a sledování stavu (ty se dělají po jedné na '
+            '`/admin/orders/{id}/shipment...`), svoz se neobjednává pro '
+            'každou objednávku zvlášť a nestane se při každé objednávce. '
+            'Všechny `orderIds` musí mít už založenou zásilku u Packety, '
+            'jinak 422 `SHIPMENT_NOT_CREATED`; neexistující id vrátí 422 '
+            '`ORDER_NOT_FOUND`. Adresa, ze které se sváží, se nastavuje '
+            'jednou v `/admin/packeta-config` (pole `pickup*`), ne tady - '
+            'bez ní 422. `pickupFrom`/`pickupTo` je časové okno, kdy může '
+            'kurýr dorazit. Vrací `pickupId`/`externalId` přidělené '
+            'Packetou.'
+        ),
+        request=AdminCourierPickupSerializer,
+        responses={
+            200: AdminCourierPickupResultSerializer,
+            422: OpenApiResponse(
+                description='ORDER_NOT_FOUND / SHIPMENT_NOT_CREATED - viz chybová zpráva, které objednávky.',
+            ),
+            502: OpenApiResponse(description='CARRIER_API_ERROR - Packeta vrátila chybu.'),
+        },
+    ),
+)
+class AdminCourierPickupView(viewsets.ViewSet):
+    """POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou."""
+    permission_classes = [IsAdmin]
+
+    def create(self, request):
+        serializer = AdminCourierPickupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        result, orders = order_courier_pickup(
+            data['order_ids'], pickup_from=data['pickup_from'], pickup_to=data['pickup_to'],
+            note=data.get('note', ''),
+        )
+        response_data = AdminCourierPickupResultSerializer({
+            'pickup_id': result.pickup_id,
+            'external_id': result.external_id,
+            'order_ids': [order.id for order in orders],
+        }).data
+        return Response(response_data)

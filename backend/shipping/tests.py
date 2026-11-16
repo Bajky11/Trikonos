@@ -12,7 +12,7 @@ from orders.models import DeliveryType, Order, PaymentMethod
 
 from . import packeta_client
 from .models import Carrier, CodSurcharge, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
-from .services import _split_street, build_packet_attributes
+from .services import _split_street, build_packet_attributes, order_courier_pickup
 
 pytestmark = pytest.mark.django_db
 
@@ -268,14 +268,18 @@ def test_split_street_with_trailing_house_number():
     assert _split_street('Horní 12') == ('Horní', '12')
 
 
-def _bare_order(*, carrier=None, delivery_type=None, total=None, payment_method=PaymentMethod.BANK_TRANSFER, company_name=''):
+def _bare_order(
+    *, carrier=None, delivery_type=None, total=None, payment_method=PaymentMethod.BANK_TRANSFER, company_name='',
+    order_number='TRK-2026-9001', carrier_shipment_id='', email='jana@example.cz',
+):
     customer = Customer.objects.create(
-        email='jana@example.cz', first_name='Jana', last_name='Nováková', phone='+420777123456',
+        email=email, first_name='Jana', last_name='Nováková', phone='+420777123456',
         company_name=company_name,
     )
     return Order.objects.create(
-        order_number='TRK-2026-9001', customer=customer, total=total,
+        order_number=order_number, customer=customer, total=total,
         carrier=carrier, delivery_type=delivery_type, payment_method=payment_method,
+        carrier_shipment_id=carrier_shipment_id,
         pickup_point_id='131', pickup_point_name='Vrchlabí',
         billing_full_name='Jana Nováková', billing_street='Horní 12', billing_city='Vrchlabí', billing_zip='54301',
         shipping_full_name='Jana Nováková', shipping_street='Horní 12', shipping_city='Vrchlabí', shipping_zip='54301',
@@ -413,3 +417,142 @@ def test_get_packet_status_fault_raises_packeta_api_error():
     with patch('shipping.packeta_client._get_client', return_value=fake_client):
         with pytest.raises(PacketaApiError):
             packeta_client.get_packet_status(packet_id='123')
+
+
+def test_create_courier_pickup_success():
+    PacketaConfig.objects.update_or_create(pk=1, defaults={'api_password': 'secret', 'eshop': 'trikonos'})
+    fake_client = Mock()
+    fake_client.service.createCourierPickup.return_value = Mock(pickupId=555, externalId='EXT-555')
+
+    with patch('shipping.packeta_client._get_client', return_value=fake_client):
+        result = packeta_client.create_courier_pickup(
+            address_id=42, pickup_address={'street': 'Horní'}, pickup_date={'from': 'x', 'to': 'y'},
+            packet_ids=[1, 2], note='Vyzvednout vzadu',
+        )
+
+    assert result.pickup_id == '555'
+    assert result.external_id == 'EXT-555'
+    fake_client.service.createCourierPickup.assert_called_once_with(
+        'secret', 'trikonos', 42, {'street': 'Horní'}, {'from': 'x', 'to': 'y'}, {'id': [1, 2]}, 'Vyzvednout vzadu',
+    )
+
+
+def test_create_courier_pickup_fault_raises_packeta_api_error():
+    fake_client = Mock()
+    fake_client.service.createCourierPickup.side_effect = zeep.exceptions.Fault('Invalid address.')
+
+    with patch('shipping.packeta_client._get_client', return_value=fake_client):
+        with pytest.raises(PacketaApiError):
+            packeta_client.create_courier_pickup(address_id=1, pickup_address={}, pickup_date={}, packet_ids=[1])
+
+
+# ---------------------------------------------------------------------------
+# Courier pickup (svoz) - shipping.services.order_courier_pickup plus the
+# POST /admin/courier-pickups endpoint wrapping it. shipping.packeta_client.
+# create_courier_pickup itself is mocked throughout (already covered above).
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def packeta_pickup_config(db):
+    PacketaConfig.objects.update_or_create(pk=1, defaults={
+        'api_password': 'secret', 'eshop': 'trikonos', 'pickup_address_id': '77',
+        'pickup_company_name': 'Trikonoš s.r.o.', 'pickup_contact_name': 'Jana', 'pickup_contact_surname': 'Nováková',
+        'pickup_email': 'info@trikonos.cz', 'pickup_phone': '+420777000111',
+        'pickup_street': 'Dílenská', 'pickup_house_number': '5', 'pickup_city': 'Vrchlabí', 'pickup_zip': '54301',
+    })
+    return PacketaConfig.get_solo()
+
+
+def test_courier_pickup_requires_pickup_address_configured(carrier):
+    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+
+    with pytest.raises(BusinessError):
+        order_courier_pickup([order.id], pickup_from='2026-11-20T08:00:00Z', pickup_to='2026-11-20T12:00:00Z')
+
+
+def test_courier_pickup_missing_order_raises_order_not_found(packeta_pickup_config):
+    import uuid
+
+    with pytest.raises(BusinessError) as exc_info:
+        order_courier_pickup(
+            [uuid.uuid4()], pickup_from='2026-11-20T08:00:00Z', pickup_to='2026-11-20T12:00:00Z',
+        )
+
+    assert exc_info.value.code == 'ORDER_NOT_FOUND'
+
+
+def test_courier_pickup_order_without_shipment_raises(packeta_pickup_config, carrier):
+    order = _bare_order(carrier=carrier)
+
+    with pytest.raises(BusinessError) as exc_info:
+        order_courier_pickup([order.id], pickup_from='2026-11-20T08:00:00Z', pickup_to='2026-11-20T12:00:00Z')
+
+    assert exc_info.value.code == 'SHIPMENT_NOT_CREATED'
+
+
+def test_courier_pickup_success_calls_client_with_batched_packet_ids(packeta_pickup_config, carrier):
+    order_a = _bare_order(
+        carrier=carrier, carrier_shipment_id='111', order_number='TRK-2026-0001', email='a@example.cz',
+    )
+    order_b = _bare_order(
+        carrier=carrier, carrier_shipment_id='222', order_number='TRK-2026-0002', email='b@example.cz',
+    )
+    created = packeta_client.CreatedCourierPickup(pickup_id='999', external_id='EXT-999')
+
+    with patch('shipping.packeta_client.create_courier_pickup', return_value=created) as mock_create:
+        result, orders = order_courier_pickup(
+            [order_a.id, order_b.id],
+            pickup_from='2026-11-20T08:00:00+00:00', pickup_to='2026-11-20T12:00:00+00:00', note='Zadní vchod',
+        )
+
+    assert result.pickup_id == '999'
+    assert {order.id for order in orders} == {order_a.id, order_b.id}
+    kwargs = mock_create.call_args.kwargs
+    assert sorted(kwargs['packet_ids']) == [111, 222]
+    assert kwargs['address_id'] == 77
+    assert kwargs['pickup_address']['city'] == 'Vrchlabí'
+    assert kwargs['note'] == 'Zadní vchod'
+
+
+def test_admin_courier_pickup_endpoint_success(admin_client, packeta_pickup_config, carrier):
+    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+    created = packeta_client.CreatedCourierPickup(pickup_id='999', external_id='EXT-999')
+
+    with patch('shipping.packeta_client.create_courier_pickup', return_value=created):
+        response = admin_client.post('/api/v1/admin/courier-pickups', {
+            'orderIds': [str(order.id)],
+            'pickupFrom': '2026-11-20T08:00:00Z',
+            'pickupTo': '2026-11-20T12:00:00Z',
+        }, format='json')
+
+    assert response.status_code == 200
+    assert response.data['pickup_id'] == '999'
+    assert response.data['external_id'] == 'EXT-999'
+    assert response.data['order_ids'] == [str(order.id)]
+
+
+def test_admin_courier_pickup_endpoint_carrier_api_error_returns_502(admin_client, packeta_pickup_config, carrier):
+    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+
+    with patch('shipping.packeta_client.create_courier_pickup', side_effect=PacketaApiError('Neplatné apiPassword.')):
+        response = admin_client.post('/api/v1/admin/courier-pickups', {
+            'orderIds': [str(order.id)],
+            'pickupFrom': '2026-11-20T08:00:00Z',
+            'pickupTo': '2026-11-20T12:00:00Z',
+        }, format='json')
+
+    assert response.status_code == 502
+    assert response.data['error']['code'] == 'CARRIER_API_ERROR'
+
+
+def test_admin_courier_pickup_endpoint_missing_order_returns_422(admin_client, packeta_pickup_config):
+    import uuid
+
+    response = admin_client.post('/api/v1/admin/courier-pickups', {
+        'orderIds': [str(uuid.uuid4())],
+        'pickupFrom': '2026-11-20T08:00:00Z',
+        'pickupTo': '2026-11-20T12:00:00Z',
+    }, format='json')
+
+    assert response.status_code == 422
+    assert response.data['error']['code'] == 'ORDER_NOT_FOUND'

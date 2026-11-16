@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .admin_views import (
     AdminCarrierViewSet,
     AdminCodSurchargeView,
+    AdminCourierPickupView,
     AdminPacketaConfigView,
     AdminShippingPriceViewSet,
     AdminShippingQuantityDiscountViewSet,
@@ -26,5 +27,10 @@ urlpatterns = [
         'cod-surcharge',
         AdminCodSurchargeView.as_view({'get': 'list', 'put': 'update'}),
         name='admin-cod-surcharge',
+    ),
+    path(
+        'courier-pickups',
+        AdminCourierPickupView.as_view({'post': 'create'}),
+        name='admin-courier-pickup',
     ),
 ] + router.urls

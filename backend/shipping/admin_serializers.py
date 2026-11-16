@@ -47,12 +47,30 @@ class AdminPacketaConfigSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PacketaConfig
-        fields = ['api_password', 'api_password_set', 'eshop', 'home_delivery_address_id', 'label_format', 'updated_at']
+        fields = [
+            'api_password', 'api_password_set', 'eshop', 'home_delivery_address_id', 'label_format',
+            'pickup_address_id', 'pickup_company_name', 'pickup_contact_name', 'pickup_contact_surname',
+            'pickup_email', 'pickup_phone', 'pickup_street', 'pickup_house_number', 'pickup_city', 'pickup_zip',
+            'updated_at',
+        ]
         read_only_fields = ['updated_at']
         extra_kwargs = {'api_password': {'write_only': True}}
 
     def get_api_password_set(self, obj):
         return bool(obj.api_password)
+
+
+class AdminCourierPickupSerializer(serializers.Serializer):
+    order_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    pickup_from = serializers.DateTimeField()
+    pickup_to = serializers.DateTimeField()
+    note = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class AdminCourierPickupResultSerializer(serializers.Serializer):
+    pickup_id = serializers.CharField()
+    external_id = serializers.CharField()
+    order_ids = serializers.ListField(child=serializers.UUIDField())
 
 
 class AdminShippingQuantityDiscountSerializer(serializers.ModelSerializer):
