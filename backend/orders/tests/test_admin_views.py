@@ -584,6 +584,7 @@ def test_list_filters_by_created_date_range_and_search(admin_client, motif, prod
 
 def test_partial_update_editable_order_changes_address_and_carrier(admin_client, motif, product_type, cut, color, packeta_carrier):
     other_carrier = Carrier.objects.create(code='OTHER', name='Jiný dopravce')
+    ShippingPrice.objects.create(carrier=other_carrier, delivery_type=DeliveryType.PICKUP_POINT, price=6900)
     order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
                     status=OrderStatus.NEW)
 

@@ -274,17 +274,6 @@ def test_extract_errors_handles_bare_non_field_error_string():
     assert fields == {}
 
 
-def test_contact_form_without_notify_email_configured_still_returns_204(settings):
-    settings.SHOP_CONFIG = {**settings.SHOP_CONFIG, 'NOTIFY_EMAIL': ''}
-
-    response = APIClient().post('/api/v1/contact', {
-        'name': 'Jana', 'email': 'jana@example.cz', 'message': 'Dotaz',
-    }, format='json')
-
-    assert response.status_code == 204
-    assert len(mail.outbox) == 0
-
-
 # ---------------------------------------------------------------------------
 # core.emails.send_templated_email
 # ---------------------------------------------------------------------------

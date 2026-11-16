@@ -175,7 +175,10 @@ def test_order_id_race_where_another_request_wins_returns_its_order(motif, produ
     the DB by the time our own INSERT fails.
     """
     order_id = str(uuid.uuid4())
-    customer = Customer.objects.create(email='race@example.cz', first_name='Jana', last_name='Nováková')
+    # Must match _order_body()'s default customer email - existing_for_retry()
+    # rejects a retry whose customer doesn't match the request (ORDER_ID_CONFLICT),
+    # and that guard would otherwise fire here for an unrelated reason.
+    customer = Customer.objects.create(email='jana@example.cz', first_name='Jana', last_name='Nováková')
 
     def _simulate_concurrent_winner(**kwargs):
         Order.objects.create(
