@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Accordion, AccordionDetails, AccordionSummary, Button, Typography } from "@mui/material";
 import ExpandMore from "@mui/icons-material/ExpandMore";
-import { designs, importedProducts, stripProducts } from "../data/catalog";
+import { designs } from "../data/catalog";
 import { faqs, reviews } from "../data/content";
-import { CatalogLink, ProductFilters, ProductStrip } from "../components/Products";
+import { HomeCatalog } from "../components/HomeCatalog";
 import { PhotoGallery } from "../components/PhotoGallery";
 import { Seasonal } from "../components/Seasonal";
 import { CustomPrint } from "../components/CustomPrint";
@@ -63,7 +63,6 @@ function Hero() {
 }
 export function HomePage() {
   useTitle("Triko z hor, které má duši");
-  const [filter, setFilter] = useState("all");
   return (
     <main className="home-page">
       <Hero />
@@ -98,37 +97,7 @@ export function HomePage() {
         </div>
       </section>
       <Seasonal />
-      <section id="potisky" className="collection-section">
-        <div className="shell">
-          <div className="section-heading">
-            <div>
-              <span className="section-label">01 / Naše potisky</span>
-              <h2>Kolekce triček</h2>
-            </div>
-          </div>
-          <div className="bestsellers">
-            <div className="collection-heading">
-              <Typography component="h3" variant="h3">
-                Bestsellers
-              </Typography>
-              <CatalogLink />
-            </div>
-            <ProductStrip products={importedProducts.slice(0, 6)} label="Výběr bestsellerů" />
-          </div>
-          <div className="collection-heading">
-            <Typography component="h3" variant="h3">
-              Vyber si svůj motiv
-            </Typography>
-            <CatalogLink />
-          </div>
-          <ProductFilters value={filter} onChange={setFilter} />
-          <ProductStrip
-            key={filter}
-            products={stripProducts(filter)}
-            label="Výběr triček podle kategorie"
-          />
-        </div>
-      </section>
+      <HomeCatalog />
       <CustomPrint />
       <section className="faq-section" id="faq">
         <div className="shell faq-grid">

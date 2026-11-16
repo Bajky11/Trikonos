@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from orders.models import DeliveryType, PaymentMethod
 
 from .emails import send_templated_email
+from .exceptions import ContactUnavailableError
 
 
 class ChoiceOptionSerializer(serializers.Serializer):
@@ -21,6 +22,7 @@ class ConfigResponseSerializer(serializers.Serializer):
     contact_phone = serializers.CharField()
     instagram_url = serializers.CharField()
     bank_account = serializers.CharField()
+    terms_url = serializers.CharField(allow_blank=True, help_text='URL schválených obchodních podmínek; prázdná hodnota blokuje checkout ve frontendu.')
     topbar_text = serializers.CharField()
     payment_methods = ChoiceOptionSerializer(many=True)
     delivery_types = ChoiceOptionSerializer(many=True)
@@ -52,6 +54,7 @@ class ConfigView(APIView):
             'contact_phone': shop['CONTACT_PHONE'],
             'instagram_url': shop['INSTAGRAM_URL'],
             'bank_account': shop['BANK_ACCOUNT'],
+            'terms_url': shop.get('TERMS_URL', ''),
             'topbar_text': shop['TOPBAR_TEXT'],
             'payment_methods': [
                 {'value': value, 'label': label} for value, label in PaymentMethod.choices
@@ -86,11 +89,14 @@ class ContactView(APIView):
             'obchodu (`SHOP_NOTIFY_EMAIL`). Pole `website` je honeypot proti botům: '
             'na frontendu ho schovej (např. `display:none`) a nech prázdné - člověk ho '
             'nevyplní, bot často ano. Pokud je vyplněné, endpoint tiše vrátí 204 a nic '
-            'neodešle (bot se to nedozví). Vždy vrací 204, i při honeypotu, aby útočník '
-            'nerozlišil úspěch od detekce.'
+            'neodešle (bot se to nedozví). Úspěch i honeypot vrací 204; chybějící '
+            'příjemce nebo selhání e-mailového backendu vrací 503.'
         ),
         request=ContactSerializer,
-        responses={204: OpenApiResponse(description='Zpráva odeslána (nebo honeypot tiše ignorován).')},
+        responses={
+            204: OpenApiResponse(description='Zpráva předána e-mailovému backendu (nebo honeypot tiše ignorován).'),
+            503: OpenApiResponse(description='Odesílání zpráv není dostupné.'),
+        },
     )
     def post(self, request):
         serializer = ContactSerializer(data=request.data)
@@ -101,7 +107,9 @@ class ContactView(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         notify_email = settings.SHOP_CONFIG['NOTIFY_EMAIL']
-        if notify_email:
+        if not notify_email:
+            raise ContactUnavailableError()
+        try:
             send_templated_email(
                 'contact_message',
                 {
@@ -113,5 +121,8 @@ class ContactView(APIView):
                 },
                 subject=f'Zpráva z kontaktního formuláře - {data["name"]}',
                 recipient_list=[notify_email],
+                raise_on_failure=True,
             )
+        except Exception as exc:
+            raise ContactUnavailableError() from exc
         return Response(status=status.HTTP_204_NO_CONTENT)

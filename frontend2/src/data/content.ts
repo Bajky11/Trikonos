@@ -103,32 +103,3 @@ export const orders = [
     tone: "cancelled",
   },
 ];
-export interface DictionaryItem {
-  id: string;
-  name: string;
-  hex?: string;
-}
-export const dictionaryTitles = { colors: "Barvy", cuts: "Střihy", clothing: "Typy oblečení" };
-export type DictionaryKind = keyof typeof dictionaryTitles;
-export type Dictionaries = Record<DictionaryKind, DictionaryItem[]>;
-export const defaultDictionaries: Dictionaries = {
-  colors: [
-    { id: "white", name: "Bílá", hex: "#ffffff" },
-    { id: "black", name: "Černá", hex: "#252b28" },
-    { id: "natural", name: "Přírodní bílá", hex: "#e9e1cf" },
-    { id: "green", name: "Tmavě zelená", hex: "#0e584d" },
-    { id: "blue", name: "Modrá", hex: "#426b8a" },
-    { id: "rust", name: "Rezavá", hex: "#ad593e" },
-  ],
-  cuts: [
-    { id: "regular", name: "Klasický" },
-    { id: "slim", name: "Vypasovaný" },
-    { id: "oversized", name: "Oversize" },
-    { id: "unisex", name: "Unisex" },
-  ],
-  clothing: [
-    { id: "tshirt", name: "Tričko" },
-    { id: "hoodie", name: "Mikina" },
-    { id: "tank", name: "Tílko" },
-  ],
-};

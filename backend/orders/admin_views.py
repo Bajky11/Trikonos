@@ -1,6 +1,8 @@
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.utils.translation import gettext as _
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -43,10 +45,15 @@ _ITEM_ID_PARAM = OpenApiParameter('item_id', str, OpenApiParameter.PATH, descrip
 _PLACEMENT_ID_PARAM = OpenApiParameter('placement_id', str, OpenApiParameter.PATH, description='UUID umístění potisku.')
 
 
+@method_decorator(never_cache, name='dispatch')
 @extend_schema_view(
     list=extend_schema(
         tags=_TAG,
         summary='Seznam objednávek',
+        parameters=[OpenApiParameter(name, str, OpenApiParameter.QUERY) for name in (
+            'status', 'paymentStatus', 'shipmentStatus', 'paymentMethod', 'carrier',
+            'customer', 'hasCustom', 'createdFrom', 'createdTo', 'q', 'ordering',
+        )],
         description=(
             'Filtry: `status` (víc hodnot oddělených čárkou, např. '
             '`NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, '
@@ -143,7 +150,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             )
 
         ordering = _ORDERING_MAP.get(params.get('ordering', '-createdAt'), '-created_at')
-        return queryset.order_by(ordering)
+        return queryset.order_by(ordering, 'id')
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -191,7 +198,9 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             '`trackingNumber` je výjimka a smí se měnit kdykoli (i na '
             'odeslané/doručené objednávce, pro dodatečnou opravu). Pro ocenění '
             'položek a dopravy použij samostatné endpointy '
-            '(`.../items/{itemId}`, `.../shipping-cost`), ne tento.'
+            '(`.../items/{itemId}`, `.../shipping-cost`), ne tento. Změna '
+            'dopravce, doručení nebo platební metody přepočítá automatickou '
+            'dopravu a zruší potvrzení; ruční cena zůstává zachovaná.'
         ),
         request=AdminOrderUpdateSerializer,
         responses={
@@ -199,6 +208,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
         },
     )
+    @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
         order = self.get_object()
         serializer = AdminOrderUpdateSerializer(order, data=request.data, partial=True)
@@ -242,6 +252,8 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             order.tracking_number = data['tracking_number']  # never locked
 
         order.save()
+        if {'carrier', 'delivery_type', 'payment_method'} & data.keys():
+            services.refresh_order_shipping(order)
         return Response(AdminOrderDetailSerializer(order, context=self.get_serializer_context()).data)
 
     @extend_schema(exclude=True)
@@ -531,12 +543,14 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'pozdější přechod NEW → PROCESSING. Nepovinné `message` je osobní '
             'text admina, který se vloží do e-mailu (např. poznámka k '
             'poptávce). **Je idempotentní** - opakované volání jen znovu '
-            'pošle e-mail, nic se tím nerozbije.'
+            'pošle e-mail, nic se tím nerozbije. Potvrzovat lze jen '
+            'editovatelné stavy QUOTE_REQUESTED/NEW; jinak 409 ORDER_LOCKED.'
         ),
         request=AdminConfirmOrderSerializer,
         responses={
             200: AdminOrderDetailSerializer,
             422: OpenApiResponse(description='ORDER_NOT_PRICED - total je stále null.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka již není editovatelná.'),
         },
     )
     @action(detail=True, methods=['post'])
@@ -544,7 +558,9 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         from .emails import send_order_confirmed_email
 
         order = self.get_object()
-        message = request.data.get('message')
+        serializer = AdminConfirmOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message = serializer.validated_data.get('message')
         with transaction.atomic():
             services.confirm_order(order)
             transaction.on_commit(lambda: send_order_confirmed_email(order, message=message))

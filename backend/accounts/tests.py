@@ -49,6 +49,51 @@ def test_login_success_starts_session(admin_user):
     assert response.data['email'] == admin_user.email
 
 
+def test_browser_csrf_bootstrap_login_rotation_and_logout(admin_user):
+    client = APIClient(enforce_csrf_checks=True)
+    credentials = {'email': admin_user.email, 'password': 'correct-horse'}
+    assert client.post('/api/v1/admin/auth/login', credentials, format='json').status_code == 403
+
+    bootstrap = client.get('/api/v1/admin/auth/csrf')
+    assert bootstrap.status_code == 204
+    assert bootstrap['Cache-Control'] == 'no-store'
+    original_secret = client.cookies['csrftoken'].value
+    original_token = bootstrap['X-CSRFToken']
+
+    response = client.post('/api/v1/admin/auth/login', credentials, format='json', HTTP_X_CSRFTOKEN=original_token)
+    assert response.status_code == 200
+    assert client.cookies['csrftoken'].value != original_secret
+    current_token = response['X-CSRFToken']
+    assert client.get('/api/v1/admin/auth/me').data['id'] == str(admin_user.id)
+
+    assert client.post('/api/v1/admin/auth/logout', HTTP_X_CSRFTOKEN=original_token).status_code == 403
+    assert client.post('/api/v1/admin/auth/logout', HTTP_X_CSRFTOKEN=current_token).status_code == 204
+    assert client.get('/api/v1/admin/auth/me').status_code == 403
+
+
+def test_csrf_token_header_is_exposed_only_to_allowed_origins(settings):
+    settings.CORS_ALLOWED_ORIGINS = ['http://localhost:5173']
+    for origin, allowed in [('http://localhost:5173', True), ('https://untrusted.example', False)]:
+        response = APIClient().get('/api/v1/admin/auth/csrf', HTTP_ORIGIN=origin)
+        assert response.status_code == 204
+        if allowed:
+            assert 'X-CSRFToken' in response['Access-Control-Expose-Headers']
+            assert response['Access-Control-Allow-Origin'] == origin
+        else:
+            assert 'Access-Control-Allow-Origin' not in response
+
+
+def test_login_rejects_untrusted_origin_even_with_valid_csrf_token(admin_user):
+    client = APIClient(enforce_csrf_checks=True)
+    token = client.get('/api/v1/admin/auth/csrf')['X-CSRFToken']
+    response = client.post(
+        '/api/v1/admin/auth/login',
+        {'email': admin_user.email, 'password': 'correct-horse'}, format='json',
+        HTTP_X_CSRFTOKEN=token, HTTP_ORIGIN='https://untrusted.example',
+    )
+    assert response.status_code == 403
+
+
 def test_login_wrong_password_and_wrong_email_return_the_same_error(admin_user):
     client = APIClient()
     wrong_password = client.post('/api/v1/admin/auth/login', {'email': admin_user.email, 'password': 'nope'}, format='json')

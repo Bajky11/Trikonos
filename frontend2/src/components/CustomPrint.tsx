@@ -1,32 +1,132 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Button, Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
 import Close from "@mui/icons-material/Close";
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
-import AlignHorizontalCenter from "@mui/icons-material/AlignHorizontalCenter";
-import { customColors, designs, money, shirtTypes } from "../data/catalog";
+import { uploadsDesignsCreate, useCatalogOptionsRetrieve } from "../api/generated/api";
+import type { CatalogOptionsResponse } from "../api/generated/models";
+import { ApiError, apiBaseUrl } from "../api/http";
+import { withCsrf } from "../auth/csrf";
+import { designs } from "../data/catalog";
+import type { CustomCartItem } from "../cart/storage";
 import { useShop } from "./ShopContext";
-import type { Design } from "./ShopContext";
-import { fitDesign, moveDesign, resizeDesign } from "./designGeometry";
+import { CatalogFeedback } from "./Products";
+import { fitDesign, moveDesign, placementInMm, previewArea, resizeDesign } from "./designGeometry";
+import type { DesignBox } from "./designGeometry";
 
 const initialHint =
-  "Vlastní obrázek: PNG, JPG nebo WebP, max. 15 MB. Zůstává jen ve vašem prohlížeči.";
-export function CustomPrint() {
+  "PNG nebo JPG do 20 MB. Podklad se nahraje na server, odkaz platí 7 dní. Cena bude k nacenění.";
+type Asset = CustomCartItem["upload"];
+
+function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
   const { add } = useShop();
-  const filterId = useId();
-  const [type, setType] = useState("male");
-  const [color, setColor] = useState(customColors[0]!);
-  const [size, setSize] = useState("M");
+  const types = options.productTypes.filter((type) =>
+    type.printAreas.some((area) => area.widthMm > 0 && area.heightMm > 0),
+  );
+  const [typeId, setTypeId] = useState("");
+  const [cutId, setCutId] = useState("");
+  const [colorId, setColorId] = useState("");
+  const [sizeValue, setSizeValue] = useState("");
+  const [areaId, setAreaId] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [design, setDesign] = useState<Design | null>(null);
+  const [asset, setAsset] = useState<Asset | null>(null);
+  const [position, setPosition] = useState<{ areaKey: string; box: DesignBox } | null>(null);
   const [controls, setControls] = useState(true);
   const [snap, setSnap] = useState(true);
   const [gallery, setGallery] = useState(false);
+  const [loadingGallery, setLoadingGallery] = useState(false);
+  const [error, setError] = useState("");
   const [status, setStatus] = useState(initialHint);
+  const filterId = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const svg = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ mode: "move" | "resize"; x: number; y: number; box: Design } | null>(null);
-  const loadRequest = useRef(0);
+  const sequence = useRef(0);
+  const controller = useRef<AbortController | null>(null);
+  const drag = useRef<{ mode: "move" | "resize"; x: number; y: number; box: DesignBox } | null>(
+    null,
+  );
+  const type = types.find((type) => type.id === typeId) ?? types[0];
+  const cut = options.cuts.find((cut) => cut.id === cutId) ?? options.cuts[0];
+  const color = options.colors.find((color) => color.id === colorId) ?? options.colors[0];
+  const size =
+    options.sizes.find((size) => size.value === sizeValue)?.value ?? options.sizes[0]?.value;
+  const areas = type?.printAreas.filter((area) => area.widthMm > 0 && area.heightMm > 0) ?? [];
+  const area = areas.find((area) => area.id === areaId) ?? areas[0];
+  const bounds = previewArea(area?.widthMm ?? 300, area?.heightMm ?? 400);
+  const areaKey = `${type?.id}:${area?.id}:${area?.widthMm}:${area?.heightMm}`;
+  const box = asset
+    ? position?.areaKey === areaKey
+      ? position.box
+      : fitDesign(asset.widthPx, asset.heightPx, bounds)
+    : null;
+  const mm = box && area ? placementInMm(box, bounds, area.widthMm, area.heightMm) : null;
+  const ready = !!(type && cut && color && size && area);
+  const upload = useMutation({
+    gcTime: 0,
+    mutationFn: ({ file, signal }: { file: File; signal: AbortSignal }) =>
+      withCsrf(() => uploadsDesignsCreate({ file }, { signal })),
+  });
+  const busy = upload.isPending || loadingGallery;
+  useEffect(
+    () => () => {
+      sequence.current++;
+      controller.current?.abort();
+    },
+    [],
+  );
+  const selectFile = async (file: File) => {
+    setError("");
+    if (
+      !["image/png", "image/jpeg"].includes(file.type) ||
+      !file.size ||
+      file.size > 20 * 1024 * 1024
+    ) {
+      setError("Vyberte PNG nebo JPG do 20 MB.");
+      return;
+    }
+    const request = ++sequence.current;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    setStatus("Nahrávání podkladu…");
+    try {
+      const result = await upload.mutateAsync({ file, signal: abort.signal });
+      if (request !== sequence.current) return;
+      if (
+        !result.widthPx ||
+        !result.heightPx ||
+        !["image/png", "image/jpeg"].includes(result.mimeType)
+      )
+        throw new Error("Invalid upload response");
+      setAsset({
+        fileToken: result.fileToken,
+        url: result.url,
+        fileName: file.name,
+        mimeType: result.mimeType,
+        widthPx: result.widthPx,
+        heightPx: result.heightPx,
+        uploadedAt: Date.now(),
+      });
+      setPosition(null);
+      setStatus(
+        "Podklad je nahraný. Umístěte jej do zvolené tiskové plochy; po změně plochy se umístění nastaví znovu.",
+      );
+    } catch (error) {
+      if (request !== sequence.current || abort.signal.aborted) return;
+      setError(
+        error instanceof ApiError && error.status === 413
+          ? "Podklad je příliš velký. Vyberte soubor do 20 MB."
+          : error instanceof ApiError && error.status === 429
+            ? "Příliš mnoho požadavků. Chvíli počkejte a nahrajte soubor znovu."
+            : error instanceof ApiError
+              ? error.message
+              : "Podklad se nepodařilo nahrát. Zkuste to znovu.",
+      );
+      setStatus(initialHint);
+    } finally {
+      if (request === sequence.current) upload.reset();
+    }
+  };
   const point = (event: PointerEvent<SVGElement>) => {
     const matrix = svg.current?.getScreenCTM();
     return matrix
@@ -34,48 +134,417 @@ export function CustomPrint() {
       : { x: 0, y: 0 };
   };
   const startDrag = (event: PointerEvent<SVGRectElement>, mode: "move" | "resize") => {
-    if (!design) return;
+    if (!box) return;
     event.preventDefault();
     const p = point(event);
-    drag.current = { mode, x: p.x, y: p.y, box: design };
+    drag.current = { mode, x: p.x, y: p.y, box };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveDrag = (event: PointerEvent<SVGRectElement>) => {
-    if (!drag.current) return;
-    const p = point(event),
-      start = drag.current;
-    setDesign({
-      ...start.box,
-      ...(start.mode === "move"
-        ? moveDesign(start.box, p.x - start.x, p.y - start.y, snap)
-        : resizeDesign(start.box, p.x - start.x)),
+    const start = drag.current;
+    if (!start) return;
+    const p = point(event);
+    setPosition({
+      areaKey,
+      box:
+        start.mode === "move"
+          ? moveDesign(start.box, p.x - start.x, p.y - start.y, snap, bounds)
+          : resizeDesign(start.box, p.x - start.x, bounds),
     });
   };
   const keyMove = (event: KeyboardEvent<SVGRectElement>, mode: "move" | "resize") => {
-    if (!design || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    if (!box || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
     event.preventDefault();
     const step = event.shiftKey ? 20 : 5;
     const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
     const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
-    setDesign({
-      ...design,
-      ...(mode === "move" ? moveDesign(design, dx, dy, snap) : resizeDesign(design, dx || dy)),
+    setPosition({
+      areaKey,
+      box:
+        mode === "move"
+          ? moveDesign(box, dx, dy, snap, bounds)
+          : resizeDesign(box, dx || dy, bounds),
     });
   };
-  const selectDesign = (src: string, name: string) => {
-    const request = ++loadRequest.current;
-    const image = new Image();
-    image.onload = () => {
-      if (request !== loadRequest.current) return;
-      setDesign({ src, name, ...fitDesign(image.naturalWidth, image.naturalHeight) });
-      setStatus("Potisk posuňte tažením. Velikost změňte úchytem v rohu.");
-    };
-    image.onerror = () => {
-      if (request === loadRequest.current)
-        setStatus("Obrázek se nepodařilo načíst. Zkuste jiný soubor.");
-    };
-    image.src = src;
-  };
+  return (
+    <>
+      {!ready && (
+        <p role="status">
+          Vlastní potisk zatím není dostupný. Chybí aktivní typ oblečení s tiskovou plochou, střih,
+          barva nebo velikost.
+        </p>
+      )}
+      <div className="custom-body">
+        <div
+          className={`shirt-preview ${controls ? "" : "controls-hidden"}`}
+          role="group"
+          aria-label={`Schematický náhled tiskové plochy – ${color?.name ?? "bez barvy"}`}
+        >
+          <div className="preview-toolbar">
+            <Button
+              variant={controls ? "contained" : "outlined"}
+              aria-pressed={controls}
+              onClick={() => setControls((value) => !value)}
+            >
+              {controls ? "Skrýt" : "Zobrazit"} ovládací prvky
+            </Button>
+            {controls && (
+              <Button
+                variant={snap ? "contained" : "outlined"}
+                aria-pressed={snap}
+                onClick={() => setSnap((value) => !value)}
+              >
+                {snap ? "Vypnout" : "Zapnout"} centrování
+              </Button>
+            )}
+          </div>
+          <p>
+            Náhled oděvu je pouze ilustrační. Přesné umístění se vztahuje ke zvolené tiskové ploše.
+          </p>
+          <svg
+            ref={svg}
+            className="shirt-art"
+            viewBox="0 0 1131 1390"
+            aria-label="Editor umístění potisku"
+          >
+            <defs>
+              <filter
+                id={filterId}
+                x="0"
+                y="0"
+                width="100%"
+                height="100%"
+                colorInterpolationFilters="sRGB"
+              >
+                <feFlood floodColor={color?.hexValue ?? "#ffffff"} result="color" />
+                <feBlend in="SourceGraphic" in2="color" mode="multiply" result="tinted" />
+                <feComposite in="tinted" in2="SourceAlpha" operator="in" />
+              </filter>
+            </defs>
+            <image
+              href="/assets/tshirt.png"
+              width="1131"
+              height="1390"
+              filter={`url(#${filterId})`}
+            />
+            {controls && area && (
+              <>
+                <rect className="print-area" {...bounds} />
+                {snap && (
+                  <line
+                    className="print-center"
+                    x1={bounds.x + bounds.width / 2}
+                    x2={bounds.x + bounds.width / 2}
+                    y1={bounds.y}
+                    y2={bounds.y + bounds.height}
+                  />
+                )}
+              </>
+            )}
+            {asset && box && (
+              <g>
+                <image
+                  href={new URL(asset.url, `${apiBaseUrl}/`).href}
+                  {...box}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+                {controls && (
+                  <>
+                    <rect
+                      className="design-move"
+                      {...box}
+                      tabIndex={0}
+                      role="button"
+                      aria-label="Posunout potisk. Táhněte nebo použijte šipky."
+                      onPointerDown={(event) => startDrag(event, "move")}
+                      onPointerMove={moveDrag}
+                      onPointerUp={() => {
+                        drag.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        drag.current = null;
+                      }}
+                      onKeyDown={(event) => keyMove(event, "move")}
+                    />
+                    <rect
+                      className="design-resize"
+                      x={box.x + box.width - 22}
+                      y={box.y + box.height - 22}
+                      width="44"
+                      height="44"
+                      tabIndex={0}
+                      role="button"
+                      aria-label="Změnit velikost potisku. Táhněte nebo použijte šipky."
+                      onPointerDown={(event) => startDrag(event, "resize")}
+                      onPointerMove={moveDrag}
+                      onPointerUp={() => {
+                        drag.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        drag.current = null;
+                      }}
+                      onKeyDown={(event) => keyMove(event, "resize")}
+                    />
+                  </>
+                )}
+              </g>
+            )}
+          </svg>
+        </div>
+        <div className="custom-panel">
+          <form
+            className="dialog-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!ready || !asset || !mm || busy) {
+                setError("Nejprve vyberte variantu, tiskovou plochu a nahrajte podklad.");
+                return;
+              }
+              if (Date.now() - asset.uploadedAt >= 7 * 86400000) {
+                setError("Platnost podkladu vypršela. Nahrajte jej znovu.");
+                return;
+              }
+              add({
+                kind: "custom",
+                name: `Vlastní potisk – ${asset.fileName}`,
+                productTypeId: type.id,
+                cutId: cut.id,
+                colorId: color.id,
+                size,
+                quantity,
+                upload: asset,
+                placement: { printAreaId: area.id, ...mm },
+                areaWidthMm: area.widthMm,
+                areaHeightMm: area.heightMm,
+              });
+            }}
+          >
+            <label>
+              Typ oblečení
+              <select
+                value={type?.id ?? ""}
+                aria-label="Typ oblečení"
+                onChange={(event) => {
+                  drag.current = null;
+                  setTypeId(event.target.value);
+                  setAreaId("");
+                }}
+                required
+                disabled={!types.length}
+              >
+                {types.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Střih
+              <select
+                value={cut?.id ?? ""}
+                aria-label="Střih"
+                onChange={(event) => setCutId(event.target.value)}
+                required
+                disabled={!options.cuts.length}
+              >
+                {options.cuts.map((cut) => (
+                  <option key={cut.id} value={cut.id}>
+                    {cut.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Barva
+              <select
+                value={color?.id ?? ""}
+                aria-label="Barva"
+                onChange={(event) => setColorId(event.target.value)}
+                required
+                disabled={!options.colors.length}
+              >
+                {options.colors.map((color) => (
+                  <option key={color.id} value={color.id}>
+                    {color.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Tisková plocha
+              <select
+                value={area?.id ?? ""}
+                aria-label="Tisková plocha"
+                onChange={(event) => {
+                  drag.current = null;
+                  setAreaId(event.target.value);
+                }}
+                required
+                disabled={!areas.length}
+              >
+                {areas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name} ({area.widthMm} × {area.heightMm} mm)
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="custom-design-actions">
+              <Button onClick={() => setGallery(true)} disabled={!ready || busy}>
+                Naše potisky
+              </Button>
+              <Button onClick={() => fileInput.current?.click()} disabled={!ready || busy}>
+                Vlastní potisk
+              </Button>
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              aria-label="Nahrát vlastní potisk"
+              accept="image/png,image/jpeg"
+              hidden
+              disabled={!ready || busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void selectFile(file);
+              }}
+            />
+            {asset && mm && (
+              <>
+                <div className="design-dimensions">
+                  <span>
+                    Vybraný potisk: <b>{asset.fileName}</b>
+                  </span>
+                  <strong>
+                    {mm.width} × {mm.height} mm
+                  </strong>
+                  <span>
+                    Pozice: {mm.x} × {mm.y} mm od levého horního rohu plochy.
+                  </span>
+                </div>
+                <Button
+                  color="error"
+                  onClick={() => {
+                    sequence.current++;
+                    controller.current?.abort();
+                    upload.reset();
+                    setLoadingGallery(false);
+                    setAsset(null);
+                    setPosition(null);
+                    setError("");
+                    setStatus(initialHint);
+                  }}
+                >
+                  Odebrat potisk
+                </Button>
+              </>
+            )}
+            <p role="status">{status}</p>
+            {error && <p role="alert">{error}</p>}
+            <label>
+              Velikost
+              <select
+                value={size ?? ""}
+                aria-label="Velikost"
+                onChange={(event) => setSizeValue(event.target.value)}
+                required
+                disabled={!options.sizes.length}
+              >
+                {options.sizes.map((size) => (
+                  <option key={size.value} value={size.value}>
+                    {size.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Počet kusů
+              <input
+                aria-label="Počet kusů vlastního potisku"
+                type="number"
+                min="1"
+                max="99"
+                required
+                value={quantity}
+                onChange={(event) => setQuantity(Number(event.target.value))}
+              />
+            </label>
+            <p>
+              Cena vlastního potisku bude k nacenění. U smíšeného košíku se potvrdí konečná cena
+              celé objednávky.
+            </p>
+            <Button
+              className="custom-add"
+              type="submit"
+              variant="contained"
+              disabled={!ready || !asset || busy}
+            >
+              Přidat návrh do košíku k nacenění
+            </Button>
+          </form>
+        </div>
+      </div>
+      <Dialog open={gallery} onClose={() => setGallery(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Vyberte potisk
+          <IconButton
+            className="dialog-close"
+            aria-label="Zavřít galerii potisků"
+            onClick={() => setGallery(false)}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <div className="design-grid">
+            {designs.map((item) => (
+              <button
+                key={item.src}
+                disabled={busy}
+                aria-label={item.name}
+                onClick={() => {
+                  setGallery(false);
+                  setError("");
+                  const request = ++sequence.current;
+                  controller.current?.abort();
+                  const abort = new AbortController();
+                  controller.current = abort;
+                  setLoadingGallery(true);
+                  void fetch(item.src, { signal: abort.signal })
+                    .then(async (response) => {
+                      if (!response.ok) throw new Error("Image fetch failed");
+                      return new File([await response.blob()], `${item.name}.png`, {
+                        type: "image/png",
+                      });
+                    })
+                    .then(async (file) => {
+                      if (request === sequence.current) {
+                        setLoadingGallery(false);
+                        await selectFile(file);
+                      }
+                    })
+                    .catch(() => {
+                      if (request === sequence.current && !abort.signal.aborted) {
+                        setLoadingGallery(false);
+                        setError("Potisk se nepodařilo načíst. Zkuste jiný nebo nahrajte vlastní.");
+                      }
+                    });
+                }}
+              >
+                <img src={item.src} alt={item.name} />
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+export function CustomPrint() {
+  const options = useCatalogOptionsRetrieve();
   return (
     <section id="vlastni-potisk" className="custom-section">
       <div className="shell">
@@ -83,331 +552,8 @@ export function CustomPrint() {
           <span className="section-label">02 / Na zakázku</span>
           <h2>Vlastní potisk</h2>
         </div>
-        <div className="custom-body">
-          <div
-            className={`shirt-preview ${controls ? "" : "controls-hidden"}`}
-            role="group"
-            aria-label={`Náhled trička – ${color.name}`}
-          >
-            <div className="preview-toolbar">
-              <Button
-                variant={controls ? "contained" : "outlined"}
-                startIcon={<VisibilityOutlined />}
-                aria-pressed={controls}
-                onClick={() => setControls((value) => !value)}
-              >
-                {controls ? "Skrýt" : "Zobrazit"} ovládací prvky
-              </Button>
-              {controls && (
-                <Button
-                  variant={snap ? "contained" : "outlined"}
-                  startIcon={<AlignHorizontalCenter />}
-                  aria-pressed={snap}
-                  onClick={() => setSnap((value) => !value)}
-                >
-                  {snap ? "Vypnout" : "Zapnout"} centrování
-                </Button>
-              )}
-            </div>
-            <svg
-              ref={svg}
-              className="shirt-art"
-              viewBox="0 0 1131 1390"
-              aria-label="Editor umístění potisku"
-            >
-              <defs>
-                <filter
-                  id={filterId}
-                  x="0"
-                  y="0"
-                  width="100%"
-                  height="100%"
-                  colorInterpolationFilters="sRGB"
-                >
-                  <feFlood floodColor={color.hex} result="color" />
-                  <feBlend in="SourceGraphic" in2="color" mode="multiply" result="tinted" />
-                  <feComposite in="tinted" in2="SourceAlpha" operator="in" />
-                </filter>
-              </defs>
-              <image
-                href="/assets/tshirt.png"
-                width="1131"
-                height="1390"
-                filter={`url(#${filterId})`}
-              />
-              {controls && (
-                <>
-                  <rect className="print-area" x="330" y="330" width="470" height="650" />
-                  {snap && <line className="print-center" x1="565" y1="300" x2="565" y2="1010" />}
-                </>
-              )}
-              {design && (
-                <g>
-                  <image
-                    href={design.src}
-                    x={design.x}
-                    y={design.y}
-                    width={design.width}
-                    height={design.height}
-                    preserveAspectRatio="xMidYMid meet"
-                  />
-                  {controls && (
-                    <>
-                      <rect
-                        className="design-move"
-                        x={design.x}
-                        y={design.y}
-                        width={design.width}
-                        height={design.height}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="Posunout potisk. Táhněte nebo použijte šipky."
-                        onPointerDown={(event) => startDrag(event, "move")}
-                        onPointerMove={moveDrag}
-                        onPointerUp={() => {
-                          drag.current = null;
-                        }}
-                        onPointerCancel={() => {
-                          drag.current = null;
-                        }}
-                        onKeyDown={(event) => keyMove(event, "move")}
-                      />
-                      <rect
-                        className="design-resize"
-                        x={design.x + design.width - 22}
-                        y={design.y + design.height - 22}
-                        width="44"
-                        height="44"
-                        tabIndex={0}
-                        role="button"
-                        aria-label="Změnit velikost potisku. Táhněte nebo použijte šipky."
-                        onPointerDown={(event) => startDrag(event, "resize")}
-                        onPointerMove={moveDrag}
-                        onPointerUp={() => {
-                          drag.current = null;
-                        }}
-                        onPointerCancel={() => {
-                          drag.current = null;
-                        }}
-                        onKeyDown={(event) => keyMove(event, "resize")}
-                      />
-                    </>
-                  )}
-                </g>
-              )}
-              {controls && (
-                <text className="design-hint" x="565" y="1025" textAnchor="middle">
-                  <tspan x="565">Tisková oblast</tspan>
-                  <tspan x="565" dy="34">
-                    Potisk posuňte tažením.
-                  </tspan>
-                  <tspan x="565" dy="34">
-                    Velikost změňte úchytem v rohu.
-                  </tspan>
-                </text>
-              )}
-            </svg>
-          </div>
-          <div className="custom-panel">
-            <div className="custom-controls">
-              <fieldset className="choice-field garment-field">
-                <legend>01 / Typ trička</legend>
-                <div>
-                  {shirtTypes.map((option) => (
-                    <label key={option.id}>
-                      <input
-                        type="radio"
-                        name="customType"
-                        checked={type === option.id}
-                        onChange={() => {
-                          setType(option.id);
-                          setSize(option.sizes.includes("M") ? "M" : option.sizes[0]!);
-                        }}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <div className="custom-panel-section">
-                <div className="custom-control-heading">
-                  <h3>02 / Barva trička</h3>
-                  <span>{color.name}</span>
-                </div>
-                <div className="custom-swatches" role="group" aria-label="Barvy trička">
-                  {customColors.map((option) => (
-                    <button
-                      key={option.name}
-                      type="button"
-                      className="color-swatch"
-                      style={{ background: option.hex }}
-                      aria-label={option.name}
-                      aria-pressed={color.name === option.name}
-                      onClick={() => setColor(option)}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="custom-panel-section">
-                <h3>03 / Váš potisk</h3>
-                <div className="custom-design-actions">
-                  <Button variant="outlined" onClick={() => setGallery(true)}>
-                    Naše potisky
-                  </Button>
-                  <Button variant="outlined" onClick={() => fileInput.current?.click()}>
-                    Vlastní potisk
-                  </Button>
-                </div>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  aria-label="Nahrát vlastní potisk"
-                  accept="image/png,image/jpeg,image/webp"
-                  hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = "";
-                    if (!file) return;
-                    if (
-                      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-                      file.size > 15 * 1024 * 1024
-                    ) {
-                      setStatus("Vyberte PNG, JPG nebo WebP do 15 MB.");
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      if (typeof reader.result === "string") selectDesign(reader.result, file.name);
-                    };
-                    reader.onerror = () => setStatus("Soubor se nepodařilo přečíst.");
-                    reader.readAsDataURL(file);
-                  }}
-                />
-                {design && (
-                  <>
-                    <div className="design-dimensions">
-                      <span>
-                        Vybraný potisk: <b>{design.name}</b>
-                      </span>
-                      <span>Rozměry potisku · šířka × výška</span>
-                      <strong>
-                        {((design.width * 30) / 470).toFixed(1)} ×{" "}
-                        {((design.height * 30) / 470).toFixed(1)} cm
-                      </strong>
-                    </div>
-                    <Button
-                      className="remove-design"
-                      variant="contained"
-                      color="error"
-                      onClick={() => {
-                        ++loadRequest.current;
-                        setDesign(null);
-                        setStatus(initialHint);
-                      }}
-                    >
-                      Odebrat potisk
-                    </Button>
-                  </>
-                )}
-                <p className="design-status" role="status">
-                  {status}
-                </p>
-              </div>
-            </div>
-            <form
-              className="custom-order-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!design) {
-                  setStatus("Nejprve vyberte nebo nahrajte potisk.");
-                  return;
-                }
-                add({
-                  id: "custom-print",
-                  name: "Vlastní potisk",
-                  quantity,
-                  size,
-                  color: color.name,
-                  type,
-                  price: 456,
-                  design,
-                });
-              }}
-            >
-              <label>
-                Velikost
-                <select value={size} onChange={(event) => setSize(event.target.value)} required>
-                  {shirtTypes
-                    .find((option) => option.id === type)!
-                    .sizes.map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Počet kusů
-                <div className="quantity-stepper">
-                  <button
-                    type="button"
-                    aria-label="Odebrat jeden kus"
-                    onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-                  >
-                    −
-                  </button>
-                  <input
-                    aria-label="Počet kusů vlastního potisku"
-                    type="number"
-                    min="1"
-                    max="99"
-                    required
-                    value={quantity}
-                    onChange={(event) => setQuantity(Number(event.target.value))}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Přidat jeden kus"
-                    onClick={() => setQuantity((value) => Math.min(99, value + 1))}
-                  >
-                    +
-                  </button>
-                </div>
-              </label>
-              <Button className="custom-add" type="submit" variant="contained">
-                <span>Do košíku za</span>
-                <strong>{money(456 * quantity)}</strong>
-              </Button>
-            </form>
-          </div>
-        </div>
-        <Dialog open={gallery} onClose={() => setGallery(false)} maxWidth="md" fullWidth>
-          <DialogTitle>
-            Vyberte potisk
-            <IconButton
-              className="dialog-close"
-              aria-label="Zavřít galerii potisků"
-              onClick={() => setGallery(false)}
-            >
-              <Close />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent>
-            <div className="design-grid">
-              {designs.map((item) => (
-                <button
-                  key={item.src}
-                  aria-label={item.name}
-                  aria-pressed={design?.src === item.src}
-                  onClick={() => {
-                    selectDesign(item.src, item.name);
-                    setGallery(false);
-                  }}
-                >
-                  <img src={item.src} alt={item.name} />
-                </button>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CatalogFeedback query={options} label="Možnosti vlastního potisku" />
+        {options.data && <CustomEditor options={options.data} />}
       </div>
     </section>
   );

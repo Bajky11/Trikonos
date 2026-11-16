@@ -11,7 +11,8 @@ from .models import OrderStatus, PaymentMethod
 
 def _order_access_url(order):
     from core.tokens import sign_order_access_token
-    return f'{settings.FRONTEND_URL}/orders/{sign_order_access_token(order.id)}'
+    from urllib.parse import quote
+    return f"{settings.FRONTEND_URL.rstrip('/')}/objednavka#pristup={quote(sign_order_access_token(order.id), safe='')}"
 
 
 def send_order_received_email(order):
@@ -37,7 +38,7 @@ def send_shop_notification_email(order):
             'order_number': order.order_number,
             'customer_email': order.customer.email,
             'has_custom': order.items.filter(is_custom=True).exists(),
-            'admin_url': f'{settings.FRONTEND_URL}/admin/orders/{order.id}',
+            'admin_url': f"{settings.FRONTEND_URL.rstrip('/')}/admin/objednavky/{order.id}",
         },
         subject=f'Nová objednávka {order.order_number}',
         recipient_list=[notify_email],

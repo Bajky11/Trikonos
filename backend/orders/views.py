@@ -1,5 +1,7 @@
 from django.core import signing
 from django.utils.translation import gettext as _
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, serializers, status
 from rest_framework.exceptions import NotFound
@@ -99,6 +101,8 @@ class CartValidateView(APIView):
 
         for raw_item in serializer.validated_data['items']:
             item = OrderItemInputSerializer.to_service_item(raw_item)
+            # Public previews must ignore client prices, just like public checkout.
+            item['unit_price'] = None
             result = services.validate_cart_item(item)
             line_results.append(result)
             total_quantity += item['quantity']
@@ -133,6 +137,7 @@ class CartValidateView(APIView):
         })
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderCreateView(generics.CreateAPIView):
     """POST /orders - public checkout, guest, no account needed."""
     serializer_class = OrderCreateSerializer
@@ -230,7 +235,7 @@ class DesignUploadView(APIView):
             '`widthPx`/`heightPx` jsou k dispozici jen pro rastrové obrázky '
             '(PNG/JPG), pro SVG/PDF jsou `null`.'
         ),
-        request=DesignUploadRequestSerializer,
+        request={'multipart/form-data': DesignUploadRequestSerializer},
         responses={
             201: DesignUploadResponseSerializer,
             413: OpenApiResponse(description='Soubor větší než 20 MB.'),
@@ -252,6 +257,8 @@ class DesignUploadView(APIView):
             data = sanitize_svg(data)
 
         width_px, height_px = get_image_dimensions(data, kind)
+        if kind in (PNG, JPG) and (width_px is None or height_px is None):
+            raise UnsupportedFileTypeError(_('The image is damaged or could not be decoded.'))
         _saved_path, url = save_random_file(data, design_upload_directory(), kind)
         payload = {
             'url': url,
@@ -277,6 +284,7 @@ def _order_queryset():
     )
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderLookupView(APIView):
     """POST /orders/lookup - number + e-mail. A mismatch on either field
     returns the exact same 404, so the response never reveals which part
@@ -323,6 +331,7 @@ class OrderLookupView(APIView):
         return Response(response_serializer.data)
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderAccessView(APIView):
     """GET /orders/access/{accessToken} - the link sent in confirmation
     e-mails. Never exposed as a plain GET /orders/{id}.

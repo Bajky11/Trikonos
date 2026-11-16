@@ -4,7 +4,7 @@ near-identical ones. Subclasses set queryset/serializer_class/search_fields.
 """
 from django.db.models import ProtectedError, Q
 from django.utils.translation import gettext as _
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -32,6 +32,10 @@ def lookup_schema_view(entity, entity_plural, extra_note='', tag='Admin - číse
         list=extend_schema(
             tags=[tag],
             summary=f'Seznam {entity_plural}',
+            parameters=[
+                OpenApiParameter('isActive', bool, description='Filtrovat aktivní/neaktivní položky.'),
+                OpenApiParameter('q', str, description='Hledat v názvu.'),
+            ],
             description=(
                 f'Vrátí VŠECHNY {entity_plural} včetně neaktivních (na rozdíl od '
                 'veřejného API, kde se neaktivní nikdy neukážou). Filtr `isActive` '
@@ -100,7 +104,7 @@ class LookupAdminViewSet(viewsets.ModelViewSet):
                 condition |= Q(**{f'{field}__icontains': search_term})
             queryset = queryset.filter(condition)
 
-        return queryset.order_by('position', 'name')
+        return queryset.order_by('position', 'name', 'id')
 
     def perform_destroy(self, instance):
         try:

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "api:generate": "orval --config orval.config.ts && vp fmt src/api/generated",
+    "test:e2e:api": "LIVE_API_TESTS=1 playwright test tests/api-live.spec.ts",
+    "test:e2e:auth": "LIVE_AUTH_TESTS=1 playwright test tests/auth-live.spec.ts",
     "dev": "vp dev",
     "build": "tsc && vp build",
     "check": "vp check",
@@ -18,6 +21,7 @@
     "@fontsource/manrope": "^5.3.0",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
+    "@tanstack/react-query": "^5.107.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"
@@ -28,6 +32,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "orval": "8.48.0",
     "typescript": "~7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
     "vite-plus": "1.4.0"

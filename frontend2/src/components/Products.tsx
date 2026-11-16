@@ -1,55 +1,60 @@
 import { Button, Typography } from "@mui/material";
 import { Link } from "react-router-dom";
-import type { CSSProperties } from "react";
-import { filters, money } from "../data/catalog";
-import type { Product, ProductImage } from "../data/catalog";
+import { useState } from "react";
+import { money } from "../data/catalog";
+import type { MotifList } from "../api/generated/models";
+import { useCategoriesList } from "../api/generated/api";
+import { apiBaseUrl } from "../api/http";
 
 export function ProductArt({
-  image,
+  src,
   name = "",
   className = "",
 }: {
-  image: ProductImage;
+  src?: string | null;
   name?: string;
   className?: string;
 }) {
-  return image.src ? (
+  const [failed, setFailed] = useState<string>();
+  const url = src ? new URL(src, `${apiBaseUrl}/`).href : undefined;
+  return url && failed !== url ? (
     <div className={`product-art product-art-photo ${className}`}>
-      <img
-        src={image.src}
-        alt={name}
-        loading="lazy"
-        style={{ transform: `scale(${image.zoom || 1})` }}
-      />
+      <img src={url} alt={name} loading="lazy" onError={() => setFailed(url)} />
     </div>
   ) : (
     <div
       role={name ? "img" : undefined}
       aria-label={name || undefined}
-      className={`product-art ${className}`}
-      style={
-        { "--x": `${image.x}%`, "--y": `${image.y}%`, "--zoom": image.zoom || 1 } as CSSProperties
-      }
-    />
+      className={`product-art product-art-placeholder ${className}`}
+    >
+      Náhled není k dispozici
+    </div>
   );
 }
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product }: { product: MotifList }) {
   return (
     <article className="product-card">
-      <Link to={`/produkt/${product.id}`} className="product-card-link">
-        <ProductArt image={product.images[0]!} />
+      <Link to={`/produkt/${encodeURIComponent(product.slug)}`} className="product-card-link">
+        <ProductArt src={product.mainImage} />
         <div className="product-card-details">
           <Typography component="h3" variant="h4">
             {product.name}
           </Typography>
-          <p>{product.subtitle}</p>
-          <strong>{money(product.price)}</strong>
+          <p>{product.category.name}</p>
+          <strong>Motiv {money(product.price / 100)}</strong>
         </div>
       </Link>
     </article>
   );
 }
-export function ProductStrip({ products, label }: { products: Product[]; label: string }) {
+export function ProductStrip({
+  products,
+  label,
+}: {
+  products: readonly MotifList[];
+  label: string;
+}) {
+  if (!products.length) return <p role="status">Zatím zde nejsou žádné motivy.</p>;
   return (
     <div className="product-strip" role="region" aria-label={label} tabIndex={0}>
       <div className="product-strip-group">
@@ -67,18 +72,42 @@ export function ProductFilters({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const categories = useCategoriesList();
+  const filters: [string, string][] = [
+    ["", "Všechna trička"],
+    ...(categories.data ?? []).map((category): [string, string] => [category.slug, category.name]),
+  ];
   return (
-    <div className="product-filters" role="group" aria-label="Filtrovat produkty">
-      {filters.map(([id, label]) => (
-        <Button
-          className={`filter-button ${value === id ? "active" : ""}`}
-          key={id}
-          aria-pressed={value === id}
-          onClick={() => onChange(id)}
-        >
-          {label}
-        </Button>
-      ))}
+    <>
+      <CatalogFeedback query={categories} label="Kategorie" />
+      <div className="product-filters" role="group" aria-label="Filtrovat produkty">
+        {filters.map(([id, label]) => (
+          <Button
+            className={`filter-button ${value === id ? "active" : ""}`}
+            key={id}
+            aria-pressed={value === id}
+            onClick={() => onChange(id)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+    </>
+  );
+}
+export function CatalogFeedback({
+  query,
+  label = "Produkty",
+}: {
+  query: { isPending: boolean; isError: boolean; refetch: () => unknown };
+  label?: string;
+}) {
+  if (query.isPending) return <p role="status">Načítání…</p>;
+  if (!query.isError) return null;
+  return (
+    <div role="alert">
+      <p>{label} se nepodařilo načíst.</p>
+      <Button onClick={() => void query.refetch()}>Zkusit znovu</Button>
     </div>
   );
 }

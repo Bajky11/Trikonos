@@ -52,6 +52,8 @@ def test_lookup_with_correct_number_and_email_returns_order(motif, product_type,
 
     assert response.status_code == 200
     assert response.data['order_number'] == order.order_number
+    assert 'no-store' in response['Cache-Control']
+    assert response.json()['accessToken']
 
 
 def test_lookup_with_wrong_email_returns_404(motif, product_type, cut, color):
@@ -78,6 +80,8 @@ def test_lookup_with_wrong_order_number_returns_the_same_404_as_wrong_email(moti
 
     assert wrong_email.status_code == wrong_number.status_code == 404
     assert wrong_email.data == wrong_number.data
+    assert 'no-store' in wrong_email['Cache-Control']
+    assert 'no-store' in wrong_number['Cache-Control']
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +198,8 @@ def test_order_with_expired_file_token_is_rejected(print_area, cut, color, monke
     assert response.data['error']['code'] == 'INVALID_FILE_TOKEN'
 
 
-def test_order_with_valid_file_token_from_upload_is_accepted(print_area, cut, color):
+def test_order_with_valid_file_token_from_upload_is_accepted(print_area, cut, color, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     png_bytes = (

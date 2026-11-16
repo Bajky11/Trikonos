@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Button, Dialog, DialogContent, DialogTitle, IconButton, TextField } from "@mui/material";
+import { Button, Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
 import Close from "@mui/icons-material/Close";
 import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined";
 import Undo from "@mui/icons-material/Undo";
 import VerifiedUserOutlined from "@mui/icons-material/VerifiedUserOutlined";
 import Checkroom from "@mui/icons-material/Checkroom";
 import { useShop } from "./ShopContext";
+import { useConfigRetrieve } from "../api/generated/api";
+import { useStoreData } from "../api/useStoreData";
+import { LoginForm } from "../auth/LoginForm";
 
 const navigation = [
   ["nase-prace", "Naše práce"],
@@ -17,10 +20,13 @@ const navigation = [
   ["kontakt", "Kontakty"],
 ];
 function Header() {
+  const { data: config } = useConfigRetrieve();
+  const shopName = config?.shopName || "Trikonoš";
   const location = useLocation();
   const home = location.pathname === "/";
   const [position, setPosition] = useState({ solid: !home, ribbon: !home, active: "" });
-  const { count, notify } = useShop();
+  const { count } = useShop();
+  const navigate = useNavigate();
   useEffect(() => {
     let frame = 0;
     const update = () => {
@@ -65,8 +71,8 @@ function Header() {
       className={`site-header ${position.solid ? "solid" : ""} ${position.ribbon ? "has-ribbon" : ""}`}
     >
       <nav className="nav shell" aria-label="Hlavní navigace">
-        <Link className="brand" to="/#domu" aria-label="Trikonoš, úvodní stránka">
-          Trikonoš
+        <Link className="brand" to="/#domu" aria-label={`${shopName}, úvodní stránka`}>
+          {shopName}
         </Link>
         <div className="nav-links">
           {navigation.map(([id, label]) => (
@@ -82,13 +88,7 @@ function Header() {
         <IconButton
           className="cart-button"
           aria-label={`Košík, počet položek: ${count}`}
-          onClick={() =>
-            notify(
-              count
-                ? `Počet položek v košíku: ${count}. Objednání zatím není dostupné.`
-                : "Košík je prázdný.",
-            )
-          }
+          onClick={() => navigate("/kosik")}
         >
           <svg
             viewBox="0 0 24 24"
@@ -123,8 +123,9 @@ function Header() {
   );
 }
 function Footer() {
+  const { config, options } = useStoreData();
+  const shopName = config.data?.shopName || "Trikonoš";
   const [login, setLogin] = useState(false);
-  const navigate = useNavigate();
   return (
     <>
       <footer className="store-footer" id="kontakt">
@@ -132,7 +133,7 @@ function Footer() {
           <div className="footer-grid">
             <div>
               <Link to="/#domu" className="footer-logo">
-                Trikonoš
+                {shopName}
               </Link>
               <p>Triko z hor, které má duši.</p>
             </div>
@@ -141,10 +142,26 @@ function Footer() {
               <Link to="/tricka">Kolekce triček</Link>
               <Link to="/#vlastni-potisk">Vlastní motiv</Link>
               <Link to="/#faq">Časté dotazy</Link>
+              <Link to="/stav-objednavky">Stav objednávky</Link>
             </div>
             <div>
               <h3>Ozvi se</h3>
-              <a href="mailto:ahoj@trikonos.cz">ahoj@trikonos.cz</a>
+              <Link to="/kontakt">Napsat zprávu / poptat tým</Link>
+              {config.isPending && <p aria-live="polite">Načítání kontaktních údajů…</p>}
+              {config.data?.contactEmail && (
+                <a href={`mailto:${config.data.contactEmail}`}>{config.data.contactEmail}</a>
+              )}
+              {config.data?.contactPhone && (
+                <a href={`tel:${config.data.contactPhone}`}>{config.data.contactPhone}</a>
+              )}
+              {config.data?.instagramUrl && (
+                <a href={config.data.instagramUrl} target="_blank" rel="noreferrer">
+                  Instagram
+                </a>
+              )}
+              {config.isSuccess && !config.data.contactEmail && !config.data.contactPhone && (
+                <p>Kontaktní údaje zatím nejsou vyplněné.</p>
+              )}
               <a
                 href="#"
                 onClick={(event) => {
@@ -156,8 +173,27 @@ function Footer() {
               </a>
             </div>
           </div>
+          {(config.isError || options.isError) && (
+            <div role="alert">
+              <p>
+                {config.isError
+                  ? "Konfiguraci obchodu se nepodařilo načíst."
+                  : "Katalogové číselníky se nepodařilo načíst."}
+              </p>
+              <Button
+                onClick={() => {
+                  if (config.isError) void config.refetch();
+                  if (options.isError) void options.refetch();
+                }}
+              >
+                Zkusit načíst znovu
+              </Button>
+            </div>
+          )}
           <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} Trikonoš</span>
+            <span>
+              © {new Date().getFullYear()} {shopName}
+            </span>
             <button onClick={() => setLogin(true)} className="plain-button">
               Login
             </button>
@@ -177,34 +213,7 @@ function Footer() {
         </DialogTitle>
         <DialogContent>
           <p className="section-label">Trikonoš admin</p>
-          <form
-            className="dialog-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.currentTarget.reset();
-              setLogin(false);
-              void navigate("/admin");
-            }}
-          >
-            <TextField
-              label="Přihlašovací jméno"
-              name="username"
-              autoComplete="username"
-              autoFocus
-            />
-            <TextField
-              label="Heslo"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-            />
-            <Button variant="contained" type="submit">
-              Přihlásit se →
-            </Button>
-            <small className="muted">
-              Ukázková administrace. Přihlašovací údaje se nikam neposílají ani neukládají.
-            </small>
-          </form>
+          <LoginForm />
         </DialogContent>
       </Dialog>
     </>

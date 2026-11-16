@@ -13,6 +13,7 @@ from customers.models import Customer
 from orders.models import Order, OrderStatus
 from orders.services import build_order_item
 
+from .views import MotifViewSet
 from .models import Category, Color, Motif, MotifVariant, PrintArea, ProductType
 
 pytestmark = pytest.mark.django_db
@@ -47,6 +48,10 @@ def test_upload_image_creates_thumbnails_and_becomes_the_main_image(admin_client
     assert image['url']
     assert image['thumbnail_small_url']
     assert image['thumbnail_large_url']
+    public_image = response.json()['images'][0]
+    assert public_image['id'] == image['id']
+    assert public_image['thumbnailSmallUrl'] == image['thumbnail_small_url']
+    assert public_image['colorId'] is None
 
     motif.refresh_from_db()
     stored = motif.images[0]
@@ -99,6 +104,12 @@ def test_reorder_images_changes_the_main_image(admin_client, motif, settings, tm
 
     assert response.status_code == 200
     assert [image['id'] for image in response.data['images']] == [second_id, first_id]
+    duplicate = admin_client.post(
+        f'/api/v1/admin/motifs/{motif.id}/images/reorder', {'ids': [first_id, first_id]}, format='json',
+    )
+    assert duplicate.status_code == 400
+    motif.refresh_from_db()
+    assert [image['id'] for image in motif.images] == [second_id, first_id]
 
 
 def test_delete_image_removes_files_from_storage(admin_client, motif, settings, tmp_path):
@@ -123,17 +134,23 @@ def test_delete_unknown_image_returns_404(admin_client, motif):
     assert response.status_code == 404
 
 
-def test_update_image_alt_text(admin_client, motif, settings, tmp_path):
+def test_update_image_alt_text(admin_client, motif, color, settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     upload = admin_client.post(f'/api/v1/admin/motifs/{motif.id}/images', {'file': _fake_jpeg()}, format='multipart')
     image_id = upload.data['images'][0]['id']
 
     response = admin_client.patch(
-        f'/api/v1/admin/motifs/{motif.id}/images/{image_id}', {'altText': 'Bitcoin tričko'}, format='json',
+        f'/api/v1/admin/motifs/{motif.id}/images/{image_id}', {'altText': 'Bitcoin tričko', 'colorId': str(color.id)}, format='json',
     )
 
     assert response.status_code == 200
     assert response.data['images'][0]['alt_text'] == 'Bitcoin tričko'
+    assert response.json()['images'][0]['colorId'] == str(color.id)
+    cleared = admin_client.patch(
+        f'/api/v1/admin/motifs/{motif.id}/images/{image_id}', {'colorId': None}, format='json',
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()['images'][0]['colorId'] is None
 
 
 def test_update_image_color_id(admin_client, motif, color, settings, tmp_path):
@@ -483,6 +500,59 @@ def test_related_motifs_excludes_inactive_motifs(motif, category):
     response = APIClient().get(f'/api/v1/motifs/{motif.slug}/related')
 
     assert response.data == []
+
+
+def test_paginated_ordering_breaks_price_and_date_ties_with_a_unique_key():
+    for ordering, field in [('price', 'price'), ('-price', '-price'), ('-createdAt', '-created_at')]:
+        queryset = MotifViewSet._ordered(Motif.objects.all(), ordering)
+        assert queryset.query.order_by == (field, 'id')
+
+
+def test_admin_motif_writes_return_the_detail_shape(admin_client, category):
+    created = admin_client.post('/api/v1/admin/motifs', {
+        'name': 'Nový motiv', 'slug': 'stabilni-url', 'price': 49990,
+        'category': str(category.id), 'isActive': False,
+    }, format='json')
+    assert created.status_code == 201
+    data = created.json()
+    assert data['ordersCount'] == 0
+    assert data['category'] == {'id': str(category.id), 'name': category.name}
+    updated = admin_client.patch(f"/api/v1/admin/motifs/{data['id']}", {
+        'slug': data['slug'], 'price': 59990, 'isActive': True,
+    }, format='json')
+    assert updated.status_code == 200
+    assert updated.json()['slug'] == 'stabilni-url'
+    assert updated.json()['price'] == 59990
+    assert updated.json()['category'] == data['category']
+    invalid = admin_client.post('/api/v1/admin/motifs', {
+        'name': '!!!', 'price': 49990, 'category': str(category.id),
+    }, format='json')
+    assert invalid.status_code == 400
+    assert 'slug' in invalid.json()['error']['fields']
+
+
+def test_admin_lookup_contract_validates_prices_dimensions_and_category_urls(admin_client, product_type, category):
+    updated = admin_client.patch(f'/api/v1/admin/product-types/{product_type.id}', {'price': 12345}, format='json')
+    assert updated.status_code == 200
+    assert updated.json()['price'] == 12345
+    created = admin_client.post('/api/v1/admin/print-areas', {
+        'name': 'Test přední plochy', 'productType': str(product_type.id), 'widthMm': 250, 'heightMm': 300,
+    }, format='json')
+    assert created.status_code == 201
+    assert created.json()['productType'] == str(product_type.id)
+    area_id = created.json()['id']
+    invalid = admin_client.patch(f'/api/v1/admin/print-areas/{area_id}', {'widthMm': 0}, format='json')
+    assert invalid.status_code == 400
+    assert 'widthMm' in invalid.json()['error']['fields']
+    original_slug = category.slug
+    renamed = admin_client.patch(f'/api/v1/admin/categories/{category.id}', {
+        'name': 'Nový název kategorie', 'slug': original_slug, 'isActive': False,
+    }, format='json')
+    assert renamed.status_code == 200
+    assert renamed.json()['slug'] == original_slug
+    invalid_slug = admin_client.post('/api/v1/admin/categories', {'name': '!!!'}, format='json')
+    assert invalid_slug.status_code == 400
+    assert 'slug' in invalid_slug.json()['error']['fields']
 
 
 def test_inactive_motif_returns_404_on_public_detail(motif):

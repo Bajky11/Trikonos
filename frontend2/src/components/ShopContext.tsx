@@ -1,85 +1,87 @@
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { Snackbar } from "@mui/material";
-import { customColors, products, shirtColors, shirtTypes } from "../data/catalog";
-
-export interface Design {
-  src: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-export interface CartItem {
-  id: string;
-  name: string;
-  quantity: number;
-  size: string;
-  color: string;
-  type: string;
-  price: number;
-  design?: Design;
-}
-const key = "trikonos-react-demo-cart-v1";
-function validItem(value: unknown): value is CartItem {
-  if (!value || typeof value !== "object") return false;
-  const item = value as CartItem;
-  const type = shirtTypes.find((type) => type.id === item.type);
-  return (
-    typeof item.name === "string" &&
-    Number.isInteger(item.quantity) &&
-    item.quantity >= 1 &&
-    item.quantity <= 99 &&
-    Number.isFinite(item.price) &&
-    item.price >= 0 &&
-    !!type?.sizes.includes(item.size) &&
-    (item.id === "custom-print" ? customColors : shirtColors).some(
-      (color) => color.name === item.color,
-    ) &&
-    (item.id === "custom-print" || products.some((product) => product.id === item.id))
-  );
-}
-function loadCart(): CartItem[] {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(stored) ? stored.filter(validItem).slice(0, 500) : [];
-  } catch {
-    return [];
-  }
-}
+import { cartStorageKey, loadCart, maxCartItems, validCartItem } from "../cart/storage";
+import type { CartItem } from "../cart/storage";
+import { readCheckout } from "../checkout/session";
+export type { Design } from "../cart/storage";
 const ShopContext = createContext<{
   count: number;
+  items: CartItem[];
+  locked: boolean;
+  lockCheckout: (value: boolean) => void;
+  completeCheckout: (cartKey: string) => boolean;
+  setQuantity: (index: number, quantity: number) => boolean;
+  remove: (index: number) => boolean;
+  acceptPrice: (index: number, unitPrice: number) => boolean;
   notify: (message: string) => void;
   add: (item: CartItem) => boolean;
 } | null>(null);
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState(loadCart);
+  const [locked, setLocked] = useState(() => readCheckout()?.kind === "pending");
   const [message, setMessage] = useState("");
-  const add = (item: CartItem) => {
-    if (!validItem(item)) {
-      setMessage("Zkontrolujte typ trička, barvu, velikost a počet kusů.");
+  const save = (next: CartItem[], completing = false) => {
+    if (locked && !completing) {
+      setMessage("Košík má rozpracované odeslání. Nejdříve je dokončete v pokladně.");
       return false;
     }
-    const next = [...items, item];
+    if (!next.every(validCartItem)) {
+      setMessage("Zkontrolujte zvolenou variantu a počet kusů.");
+      return false;
+    }
     try {
-      localStorage.setItem(key, JSON.stringify(next));
+      localStorage.setItem(cartStorageKey, JSON.stringify(next));
     } catch {
       setMessage(
-        "Návrh se nepodařilo uložit. Zkuste menší obrázek nebo povolte úložiště prohlížeče.",
+        "Změnu košíku se nepodařilo uložit. Povolte úložiště prohlížeče nebo uvolněte místo.",
       );
       return false;
     }
     setItems(next);
-    setMessage(
-      `${item.name} (${item.quantity} ks) přidáno do košíku. Objednání zatím není dostupné.`,
-    );
+    return true;
+  };
+  const add = (item: CartItem) => {
+    if (items.length >= maxCartItems) {
+      setMessage("Košík je plný. Další položku zatím nelze uložit.");
+      return false;
+    }
+    if (!validCartItem(item)) {
+      setMessage("Zkontrolujte zvolenou variantu a počet kusů.");
+      return false;
+    }
+    const next = [...items, item];
+    if (!save(next)) return false;
+    setMessage(`${item.name} (${item.quantity} ks) přidáno do košíku.`);
     return true;
   };
   return (
     <ShopContext.Provider
       value={{
         count: items.reduce((sum, item) => sum + item.quantity, 0),
+        items,
+        locked,
+        lockCheckout: setLocked,
+        completeCheckout: (cartKey) => {
+          const current = loadCart();
+          if (JSON.stringify(current) !== cartKey) {
+            setItems(current);
+            setMessage(
+              "Objednávka byla přijata, ale košík se mezitím změnil. Zkontrolujte zbývající položky.",
+            );
+            return false;
+          }
+          return save([], true);
+        },
+        setQuantity: (index, quantity) =>
+          save(items.map((item, i) => (i === index ? { ...item, quantity } : item))),
+        remove: (index) => save(items.filter((_, i) => i !== index)),
+        acceptPrice: (index, unitPrice) =>
+          save(
+            items.map((item, i) =>
+              i === index && item.kind === "catalog" ? { ...item, unitPrice } : item,
+            ),
+          ),
         notify: setMessage,
         add,
       }}

@@ -1,10 +1,21 @@
 # Trikonos
 
+Plán propojení aplikací: [Integrace frontendu a backendu](docs/integrace-frontend-backend.md).
+
+## Start
+
+docker compose -f docker-compose.dev.yaml up --build
+
 ## React frontend
 
 Nová aplikace je ve složce [`frontend2`](frontend2/README.md) (Vite+, React,
 TypeScript, MUI a Bun). Spuštění: v `frontend2` spusť `bun install` a `bun run dev`.
-Obsahuje pouze testovací data, backend pro její provoz není potřeba.
+Konfiguraci, katalog a jeho číselníky načítá přímo z backendu přes
+TanStack Query a klienta generovaného Orvalem. Administrace motivů, variant, fotografií
+a katalogových číselníků je také napojená. Vlastní potisk používá skutečný upload
+PNG/JPG, tiskové plochy v mm a košík k nacenění; ostatní administrační sekce jsou zatím demo.
+Přístup do administrace vyžaduje skutečné přihlášení.
+Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
 
 ## Vývoj v Dockeru (hot reload)
 
@@ -23,7 +34,9 @@ Frontend používá polling pro spolehlivé sledování souborů i na Docker Des
 Linuxové `node_modules` jsou v odděleném volume; hostitelské se nepoužijí.
 Při změně závislostí spusť příkaz znovu s `--build`; frontend při startu také
 synchronizuje balíčky podle `bun.lock`. Jednotlivé aplikace na sobě nezávisí
-a frontend nevolá backend.
+a browser volá backend přímo na `http://localhost:8000`, bez frontendové proxy.
+Pro session přihlašování používej frontend i backend přes `localhost`,
+nikoli kombinaci `127.0.0.1` a `localhost`.
 
 E-maily se vypisují do logu backendu. Není potřeba vytvářet `.env`.
 Při startu se provedou migrace a naplní výchozí data včetně vývojového
@@ -70,8 +83,39 @@ docker compose --env-file .env.production -f docker-compose.yaml up -d --build
 docker compose --env-file .env.production -f docker-compose.yaml exec backend python manage.py createsuperuser
 ```
 
-Frontend stále zobrazuje pouze testovací data a jeho Login otevírá demo
-administraci, nikoli skutečnou autentizaci backendu.
+V `.env.production` nastav `VITE_API_BASE_URL` na veřejný HTTPS origin backendu
+a `FRONTEND_ORIGINS` na veřejný HTTPS origin frontendu (viz `.env.example`).
+API URL je součástí buildu frontendu, po změně je nutné image znovu sestavit.
+Produkční Compose bez těchto hodnot odmítne start, aby frontend omylem
+nevolal `localhost` na zařízení návštěvníka.
+Přihlášení je ověřené lokálně mezi různými porty; produkční domény a HTTPS
+cookies je před nasazením potřeba ověřit samostatně.
+
+Nenapojené části administrace stále používají testovací data. Login v patičce
+a `/prihlaseni` používají skutečnou autentizaci backendu; `/admin` je chráněné.
+Konfigurace, katalogové číselníky, kategorie i motivy se načítají ze skutečného API.
+V `/admin/produkty` lze spravovat motivy, jejich povolené varianty a fotografie
+včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy oblečení
+a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
+`/admin/objednavky` používá skutečný seznam, filtry a detail. Umožňuje upravit
+adresy/dopravu, nacenit položky, potvrdit cenu zákazníkovi a evidovat platbu nebo
+změnit povolený stav. Evidence platby neprovádí bankovní operaci. Zásilky, štítky
+a výrobní přehledy ještě nejsou napojené; statistiky přehledu zůstávají demo.
+`/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
+katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
+smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,
+osobní odběr/doručení na adresu v ČR a skutečné odeslání objednávky. Bez nastaveného
+`SHOP_TERMS_URL` je odeslání ve frontendu zablokované; schválené podmínky zatím nejsou připravené.
+Potvrzení a zákaznický detail jsou na `/objednavka`, včetně odkazů z e-mailu.
+`/stav-objednavky` dohledá objednávku podle čísla a e-mailu; `/kontakt` posílá dotazy
+a týmové poptávky. Kontakt vyžaduje `SHOP_NOTIFY_EMAIL` a nakonfigurovaný e-mailový
+backend; při nedostupném odesílání vrací chybu místo falešného úspěchu.
+
+Pro provoz nastav také `FRONTEND_URL` (veřejný origin frontendu pro e-maily),
+`SHOP_BANK_ACCOUNT`, kontakty, `SHOP_NOTIFY_EMAIL` a skutečné SMTP. Výdejní místa,
+faktura se splatností a online platební brána nejsou v tomto kroku zapojené.
+Před nasazením je nutné maskovat tokeny v access logách a nepoužívat konzolový
+e-mailový backend pro skutečné zákazníky. Podrobnosti jsou v návodu frontendu.
 
 ### HTTPS a přístup z internetu
 

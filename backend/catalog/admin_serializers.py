@@ -20,6 +20,8 @@ class AdminCategorySerializer(serializers.ModelSerializer):
         if not attrs.get('slug'):
             name = attrs.get('name') or getattr(self.instance, 'name', '')
             attrs['slug'] = slugify(name)
+            if not attrs['slug']:
+                raise serializers.ValidationError({'slug': _('A URL slug could not be generated. Enter it explicitly.')})
 
         queryset = Category.objects.filter(slug=attrs['slug'])
         if self.instance:

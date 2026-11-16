@@ -219,6 +219,56 @@ def test_different_order_id_creates_separate_orders(motif, product_type, cut, co
     assert Order.objects.count() == 2
 
 
+def test_checkout_price_guard_rolls_back_before_emails_and_session_retry_is_idempotent(motif, product_type, cut, color, carrier, django_capture_on_commit_callbacks):
+    client = APIClient(enforce_csrf_checks=True)
+    user = User.objects.create_user(email='checkout-admin@example.cz', password='test-only')
+    client.force_login(user)
+    ShippingPrice.objects.create(carrier=carrier, delivery_type=DeliveryType.HOME_DELIVERY, price=7900)
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.HOME_DELIVERY, 'carrierId': str(carrier.id)})
+    body.update(orderId=str(uuid.uuid4()), expectedTotal=1, expectedShippingCost=7900)
+    assert client.post('/api/v1/orders', body, format='json').status_code == 403
+    token = client.get('/api/v1/admin/auth/csrf')['X-CSRFToken']
+    with django_capture_on_commit_callbacks(execute=True) as rejected_callbacks:
+        rejected = client.post('/api/v1/orders', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert rejected.status_code == 422
+    assert rejected.json()['error']['code'] == 'PRICE_CHANGED'
+    assert not Order.objects.exists()
+    assert not rejected_callbacks
+    body['expectedTotal'] = motif.price + product_type.price + 7900
+    body['expectedShippingCost'] = 1
+    with django_capture_on_commit_callbacks(execute=True) as shipping_callbacks:
+        changed_shipping = client.post('/api/v1/orders', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert changed_shipping.status_code == 422
+    assert not Order.objects.exists()
+    assert not shipping_callbacks
+    body['expectedShippingCost'] = 7900
+    body['expectedTotal'] = motif.price + product_type.price + 7900
+    with django_capture_on_commit_callbacks(execute=True) as accepted_callbacks:
+        accepted = client.post('/api/v1/orders', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert accepted.status_code == 201
+    assert len(accepted_callbacks) == 2
+    assert 'no-store' in accepted['Cache-Control']
+    with django_capture_on_commit_callbacks(execute=True) as repeated_callbacks:
+        repeated = client.post('/api/v1/orders', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert repeated.status_code == 201
+    assert repeated.json()['orderNumber'] == accepted.json()['orderNumber']
+    assert Order.objects.count() == 1
+    assert not repeated_callbacks
+    conflict = client.post('/api/v1/orders', {**body, 'customer': {**body['customer'], 'email': 'someone-else@example.cz'}}, format='json', HTTP_X_CSRFTOKEN=token)
+    assert conflict.status_code == 422
+    assert conflict.json()['error']['code'] == 'ORDER_ID_CONFLICT'
+    assert 'accessToken' not in conflict.json()
+    detail = client.get('/api/v1/orders/access/' + accepted.json()['accessToken'])
+    assert detail.status_code == 200
+    assert 'no-store' in detail['Cache-Control']
+    from orders.emails import _order_access_url
+    from urllib.parse import urlsplit, parse_qs
+    url = urlsplit(_order_access_url(Order.objects.get()))
+    assert url.path == '/objednavka'
+    assert parse_qs(url.fragment)['pristup']
+    assert accepted.json()['accessToken'] not in url.path
+
+
 def test_public_catalog_order_auto_confirms(motif, product_type, cut, color):
     """A fully-priced catalog order from public checkout confirms itself -
     the customer already saw the final price in this response, no admin

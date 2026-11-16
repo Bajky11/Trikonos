@@ -15,6 +15,8 @@ EXPOSE 5173
 CMD ["sh", "-c", "bun install --frozen-lockfile && exec bun run dev -- --host 0.0.0.0 --strictPort"]
 
 FROM dependencies AS build
+ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 COPY . .
 RUN bun run build
 

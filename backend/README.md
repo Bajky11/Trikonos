@@ -65,11 +65,18 @@ Lokální `docker-compose.yml` (Django dev server, `/media/` servírované jen v
 
 ### Administrace
 
-1. Získat CSRF cookie (`GET /api/v1/admin/auth/csrf`).
-2. Přihlásit se přes `POST /api/v1/admin/auth/login` a ověřit identitu `GET /api/v1/admin/auth/me`.
+1. Získat CSRF cookie (`GET /api/v1/admin/auth/csrf`, stále `204` bez těla).
+   Token se vrací i v CORS-exposed response headeru `X-CSRFToken`, aby jej mohl
+   použít frontend na jiném hostname bez sdílení cookie domény.
+2. Přihlásit se přes `POST /api/v1/admin/auth/login` s hlavičkou `X-CSRFToken`
+   a ověřit identitu `GET /api/v1/admin/auth/me`. Login vyžaduje CSRF i pro
+   anonymního uživatele a vrací nový token po rotaci ve stejné response hlavičce.
 3. Načítat administrativní přehledy, detaily a číselníky podle příslušných endpointů níže.
 4. Při změnách objednávek respektovat povolené přechody stavu vrácené backendem.
 5. Po odhlášení (`POST /api/v1/admin/auth/logout`) zahodit cache chráněných dat.
+
+Používat `credentials: include`; CSRF token neukládat do localStorage.
+Všechny backendové účty jsou administrátorské, profil `Me` neobsahuje role.
 
 ## 4. Kompletní katalog endpointů
 

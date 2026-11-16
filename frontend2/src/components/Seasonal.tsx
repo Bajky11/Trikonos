@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { importedProducts } from "../data/catalog";
+import { seasonalProducts } from "../data/catalog";
 
 export function Seasonal() {
   const [active, setActive] = useState<string | null>(null);
@@ -14,16 +14,16 @@ export function Seasonal() {
   const scroll = (id: string, direction: number) =>
     strips.current[id]?.scrollBy({ left: direction * 324, behavior: "smooth" });
   const photos = [
-    importedProducts[2]!,
-    importedProducts[3]!,
-    importedProducts[6]!,
-    importedProducts[5]!,
-    importedProducts[7]!,
+    seasonalProducts[2]!,
+    seasonalProducts[3]!,
+    seasonalProducts[6]!,
+    seasonalProducts[5]!,
+    seasonalProducts[7]!,
     {
-      ...importedProducts[2]!,
+      ...seasonalProducts[2]!,
       id: "tancici-bukacek-detail",
       name: "Tančící Bukáček — detail",
-      images: [importedProducts[2]!.images[1]!],
+      images: [seasonalProducts[2]!.images[1]!],
     },
   ];
   return (
