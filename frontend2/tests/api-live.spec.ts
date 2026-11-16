@@ -1,4 +1,11 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+async function checkCheckoutWithoutOrdering(page: Page) {
+  await page.goto("/pokladna");
+  await expect(page.getByRole("heading", { name: "Pokladna", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Objednat s povinností platby" })).toBeDisabled();
+}
 
 test.skip(!process.env.LIVE_API_TESTS, "Run bun run test:e2e:api with the Docker backend running.");
 test.use({ baseURL: "http://localhost:5173" });
@@ -72,6 +79,7 @@ test("browser loads real Docker API over CORS with credentials", async ({ page }
     await page.goto("/kosik");
     expect((await validation).status()).toBe(200);
     await expect(page.getByText("Položka není dostupná nebo ji nelze ocenit.")).toBeVisible();
+    await checkCheckoutWithoutOrdering(page);
     return;
   }
   await colors.first().click();
@@ -83,4 +91,5 @@ test("browser loads real Docker API over CORS with credentials", async ({ page }
   await page.getByRole("button", { name: "Košík, počet položek: 1" }).click();
   expect((await validation).status()).toBe(200);
   await expect(page.getByText("Aktuální cena:", { exact: false })).toBeVisible();
+  await checkCheckoutWithoutOrdering(page);
 });

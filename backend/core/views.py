@@ -21,6 +21,7 @@ class ConfigResponseSerializer(serializers.Serializer):
     contact_phone = serializers.CharField()
     instagram_url = serializers.CharField()
     bank_account = serializers.CharField()
+    terms_url = serializers.CharField(allow_blank=True, help_text='URL schválených obchodních podmínek; prázdná hodnota blokuje checkout ve frontendu.')
     topbar_text = serializers.CharField()
     payment_methods = ChoiceOptionSerializer(many=True)
     delivery_types = ChoiceOptionSerializer(many=True)
@@ -52,6 +53,7 @@ class ConfigView(APIView):
             'contact_phone': shop['CONTACT_PHONE'],
             'instagram_url': shop['INSTAGRAM_URL'],
             'bank_account': shop['BANK_ACCOUNT'],
+            'terms_url': shop.get('TERMS_URL', ''),
             'topbar_text': shop['TOPBAR_TEXT'],
             'payment_methods': [
                 {'value': value, 'label': label} for value, label in PaymentMethod.choices

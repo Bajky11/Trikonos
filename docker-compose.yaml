@@ -49,6 +49,12 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:?Set FRONTEND_ORIGINS in .env.production}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in .env.production}
+      SHOP_TERMS_URL: ${SHOP_TERMS_URL:-}
+      SHOP_BANK_ACCOUNT: ${SHOP_BANK_ACCOUNT:-}
+      SHOP_CONTACT_EMAIL: ${SHOP_CONTACT_EMAIL:-}
+      SHOP_CONTACT_PHONE: ${SHOP_CONTACT_PHONE:-}
+      SHOP_NOTIFY_EMAIL: ${SHOP_NOTIFY_EMAIL:-}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}

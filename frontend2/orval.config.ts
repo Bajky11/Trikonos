@@ -11,6 +11,8 @@ export default defineConfig({
           "catalogOptionsRetrieve",
           "cartValidateCreate",
           "uploadsDesignsCreate",
+          "ordersCreate",
+          "ordersAccessRetrieve",
           "adminAuthCsrfRetrieve",
           "adminAuthLoginCreate",
           "adminAuthLogoutCreate",

@@ -49,6 +49,7 @@ export const config: ConfigResponse = {
   contactPhone: "",
   instagramUrl: "",
   bankAccount: "",
+  termsUrl: "",
   topbarText: "",
   paymentMethods: [],
   deliveryTypes: [],

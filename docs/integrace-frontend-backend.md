@@ -337,33 +337,89 @@ validací; testy pokryjí změnu ceny, neplatnou variantu a expirovaný upload.
   smíšený košík, reload a expiraci tokenu. Uploady se testovaly v mock browser API
   a izolovaném backendovém MEDIA_ROOT; do skutečné katalogové DB ani media se
   podklady nedoplňovaly. Jeden starší upload test byl také izolován do tmp_path.
-- Tento krok zůstává necommitnutý a nepushnutý. Další bod: checkout, zákaznické
-  údaje a volba dopravy/platby podle skutečných možností backendu; finální online
-  platební brána není automaticky součástí.
+- Vlastní potisk byl na pokyn uživatele commitnutý jako `cf4100f`; bez pushe.
 
 ## 4. Checkout a zákaznická cesta
 
-- [ ] Doplnit checkout: zákazník, fakturační/doručovací adresa, validace,
+- [x] Doplnit checkout: zákazník, fakturační/doručovací adresa, validace,
   obchodní podmínky a případný marketingový souhlas.
-- [ ] Dohodnout podporované dopravní a platební metody; odlišit evidenci
+- [ ] Před skutečným použitím dodat schválené podmínky a nastavit `SHOP_TERMS_URL`;
+  bez něj UI odeslání blokuje. Rozhodnout evidenci verze/času souhlasu na backendu.
+- [x] Dohodnout podporované dopravní a platební metody; odlišit evidenci
   platebního stavu od skutečné online platební brány.
-- [ ] Napojit ceny dopravy, dobírku, osobní odběr a výdejní místo Packety
-  podle schváleného způsobu výběru a serverových požadavků.
+- [x] Napojit ceny dopravy, dobírku a osobní odběr podle skutečných serverových cen.
+- [ ] Výdejní místa Packety řešit samostatně (veřejná konfigurace, widget, ověření).
 - [ ] Pokud bude požadována online platba, samostatně navrhnout a doplnit
   bránu, ověření výsledku na serveru, webhooky a selhané/opakované platby.
-- [ ] Napojit vytvoření objednávky, idempotentní `orderId`, ochranu před
+- [x] Napojit vytvoření objednávky, idempotentní `orderId`, ochranu před
   dvojklikem a bezpečné opakování po výpadku spojení.
-- [ ] Doplnit potvrzení, zákaznický detail a dohledání objednávky;
-  chránit access token před únikem do logů, analytiky a refererů.
+- [x] Doplnit potvrzení, zákaznický detail a otevření z e-mailu.
+- [ ] Doplnit dohledání podle čísla objednávky a e-mailu.
+- [x] Odstranit token z frontendové adresy, nepředávat jej v referreru/analytice;
+  privátní odpovědi necachovat.
+- [ ] Před produkcí maskovat tokeny v backendových/proxy access logách a vypnout
+  konzolový e-mailový backend pro reálné zákazníky.
 - [ ] Napojit kontakt/poptávku, honeypot, chyby odeslání a skutečné e-maily.
 - [ ] Ověřit texty a notifikace pro běžnou objednávku i následné nacenění.
 
 **Ověření etapy:** E2E nákup katalogové položky i scénář vlastního potisku
 a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku.
 
+### První checkout a potvrzení (16. 11. 2026)
+
+- Uživatel schválil převod/dobírku a osobní odběr/doručení na adresu bez online
+  brány, faktury se splatností a výdejních míst. První formulář podporuje adresy
+  v ČR; API nemá mezinárodní ceník dopravy. Smíšená objednávka celá čeká na nacenění.
+- `/pokladna` obsahuje kontakt, fakturační a volitelnou jinou doručovací adresu,
+  firmu/IČO/DIČ, poznámku a souhlasy. Staré demo návrhy nebo prošlé/neplatné
+  podklady se potichu nevynechávají; je nutné opravit košík.
+- Schválené podmínky zatím nejsou připravené. `SHOP_TERMS_URL` se vrací jako
+  `config.termsUrl`; bez platné HTTP(S) URL UI neposílá `POST /orders`.
+  Skutečný právní text se nevymýšlel. API samo dál kontroluje `termsAccepted`,
+  neprovozuje nový serverový URL gate a zatím neeviduje verzi/čas dokumentů.
+- Dopravu, dobírku a mezisoučet vrací `/cart/validate`. Chybějící cena není nula
+  a blokuje objednání. Kontrola běží znovu těsně před odesláním; změna vyžaduje
+  nové odsouhlasení shrnutí. Vybraná osobní doprava neposílá dopravce.
+- Volitelné backendové `expectedTotal`/`expectedShippingCost` brání ještě pozdější
+  změně ceny. Vnější transakce zahrnuje cenovou pojistku i potvrzení: při
+  `PRICE_CHANGED` nevznikne objednávka a neproběhnou e-mailové callbacky.
+- Před POST se přesný požadavek a UUID uloží do sessionStorage této karty. Při
+  síti/5xx se košík uzamkne a po reloadu lze pouze zopakovat původní tělo/ID;
+  žádný automatický retry ani nový pokus s jinými údaji. Chybějící sessionStorage
+  blokuje odeslání. Při ztrátě session záznamu je potřeba ověřit výsledek přes
+  e-mail/obchod, ne rovnou vytvářet jinou objednávku.
+- Přijatý výsledek nahradí pending payload minimálním potvrzením bez kontaktních
+  a adresních polí. Košík se nemaže, pokud se mezitím změnil. Selhání uložení
+  potvrzení neznamená neúspěšné přijetí; na disku zůstává původní idempotentní pokus.
+- Backend při veřejném replay navíc porovnává e-mail zákazníka, aby cizí `orderId`
+  nevrátil přístup k jiné objednávce. Bez nových rolí, modelů nebo migrací.
+- `/objednavka` zobrazuje aktuální zákaznický detail, stav, částky a serverové
+  platební instrukce. U `QUOTE_REQUESTED` nevyzývá k placení. Prázdný účet se
+  nenahrazuje smyšleným. Potvrzení i detail fungují po reloadu této karty.
+- Nové zákaznické e-maily vedou na `/objednavka#pristup=…`; fragment se neposílá
+  HTTP serveru a po načtení se odstraní. Starší `/orders/:accessToken` je kompatibilní
+  vstup. Samostatně uložený přístup z e-mailu nepřepíše pending checkout. Referrery
+  jsou zakázané, backendové odpovědi `POST /orders` a `GET /orders/access` mají no-store.
+- Produkční Compose nově vyžaduje `FRONTEND_URL`; vývojové URL je 5173. Compose
+  předává také terms, bankovní účet a shop kontakty/notifikační e-mail. Skutečné
+  SMTP je nutné nastavit samostatně. Backendová API cesta stále obsahuje token,
+  takže jeho redakce v access logách je výslovný úkol před produkcí. Interní
+  backoffice odkazy v e-mailech ještě čekají na napojení administrace objednávek.
+- Ověření: check bez chyb (2 stávající Orval warnings), 25 unit testů, build,
+  28 standardních E2E, oba živé API/auth testy a 151 backendových testů (1 skipped)
+  prošly. Dva ucelené checkout E2E pokrývají chybějící podmínky/cenu dopravy,
+  přecenění, dobírku, jinou adresu, mixed quote, nejistý výsledek/reload, stejný
+  orderId, potvrzení a e-mailový odkaz. Backendový test ověřuje CSRF, rollback
+  cen a e-mailů, idempotenci, cizí e-mail i no-store. Compose konfigurace ověřeny.
+- Objednávky vznikaly pouze ve stavovém mock API a izolované testovací DB;
+  živé testy žádnou objednávku neodesílají. Uživatel schválil commit tohoto kroku;
+  bez pushe.
+  Další bod: dohledání objednávky podle čísla/e-mailu a kontaktní/poptávkový formulář.
+
 ## 5. Provozní administrativa
 
-- [ ] Dohodnout role a oprávnění; UI nesmí nahrazovat serverovou autorizaci.
+- [x] Zachovat schválený model: všechny backendové účty jsou administrátorské,
+  nové role se nezavádějí. UI nesmí nahrazovat serverovou autorizaci.
 - [ ] Napojit skutečný přehled, globální hledání, filtry a stránkování;
   ověřit chybějící statistiky a případně doplnit agregace na backendu.
 - [ ] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
@@ -401,9 +457,11 @@ produkci; zbývající omezení a odložené úkoly jsou výslovně zaznamenané
   zatím v kódu. Později rozhodnout rozsah administrace a případné backendové
   modely, API, média a migraci obsahu. Není to blokátor první integrace.
 - [ ] Dohodnout pravidla skutečných bestsellerů; homepage zatím používá ruční pořadí (etapa 2).
-- [ ] Dohodnout obchodní proces vlastního potisku a schválení ceny (etapa 3).
-- [ ] Dohodnout platby, případnou bránu a výběr výdejních míst (etapa 4).
-- [ ] Dohodnout role a potřebné statistiky administrace (etapa 5).
+- [x] Dohodnout vlastní potisk: celý smíšený košík jde k nacenění (etapa 3).
+- [x] Dohodnout první checkout: převod/dobírka, osobní odběr/adresa (etapa 4).
+- [ ] Dále rozhodnout případnou bránu, výdejní místa a průběh zákaznického schválení nabídky.
+- [x] Zachovat administrátorské účty bez zavádění nových rolí.
+- [ ] Dohodnout potřebné statistiky administrace (etapa 5).
 
 ## Pravidlo pokračování
 

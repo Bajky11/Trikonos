@@ -815,6 +815,21 @@
   gap: 12px;
   margin: 20px 0;
 }
+.checkout-page > form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
+  gap: 24px;
+  align-items: start;
+}
+.checkout-fields {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 24px;
+}
+.checkout-fields[hidden] {
+  display: none;
+}
 .admin-image-card {
   min-width: 0;
 }

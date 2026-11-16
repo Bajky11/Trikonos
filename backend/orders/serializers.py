@@ -1,10 +1,11 @@
 from drf_spectacular.utils import extend_schema_field
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from catalog.models import Color, Cut, Motif, PrintArea, ProductType
 from core.tokens import resolve_file_token
+from core.exceptions import BusinessError
 from shipping.models import Carrier
 
 from . import services
@@ -165,6 +166,8 @@ class OrderCreateSerializer(serializers.Serializer):
     # of creating a duplicate. Optional: omitting it just means no
     # double-submit protection for that request.
     order_id = serializers.UUIDField(required=False)
+    expected_total = serializers.IntegerField(required=False, allow_null=True, min_value=0, help_text='Poslední zákazníkem odsouhlasená celková cena v haléřích; nesoulad vrátí PRICE_CHANGED bez vytvoření objednávky.')
+    expected_shipping_cost = serializers.IntegerField(required=False, allow_null=True, min_value=0, help_text='Odsouhlasená doprava v haléřích, kontrolovaná i u objednávky k nacenění.')
 
     def validate(self, attrs):
         is_admin = self.context.get('is_admin', False)
@@ -207,12 +210,19 @@ class OrderCreateSerializer(serializers.Serializer):
 
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         is_admin = self.context.get('is_admin', False)
         order_id = validated_data.get('order_id')
 
+        def existing_for_retry():
+            existing = Order.objects.select_related('customer').filter(pk=order_id).first()
+            if existing is not None and not is_admin and existing.customer.email.casefold() != validated_data['customer']['email'].casefold():
+                raise BusinessError(_('This checkout attempt belongs to a different customer.'), code='ORDER_ID_CONFLICT')
+            return existing
+
         if order_id is not None:
-            existing = Order.objects.filter(pk=order_id).first()
+            existing = existing_for_retry()
             if existing is not None:
                 return existing
 
@@ -255,10 +265,17 @@ class OrderCreateSerializer(serializers.Serializer):
             # Lost a race against another request with the same order_id -
             # that one committed first; use its order instead of erroring.
             if order_id is not None:
-                existing = Order.objects.filter(pk=order_id).first()
+                existing = existing_for_retry()
                 if existing is not None:
                     return existing
             raise
+
+        # The outer transaction also defers create_order's e-mails until this
+        # public preview guard passes. A price change must not create an order.
+        if not is_admin:
+            for field, actual in [('expected_total', order.total), ('expected_shipping_cost', order.shipping_cost)]:
+                if field in validated_data and validated_data[field] != actual:
+                    raise BusinessError(_('Prices changed. Review the cart before ordering again.'), code='PRICE_CHANGED')
 
         if is_admin:
             shipping_cost = validated_data.get('shipping_cost')

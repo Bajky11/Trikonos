@@ -83,7 +83,8 @@ export function CartPage() {
     <main className="shell page-main cart-page">
       <Typography variant="h1">Košík</Typography>
       <p>
-        Uložené položky zůstávají v tomto prohlížeči. Objednání ani checkout zatím nejsou dostupné.
+        Uložené položky zůstávají v tomto prohlížeči. Před objednáním ověřte jejich dostupnost a
+        aktuální cenu.
       </p>
       {shop.items.length > 0 && <CatalogFeedback query={options} label="Popisky variant" />}
       {!shop.items.length ? (
@@ -279,7 +280,7 @@ export function CartPage() {
             {hasCustom && (
               <p>
                 Celý košík s vlastním potiskem půjde k nacenění. Konečnou cenu potvrdí
-                administrátor; odeslání objednávky zatím není napojené.
+                administrátor; katalogové ceny jsou uvedené zvlášť.
               </p>
             )}
             {verified &&
@@ -292,6 +293,19 @@ export function CartPage() {
             <p>Doprava není zvolená. Celková cena objednávky zatím není stanovena.</p>
             <Button component={Link} to="/tricka">
               Pokračovat ve výběru
+            </Button>
+            <Button
+              component={Link}
+              to="/pokladna"
+              variant="contained"
+              disabled={
+                !shop.locked &&
+                (!verified ||
+                  inputs.length !== shop.items.length ||
+                  !validation.data.items.every((item) => item.valid))
+              }
+            >
+              {shop.locked ? "Dokončit původní odeslání" : "Pokračovat k objednání"}
             </Button>
           </Paper>
         </>

@@ -11,7 +11,8 @@ from .models import OrderStatus, PaymentMethod
 
 def _order_access_url(order):
     from core.tokens import sign_order_access_token
-    return f'{settings.FRONTEND_URL}/orders/{sign_order_access_token(order.id)}'
+    from urllib.parse import quote
+    return f"{settings.FRONTEND_URL.rstrip('/')}/objednavka#pristup={quote(sign_order_access_token(order.id), safe='')}"
 
 
 def send_order_received_email(order):

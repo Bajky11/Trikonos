@@ -9,6 +9,8 @@ export interface ConfigResponse {
   contactPhone: string;
   instagramUrl: string;
   bankAccount: string;
+  /** URL schválených obchodních podmínek; prázdná hodnota blokuje checkout ve frontendu. */
+  termsUrl: string;
   topbarText: string;
   paymentMethods: ChoiceOption[];
   deliveryTypes: ChoiceOption[];

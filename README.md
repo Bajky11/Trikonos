@@ -99,7 +99,16 @@ včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy o
 a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
 katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
-smíšená objednávka bude celá k nacenění. Checkout a objednání nejsou dostupné.
+smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,
+osobní odběr/doručení na adresu v ČR a skutečné odeslání objednávky. Bez nastaveného
+`SHOP_TERMS_URL` je odeslání ve frontendu zablokované; schválené podmínky zatím nejsou připravené.
+Potvrzení a zákaznický detail jsou na `/objednavka`, včetně odkazů z e-mailu.
+
+Pro provoz nastav také `FRONTEND_URL` (veřejný origin frontendu pro e-maily),
+`SHOP_BANK_ACCOUNT`, kontakty, `SHOP_NOTIFY_EMAIL` a skutečné SMTP. Výdejní místa,
+faktura se splatností a online platební brána nejsou v tomto kroku zapojené.
+Před nasazením je nutné maskovat tokeny v access logách a nepoužívat konzolový
+e-mailový backend pro skutečné zákazníky. Podrobnosti jsou v návodu frontendu.
 
 ### HTTPS a přístup z internetu
 

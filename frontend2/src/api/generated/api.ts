@@ -48,6 +48,9 @@ import type {
   MotifImageUpload,
   MotifList,
   MotifsListParams,
+  OrderCreate,
+  OrderCreateResponse,
+  OrderCustomerDetail,
   PaginatedAdminCategoryList,
   PaginatedAdminColorList,
   PaginatedAdminCutList,
@@ -4989,6 +4992,270 @@ export function useMotifsRelatedList<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getMotifsRelatedListQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getOrdersCreateUrl = () => {
+  return `/api/v1/orders`;
+};
+
+/**
+ * Finální krok checkoutu. Nevyžaduje přihlášení ani existující účet - zákazník se dohledá nebo založí podle `customer.email` (case-insensitive, uloží se malými písmeny). Server **nikdy nevěří** cenám ani popiskům poslaným z frontendu - `unitPrice` u katalogové položky se vždy spočítá z aktuální ceny motivu, `itemLabel` se vždy sestaví na serveru.
+ *
+ * **Pravidla:**
+ * - `termsAccepted` musí být `true`, jinak 400.
+ * - `shipping.sameAsBilling: true` zkopíruje fakturační adresu; jinak jsou `fullName`/`street`/`city`/`zip` doručovací adresy povinné.
+ * - `delivery.deliveryType: "PICKUP_POINT"` vyžaduje `pickupPointId` i `pickupPointName`.
+ * - Katalogová položka (`isCustom: false`) potřebuje `motifId` a žádná `placements`; vlastní položka (`isCustom: true`) nesmí mít `motifId` a potřebuje aspoň jedno umístění v `placements`, každé s `fileToken` získaným z `POST /uploads/designs` (prošlý/neplatný token → 422 `INVALID_FILE_TOKEN`).
+ * - Umístění musí patřit k tiskovému bloku stejného typu oblečení jako položka a vejít se do jeho rozměrů, jinak 422.
+ * - Prázdné `items` → 400.
+ *
+ * **Stav při vzniku:** obsahuje-li objednávka aspoň jednu vlastní položku → `QUOTE_REQUESTED` (čeká na ocenění adminem). Jinak `NEW` a rovnou **potvrzená** (`confirmedAt` se nastaví automaticky) - zákazník viděl finální cenu přímo v této odpovědi, nemá smysl čekat na ruční potvrzení adminem.
+ *
+ * **Dvojité odeslání:** nepovinné `orderId` (UUID vygenerované na frontendu, např. při otevření checkoutu) - request se stejným `orderId` podruhé (dvojklik, retry sítě) vrátí tu samou, už vytvořenou objednávku místo založení duplicitní.
+ *
+ * Odpověď obsahuje `accessToken` - ulož si ho na frontendu (např. do URL potvrzovací stránky), je to jediný veřejný způsob, jak se k objednávce znovu vrátit přes `GET /orders/access/{accessToken}`, kromě dohledání přes `POST /orders/lookup`. Po úspěchu se odešlou e-maily zákazníkovi i obchodu.
+ * @summary Odeslat objednávku (checkout)
+ */
+export const ordersCreate = async (
+  orderCreate: OrderCreate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<OrderCreateResponse> => {
+  return apiFetch<OrderCreateResponse>(getOrdersCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(orderCreate),
+  });
+};
+
+export const getOrdersCreateMutationKey = () => ["ordersCreate"] as const;
+
+export const getOrdersCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ordersCreate>>,
+    TError,
+    OrdersCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ordersCreate>>,
+  TError,
+  OrdersCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getOrdersCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ordersCreate>>,
+    OrdersCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ordersCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OrdersCreateMutationResult = NonNullable<Awaited<ReturnType<typeof ordersCreate>>>;
+export type OrdersCreateMutationBody = OrderCreate;
+export type OrdersCreateMutationError = ErrorType<void>;
+export type OrdersCreateMutationVariables = { data: OrderCreate };
+
+/**
+ * Finální krok checkoutu. Nevyžaduje přihlášení ani existující účet - zákazník se dohledá nebo založí podle `customer.email` (case-insensitive, uloží se malými písmeny). Server **nikdy nevěří** cenám ani popiskům poslaným z frontendu - `unitPrice` u katalogové položky se vždy spočítá z aktuální ceny motivu, `itemLabel` se vždy sestaví na serveru.
+ *
+ * **Pravidla:**
+ * - `termsAccepted` musí být `true`, jinak 400.
+ * - `shipping.sameAsBilling: true` zkopíruje fakturační adresu; jinak jsou `fullName`/`street`/`city`/`zip` doručovací adresy povinné.
+ * - `delivery.deliveryType: "PICKUP_POINT"` vyžaduje `pickupPointId` i `pickupPointName`.
+ * - Katalogová položka (`isCustom: false`) potřebuje `motifId` a žádná `placements`; vlastní položka (`isCustom: true`) nesmí mít `motifId` a potřebuje aspoň jedno umístění v `placements`, každé s `fileToken` získaným z `POST /uploads/designs` (prošlý/neplatný token → 422 `INVALID_FILE_TOKEN`).
+ * - Umístění musí patřit k tiskovému bloku stejného typu oblečení jako položka a vejít se do jeho rozměrů, jinak 422.
+ * - Prázdné `items` → 400.
+ *
+ * **Stav při vzniku:** obsahuje-li objednávka aspoň jednu vlastní položku → `QUOTE_REQUESTED` (čeká na ocenění adminem). Jinak `NEW` a rovnou **potvrzená** (`confirmedAt` se nastaví automaticky) - zákazník viděl finální cenu přímo v této odpovědi, nemá smysl čekat na ruční potvrzení adminem.
+ *
+ * **Dvojité odeslání:** nepovinné `orderId` (UUID vygenerované na frontendu, např. při otevření checkoutu) - request se stejným `orderId` podruhé (dvojklik, retry sítě) vrátí tu samou, už vytvořenou objednávku místo založení duplicitní.
+ *
+ * Odpověď obsahuje `accessToken` - ulož si ho na frontendu (např. do URL potvrzovací stránky), je to jediný veřejný způsob, jak se k objednávce znovu vrátit přes `GET /orders/access/{accessToken}`, kromě dohledání přes `POST /orders/lookup`. Po úspěchu se odešlou e-maily zákazníkovi i obchodu.
+ * @summary Odeslat objednávku (checkout)
+ */
+export const useOrdersCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof ordersCreate>>,
+      TError,
+      OrdersCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof ordersCreate>>,
+  TError,
+  OrdersCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getOrdersCreateMutationOptions(options), queryClient);
+};
+
+export const getOrdersAccessRetrieveUrl = (accessToken: string) => {
+  return `/api/v1/orders/access/${accessToken}`;
+};
+
+/**
+ * Pro potvrzovací stránku po odeslání objednávky a pro odkaz rozeslaný v e-mailech (přijetí, potvrzení, odeslání...). `accessToken` dostaneš z odpovědi `POST /orders` nebo `POST /orders/lookup` - je to podepsané ID objednávky s platností 180 dní, bez vlastního sloupce v databázi. Neplatný nebo prošlý token vrátí 404 (ne 401/403 - z pohledu veřejnosti objednávka "neexistuje"). Tohle je jediný veřejný způsob, jak se dostat k detailu objednávky - **holé `GET /orders/{id}` bez tokenu veřejně neexistuje.** Odpověď obsahuje i `paymentInstructions` (účet, částka, variabilní symbol) pokud je platba převodem a cena je už stanovená. Limit 30 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Detail objednávky přes přístupový token
+ */
+export const ordersAccessRetrieve = async (
+  accessToken: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<OrderCustomerDetail> => {
+  return apiFetch<OrderCustomerDetail>(getOrdersAccessRetrieveUrl(accessToken), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getOrdersAccessRetrieveQueryKey = (accessToken: string) => {
+  return [`/api/v1/orders/access/${accessToken}`] as const;
+};
+
+export const getOrdersAccessRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getOrdersAccessRetrieveQueryKey(accessToken);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ordersAccessRetrieve>>> = ({ signal }) =>
+    ordersAccessRetrieve(accessToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: accessToken !== null && accessToken !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type OrdersAccessRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ordersAccessRetrieve>>
+>;
+export type OrdersAccessRetrieveQueryError = ErrorType<void>;
+
+/**
+ * Pro potvrzovací stránku po odeslání objednávky a pro odkaz rozeslaný v e-mailech (přijetí, potvrzení, odeslání...). `accessToken` dostaneš z odpovědi `POST /orders` nebo `POST /orders/lookup` - je to podepsané ID objednávky s platností 180 dní, bez vlastního sloupce v databázi. Neplatný nebo prošlý token vrátí 404 (ne 401/403 - z pohledu veřejnosti objednávka "neexistuje"). Tohle je jediný veřejný způsob, jak se dostat k detailu objednávky - **holé `GET /orders/{id}` bez tokenu veřejně neexistuje.** Odpověď obsahuje i `paymentInstructions` (účet, částka, variabilní symbol) pokud je platba převodem a cena je už stanovená. Limit 30 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Detail objednávky přes přístupový token
+ */
+export function useOrdersAccessRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  accessToken: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof ordersAccessRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Pro potvrzovací stránku po odeslání objednávky a pro odkaz rozeslaný v e-mailech (přijetí, potvrzení, odeslání...). `accessToken` dostaneš z odpovědi `POST /orders` nebo `POST /orders/lookup` - je to podepsané ID objednávky s platností 180 dní, bez vlastního sloupce v databázi. Neplatný nebo prošlý token vrátí 404 (ne 401/403 - z pohledu veřejnosti objednávka "neexistuje"). Tohle je jediný veřejný způsob, jak se dostat k detailu objednávky - **holé `GET /orders/{id}` bez tokenu veřejně neexistuje.** Odpověď obsahuje i `paymentInstructions` (účet, částka, variabilní symbol) pokud je platba převodem a cena je už stanovená. Limit 30 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Detail objednávky přes přístupový token
+ */
+export function useOrdersAccessRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof ordersAccessRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Pro potvrzovací stránku po odeslání objednávky a pro odkaz rozeslaný v e-mailech (přijetí, potvrzení, odeslání...). `accessToken` dostaneš z odpovědi `POST /orders` nebo `POST /orders/lookup` - je to podepsané ID objednávky s platností 180 dní, bez vlastního sloupce v databázi. Neplatný nebo prošlý token vrátí 404 (ne 401/403 - z pohledu veřejnosti objednávka "neexistuje"). Tohle je jediný veřejný způsob, jak se dostat k detailu objednávky - **holé `GET /orders/{id}` bez tokenu veřejně neexistuje.** Odpověď obsahuje i `paymentInstructions` (účet, částka, variabilní symbol) pokud je platba převodem a cena je už stanovená. Limit 30 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Detail objednávky přes přístupový token
+ */
+export function useOrdersAccessRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Pro potvrzovací stránku po odeslání objednávky a pro odkaz rozeslaný v e-mailech (přijetí, potvrzení, odeslání...). `accessToken` dostaneš z odpovědi `POST /orders` nebo `POST /orders/lookup` - je to podepsané ID objednávky s platností 180 dní, bez vlastního sloupce v databázi. Neplatný nebo prošlý token vrátí 404 (ne 401/403 - z pohledu veřejnosti objednávka "neexistuje"). Tohle je jediný veřejný způsob, jak se dostat k detailu objednávky - **holé `GET /orders/{id}` bez tokenu veřejně neexistuje.** Odpověď obsahuje i `paymentInstructions` (účet, částka, variabilní symbol) pokud je platba převodem a cena je už stanovená. Limit 30 požadavků/min na IP (`ScopedRateThrottle`) - při překročení 429.
+ * @summary Detail objednávky přes přístupový token
+ */
+export function useOrdersAccessRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessRetrieve>>,
+  TError = ErrorType<void>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getOrdersAccessRetrieveQueryOptions(accessToken, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

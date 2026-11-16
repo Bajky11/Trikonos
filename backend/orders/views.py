@@ -1,5 +1,7 @@
 from django.core import signing
 from django.utils.translation import gettext as _
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, serializers, status
 from rest_framework.exceptions import NotFound
@@ -135,6 +137,7 @@ class CartValidateView(APIView):
         })
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderCreateView(generics.CreateAPIView):
     """POST /orders - public checkout, guest, no account needed."""
     serializer_class = OrderCreateSerializer
@@ -327,6 +330,7 @@ class OrderLookupView(APIView):
         return Response(response_serializer.data)
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderAccessView(APIView):
     """GET /orders/access/{accessToken} - the link sent in confirmation
     e-mails. Never exposed as a plain GET /orders/{id}.

@@ -60,7 +60,7 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku a upload podkladů
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku, upload podkladů, vytvoření objednávky a zákaznický detail
 a používané administrační operace motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
@@ -110,7 +110,7 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   Staré demo katalogové položky se nepřevádějí, staré návrhy vlastního potisku se
   zachovají. **Snapshot ceny ani lokální validace nejsou serverové ověření košíku.**
   `/kosik` nyní katalogové položky i nové vlastní potisky serverově ověřuje; před budoucím vytvořením
-  objednávky bude nutné kontrolu zopakovat. Checkout zatím neexistuje.
+  objednávky checkout kontrolu opakuje a server ještě porovnává odsouhlasené ceny.
 - Homepage používá ruční pořadí jako „Výběr z kolekce“. Skutečné bestsellery jsou
   odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
   varianty se v této integraci neimportují a nedoplňují do databáze.
@@ -136,8 +136,55 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
 - Nové vlastní potisky se ověřují společně s katalogem. `requiresQuote: true` znamená,
   že konečnou cenu celého smíšeného košíku potvrdí administrátor. Ověřené katalogové
   ceny zůstávají viditelné, vlastní potisk nemá vymyšlenou ani nulovou cenu.
-- Doprava, konečná cena smíšeného košíku, checkout a objednání zůstávají nenapojené.
-  `null` v ceně se nezobrazuje jako nula.
+- Doprava a odeslání jsou v `/pokladna`; konečná cena smíšeného košíku zůstává
+  k nacenění administrátorem. `null` v ceně se nezobrazuje jako nula.
+
+### Checkout a potvrzení objednávky
+
+- `/pokladna` sbírá kontakt, fakturační a případnou odlišnou doručovací adresu,
+  firmu/IČO/DIČ, poznámku, povinný souhlas s podmínkami a nepovinný marketingový souhlas.
+  První krok je omezený na adresy v ČR, platbu převodem nebo při převzetí a na osobní
+  odběr nebo doručení na adresu. Výdejní místa Packety, INVOICE a online brána jsou odložené.
+- Dopravci a podporované metody vycházejí z veřejných options/config. Cenu dopravy,
+  množstevní slevy i dobírku počítá `/cart/validate`, nikoli frontend. Neznámá cena
+  dopravy blokuje odeslání. U osobního odběru posíláme žádného dopravce, cena dopravy je 0.
+- **Schválené obchodní podmínky zatím nejsou připravené.** Ve frontendu je odeslání
+  zablokované, dokud backendový config nevrací platnou `termsUrl`. Tu nastavuje
+  `SHOP_TERMS_URL`; nepřidávej zástupný odkaz jen pro odblokování. Podmínky ani právní
+  texty aplikace nevymýšlí. Backend nadále vyžaduje `termsAccepted`, ale URL gate
+  je omezení UI, nikoli nové oprávnění veřejného API.
+- V Dockeru nastav `SHOP_TERMS_URL` v kořenovém `.env` / `.env.production` a obnov
+  backend (`docker compose -f docker-compose.dev.yaml up -d backend` pro vývoj),
+  potom obnov stránku. Produkční Compose nově vyžaduje `FRONTEND_URL` pro odkazy
+  v e-mailech. Před skutečným provozem nastav také `SHOP_BANK_ACCOUNT`, kontakty,
+  `SHOP_NOTIFY_EMAIL`, SMTP a ověř doručení zpráv; prázdný účet se nenahrazuje smyšleným.
+- Před `POST /orders` se znovu ověří shrnutí. Změna cen vyžaduje nové odsouhlasení.
+  `expectedTotal`/`expectedShippingCost` jsou volitelné backendové pojistky: pokud
+  se cena změní ještě mezi kontrolou a vytvořením, transakce skončí `PRICE_CHANGED`
+  bez objednávky a e-mailů. Skutečné ceny se vždy počítají na serveru.
+- Odesílaný požadavek se stejným `orderId` se uloží do `sessionStorage` až při
+  odeslání, ne při vyplňování. Při nejasném výsledku (síť/5xx) zůstane košík uzamčený
+  a po reloadu se nabídne pouze zopakování téhož těla/ID. Není automatický retry.
+  Bez funkčního sessionStorage se objednávka vůbec neodešle. Nezavírej kartu, dokud
+  výsledek neověříš; při ztrátě záznamu ověř objednávku přes e-mail/obchod, než založíš novou.
+- Po potvrzeném přijetí se pending payload s kontaktem a adresami nahradí minimálním
+  potvrzením, košík se vyprázdní jen pokud odpovídá odeslanému snapshotu. Při změně
+  košíku nebo selhání úložiště se přijetí objednávky nevydává za neúspěch. Stejný
+  již přijatý košík má ochranu před nechtěným opětovným objednáním.
+- `/objednavka` načítá zákaznický detail, stav, částky, adresy a serverové platební
+  instrukce. Nový katalogový nákup je potvrzený podle backendu; smíšená objednávka
+  je `QUOTE_REQUESTED`, bez falešného součtu či výzvy platit před naceněním.
+- Nové e-mailové odkazy používají `/objednavka#pristup=…`; fragment se na server
+  neposílá a aplikace jej ihned odstraní z adresy. Token zůstává v sessionStorage
+  této karty; nepatří do localStorage ani analytiky. Staré `/orders/:accessToken`
+  se přesměruje na stejný detail. Otevření odkazu nepřepíše pending checkout.
+  Referrer-Policy je `no-referrer`, privátní API odpovědi mají `no-store`.
+- **Před produkcí:** API `/orders/access/{token}` a staré URL obsahují token v cestě,
+  proto je nutné maskovat/vypnout jejich access logy na backendu i reverse proxy.
+  Konzolový e-mailový backend loguje celé zprávy včetně odkazů, takže není vhodný
+  pro skutečné objednávky. Backend zatím neeviduje verzi/čas přijetí právních dokumentů;
+  to je samostatné právní/auditní doplnění před nasazením. Samostatné dohledání
+  objednávky podle čísla/e-mailu a backoffice odkazy z interních e-mailů ještě zbývají.
 
 ### Vlastní potisk: PNG/JPG k nacenění
 
@@ -252,6 +299,8 @@ a přenos nové ceny typu do veřejného detailu.
 - `/tricka` — celý katalog (`?kategorie=bitcoin&strana=2` pro filtr a stránku)
 - `/produkt/:slug` — detail skutečného motivu podle slugu z API
 - `/kosik` — lokální košík se serverovou validací katalogu i nových vlastních potisků
+- `/pokladna` — zákazník, adresy, doprava, platba a odeslání (podmíněné schválenými podmínkami)
+- `/objednavka` — potvrzení a zákaznický detail po objednání nebo z e-mailového odkazu
 - `/prihlaseni` — skutečné přihlášení do administrace
 - `/admin` — přehled
 - `/admin/objednavky`, `/admin/produkty`, `/admin/sezony`, `/admin/klienti`, `/admin/ciselniky`
@@ -268,6 +317,7 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
 - `src/pages/` — veřejné stránky a samostatný, líně načítaný administrační modul
 - `src/data/` — statický obsah, sezónní fotografie, galerie návrhů a staré volby pro rozpoznání demo draftů
 - `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
+- `src/checkout/` — formulářové pomocné funkce, bezpečné opakování odeslání a dočasná session data
 - `src/admin/catalog/` — správa skutečných motivů, variant a fotografií
 - `src/admin/lookups/` — správa katalogových číselníků a přehled pevných velikostí
 - `public/` — samostatné kopie potřebných obrázků z původního frontendu, včetně
@@ -280,8 +330,9 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 ## Záměrná omezení prototypu
 
 - Na backend jsou napojené config, katalog a jeho číselníky, správa motivů/variant/fotografií,
-  editor/upload vlastního potisku, validace košíku a session autentizace. Serverové ukládání košíku, platby
-  a objednávání zatím napojené nejsou.
+  editor/upload vlastního potisku, validace košíku, checkout/potvrzení a session autentizace.
+  Serverové ukládání košíku, online brána a výdejní místa zatím napojené nejsou;
+  reálné odeslání UI blokuje do doplnění schválených podmínek.
 - Rozpracovaný košík se ukládá do `localStorage` pod `trikonos-cart-v2`. Starý klíč
   `trikonos-react-dictionaries-v1` se již nepoužívá a jeho data se automaticky nepřenášejí.
 - Nové podklady vlastního potisku jsou na backendu; prohlížeč ukládá jen metadata a token.

@@ -18,6 +18,15 @@ const AdminLayout = lazy(() =>
 const AdminPage = lazy(() =>
   import("./pages/AdminPage").then((module) => ({ default: module.AdminPage })),
 );
+const CheckoutPage = lazy(() =>
+  import("./pages/CheckoutPage").then((module) => ({ default: module.CheckoutPage })),
+);
+const OrderReceiptPage = lazy(() =>
+  import("./pages/OrderReceiptPage").then((module) => ({ default: module.OrderReceiptPage })),
+);
+const OrderAccessLinkPage = lazy(() =>
+  import("./pages/OrderReceiptPage").then((module) => ({ default: module.OrderAccessLinkPage })),
+);
 
 function ScrollToLocation() {
   const { pathname, hash } = useLocation();
@@ -63,6 +72,9 @@ export function App() {
               <Route path="tricka" element={<CatalogPage />} />
               <Route path="produkt/:slug" element={<ProductPage />} />
               <Route path="kosik" element={<CartPage />} />
+              <Route path="pokladna" element={<CheckoutPage />} />
+              <Route path="objednavka" element={<OrderReceiptPage />} />
+              <Route path="orders/:accessToken" element={<OrderAccessLinkPage />} />
               <Route path="prihlaseni" element={<LoginPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
