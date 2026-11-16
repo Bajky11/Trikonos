@@ -60,8 +60,8 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku, upload podkladů, vytvoření objednávky a zákaznický detail
-a používané administrační operace motivů, variant, fotografií a katalogových číselníků;
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku, upload podkladů, vytvoření objednávky, zákaznický detail/dohledání a kontakt
+a používané administrační operace objednávek, motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -183,8 +183,29 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   proto je nutné maskovat/vypnout jejich access logy na backendu i reverse proxy.
   Konzolový e-mailový backend loguje celé zprávy včetně odkazů, takže není vhodný
   pro skutečné objednávky. Backend zatím neeviduje verzi/čas přijetí právních dokumentů;
-  to je samostatné právní/auditní doplnění před nasazením. Samostatné dohledání
-  objednávky podle čísla/e-mailu a backoffice odkazy z interních e-mailů ještě zbývají.
+  to je samostatné právní/auditní doplnění před nasazením. Backoffice odkazy
+  z interních e-mailů ještě čekají na napojení administrace objednávek.
+
+### Dohledání objednávky a kontakt
+
+- `/stav-objednavky` posílá číslo a e-mail na `POST /orders/lookup` a otevře
+  stávající detail `/objednavka`. Oba údaje jsou pouze v těle požadavku, ne v URL
+  či browser storage. Neshoda v kterémkoliv údaji vrací stejnou chybu. Limit je
+  5 pokusů/min/IP, bez automatického retry. Odpovědi backendu mají `no-store`.
+- Přístupový token je uložen odděleně v sessionStorage; jeho otevření ani reload
+  nepřepisují pending checkout, nemažou košík a neodemykají nejisté odeslání.
+- `/kontakt` používá `POST /contact`: jméno, e-mail, volitelný telefon a firma/tým,
+  zpráva a skrytý honeypot `website`. Formulář je bez uploadu a nevytváří objednávku.
+  Při chybě zůstane text vyplněný; po úspěchu se vymaže. Obsah se neukládá
+  do localStorage/sessionStorage. Zápisy používají sdílené `withCsrf()`.
+- Kontakt vyžaduje `SHOP_NOTIFY_EMAIL`; bez něj nebo při selhání e-mailového backendu
+  vrátí 503 `CONTACT_UNAVAILABLE`. 204 znamená předání e-mailovému backendu, nikoli
+  záruku doručení do schránky. Honeypot dál tiše vrací 204 bez odeslání. V produkci
+  je nutné nastavit SMTP a ověřit doručení. Konzolový backend není skutečná pošta.
+- Při síťové chybě zpráva mohla být přijata: neposílá se automaticky znovu.
+  Kontakt nemá idempotenci objednávek. Odkazy na oba formuláře jsou v patičce.
+- Testy `tests/customer-forms.spec.ts` používají mock API, neposílají skutečné
+  zprávy ani nevytvářejí objednávky.
 
 ### Vlastní potisk: PNG/JPG k nacenění
 
@@ -211,6 +232,38 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   v produkci je nutné naplánovat pravidelný běh a zálohování. V této integraci
   se cleanup nespouští a cron se nenastavuje. URL podkladů jsou běžné media URL,
   nikoli soukromé odkazy s řízením přístupu.
+
+### Administrace objednávek a nacenění
+
+- `/admin/objednavky` načítá skutečný seznam, serverové hledání, filtry, řazení
+  a stránkování. Filtry jsou v URL a zachovají se při návratu z detailu. Přehled
+  čte posledních 5 skutečných objednávek; statistické karty jsou dál demo.
+- `/admin/objednavky/:orderId` obsahuje zákazníka, adresy, položky včetně vlastních
+  podkladů/geometrie, ceny a stavy. Staré `/admin/orders/:orderId` je kompatibilní
+  vstup. Interní e-maily nyní vedou na českou cestu.
+- Editovatelné objednávky dovolují změnit adresy, dopravu/dopravce, platbu a poznámku.
+  Zákaznický kontakt je zde pouze pro čtení. Sledovací číslo lze opravit i po uzamčení.
+- Ceny se zadávají v Kč (nejvýše 2 desetinná místa), API přijímá haléře. Prázdná
+  cena položky je neoceněno, 0 je zdarma. Množství je 1–500. Doprava dovoluje
+  ruční cenu a návrat k automatickému ceníku. Autoritativní součty vrací server.
+- Změna ceny/množství/dopravy zruší potvrzení. Změna dopravce/doručení/platební
+  metody přepočítá automatickou dopravu, ale zachová ruční override. Neexistující
+  sazba vrátí chybu bez částečně uložené ceny či údajů.
+- Potvrzení administrátorem vyvolá zákaznický e-mail, případně i s osobní zprávou;
+  neznamená zákaznické schválení nabídky. Znovupotvrzení znovu posílá e-mail.
+  `allowedTransitions` určuje nabízené stavové akce a `isLocked` uzamčení editace.
+- Evidence plateb je nezávislá na stavu objednávky. Označení úhrady/refundace
+  neprovádí bankovní operaci. Dobírkové PAID přejde podle backendu do výroby,
+  aniž by tím byla platba označená za vybranou.
+- Zápisy používají CSRF, bez optimistického úspěchu či automatického retry.
+  Při nejasném výsledku se další změny zablokují do načtení aktuálního stavu;
+  před opakováním potvrzení vždy zkontroluj, zda už nebylo přijato. Odpovědi admin
+  objednávek mají `no-store`, jejich query cache se odstraňuje při odhlášení.
+- Založení nové ruční objednávky, editace geometrie, zásilky/štítky, tiskové listy
+  a samostatné přeposlání e-mailu zatím nejsou napojené. Podklady jsou existující
+  media odkazy, nikoli nové privátní úložiště. Skutečné SMTP je nutné ověřit před produkcí.
+- `tests/admin-orders.spec.ts` ověřuje workflow ve stavovém mock API; reálné objednávky
+  nemění. Živý auth test čte skutečný seznam a detail jen pokud nějaká objednávka existuje.
 
 ### Administrace motivů, variant a fotografií
 
@@ -339,7 +392,7 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
   Staré demo drafty mohou dosud obsahovat lokální obrázek. Při selhání úložiště aplikace
   zobrazí chybu a nepotvrdí změnu košíku.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.
-- Statistiky, objednávky a recenze jsou ukázkové. Sekce Klienti má zástupnou
+- Statistiky a recenze jsou ukázkové; objednávky používají backend. Sekce Klienti má zástupnou
   obrazovku, Sezóny obsahují informační seznam.
 - Vzhled byl laděn pro desktop. Mobilní rozložení není součástí této migrace.
 - Je to vizuálně věrný přepis, nikoli garantovaná pixelová shoda každého stavu:

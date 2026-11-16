@@ -354,12 +354,13 @@ validací; testy pokryjí změnu ceny, neplatnou variantu a expirovaný upload.
 - [x] Napojit vytvoření objednávky, idempotentní `orderId`, ochranu před
   dvojklikem a bezpečné opakování po výpadku spojení.
 - [x] Doplnit potvrzení, zákaznický detail a otevření z e-mailu.
-- [ ] Doplnit dohledání podle čísla objednávky a e-mailu.
+- [x] Doplnit dohledání podle čísla objednávky a e-mailu.
 - [x] Odstranit token z frontendové adresy, nepředávat jej v referreru/analytice;
   privátní odpovědi necachovat.
 - [ ] Před produkcí maskovat tokeny v backendových/proxy access logách a vypnout
   konzolový e-mailový backend pro reálné zákazníky.
-- [ ] Napojit kontakt/poptávku, honeypot, chyby odeslání a skutečné e-maily.
+- [x] Napojit kontakt/poptávku, honeypot a chyby odeslání přes backendový e-mailový backend.
+- [ ] Před produkcí nastavit SMTP a příjemce a ověřit skutečné doručení zpráv.
 - [ ] Ověřit texty a notifikace pro běžnou objednávku i následné nacenění.
 
 **Ověření etapy:** E2E nákup katalogové položky i scénář vlastního potisku
@@ -416,13 +417,48 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
   bez pushe.
   Další bod: dohledání objednávky podle čísla/e-mailu a kontaktní/poptávkový formulář.
 
+### Dohledání objednávky a kontaktní formulář (16. 11. 2026)
+
+- Předchozí checkout je commitnutý jako `09ea76c`; při navázání byl strom čistý,
+  proto nebylo co dalšího commitovat. Bez pushe.
+- `/stav-objednavky` používá existující `POST /orders/lookup`. Číslo i e-mail jdou
+  pouze v těle, ne do URL ani browser storage. Nesoulad má jednotnou chybu bez
+  rozlišení špatného údaje. UI obsluhuje 400/403/404/429 a síťové chyby, bez
+  automatického opakování. Backendový limit zůstává 5 pokusů/min/IP.
+- Úspěch otevře stávající detail `/objednavka`; token se předá fragmentem a odstraní
+  z adresy. Lookup nově vrací no-store i pro chyby. Přístup v sessionStorage je
+  oddělený od pending checkoutu; jeho tělo/ID ani uzamčení košíku se nemění.
+  Detail funguje po reloadu i při souběžném pending checkoutu.
+- `/kontakt` posílá jméno, e-mail, volitelný telefon/firmu, zprávu a skrytý honeypot
+  `website` přes existující `POST /contact` se sdíleným CSRF bootstrapem. Není to
+  objednávka ani upload. Při chybě zachovává text; po úspěchu se vymaže. Obsah se
+  nepersistuje do browser storage a neposílá automaticky znovu. Aktivní požadavek
+  brání souběžnému submitu.
+- Drobná oprava backendu: chybějící `SHOP_NOTIFY_EMAIL` nebo selhání e-mailového
+  backendu vrátí 503 `CONTACT_UNAVAILABLE`, ne falešný úspěch. Honeypot dál vrací
+  204 bez odeslání. Mail helper má opt-in propagaci chyb pouze pro kontakt;
+  objednávkové/account notifikace zachovávají dosavadní chování. Úspěch znamená
+  předání nakonfigurovanému e-mailovému backendu, ne záruku doručení.
+- V patičce jsou odkazy na oba formuláře; dohledání je dostupné také z chybějícího
+  potvrzení či neplatného přístupového odkazu. Nové routy jsou lazy.
+- Ověření: check bez chyb se dvěma známými Orval warnings, 25 unit testů, build,
+  30 standardních E2E a oba živé API/auth testy prošly. Backend: 154 passed,
+  1 skipped. Nové E2E ověřují nesoulad/throttling, privátní POST a CSRF,
+  detail/reload bez ztráty pending checkoutu, chybu kontaktu, zachování textu,
+  honeypot a ochranu souběžného odeslání. Backend testuje sestavení zprávy do locmem
+  backendu, honeypot, chybějícího příjemce/SMTP a no-store lookupu.
+- Živému API se neposílaly zprávy ani objednávky; SMTP doručení zůstává produkční
+  podmínkou. Nové změny jsou necommitnuté a nepushnuté. Další krok:
+  administrace objednávek a nacenění vlastního potisku.
+
 ## 5. Provozní administrativa
 
 - [x] Zachovat schválený model: všechny backendové účty jsou administrátorské,
   nové role se nezavádějí. UI nesmí nahrazovat serverovou autorizaci.
-- [ ] Napojit skutečný přehled, globální hledání, filtry a stránkování;
-  ověřit chybějící statistiky a případně doplnit agregace na backendu.
-- [ ] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
+- [x] Napojit seznam posledních objednávek v přehledu a serverové hledání,
+  filtry, řazení a stránkování objednávek.
+- [ ] Nahradit demo statistiky přehledu; dohodnout agregace a skutečné globální hledání.
+- [x] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
   platební stavy a akce podle `allowedTransitions` a uzamčení objednávky.
 - [ ] Doplnit zásilky, štítky, tiskové listy, stažení binárních souborů a e-maily.
 - [ ] Napojit výrobu: tiskové podklady, souhrny a příslušné filtry.
@@ -432,6 +468,55 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
 
 **Ověření etapy:** oprávněný pracovník zpracuje objednávku od přijetí přes
 nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
+
+### Administrace objednávek a nacenění (16. 11. 2026)
+
+- `/admin/objednavky` čte skutečné objednávky, bez demo fallbacku. Serverové
+  hledání, filtry stavu/platby/metody/zásilky/vlastního potisku/data, řazení a
+  stránkování jsou v URL a zachovají se při návratu z detailu. Přehled zobrazuje
+  posledních 5 skutečných objednávek; statistické karty zůstávají označené jako demo.
+- `/admin/objednavky/:orderId` zobrazuje zákazníka, adresy, položky, vlastní
+  podklady a jejich geometrii, ceny, dopravu, platbu, stav a potvrzení. Staré
+  interní `/admin/orders/:orderId` funguje také; nové e-maily mají českou cestu.
+- Admin může upravit fakturační/doručovací adresu, dopravu/dopravce, platební
+  metodu a poznámku; posílají se jen změněné části. Sledovací číslo lze opravit
+  i po uzamčení. Kontaktní identita zákazníka je zde pouze pro čtení (správa klientů
+  je další etapa). Výdejní místo lze ručně opravit, veřejný Packeta widget se nepřidával.
+- Nacenění položky používá Kč s přesným převodem na haléře, množství 1–500;
+  prázdná cena znamená null, nikoli nulu. Lze nastavit ruční cenu dopravy nebo
+  obnovit automatický ceník. Finální součty a další povolené akce vrací backend.
+  Změna ceny/množství/dopravy ruší předchozí potvrzení.
+- Potvrzení zobrazuje finální částku, žádá výslovný souhlas administrátora a
+  vyvolá zákaznický e-mail včetně volitelné zprávy. Je to potvrzení administrátorem,
+  ne dosud neimplementované zákaznické schválení nabídky. Opakované potvrzení
+  znovu vyvolá e-mail, proto se automaticky neopakuje.
+- Stavové akce se řídí `allowedTransitions`; ceny/adresy/doprava `isLocked`.
+  Evidence platby je samostatná operace a nemění stav objednávky. Platba ani
+  refundace se zde skutečně neprovádí a nenahrávají se bankovní doklady.
+  Dobírkové PAID se podle backendu mění na PROCESSING bez falešné úhrady.
+- Zápisy používají CSRF, bez optimistických změn a automatického retry. Při
+  síti/5xx může být akce přijatá: další zápisy se zablokují do načtení aktuálního
+  stavu. 409 neznamená úspěch a znovu načte aktuální uzamčení. Privátní query
+  používají namespace odstraňovaný při odhlášení; admin-order odpovědi mají no-store.
+- Cílené backendové opravy: smíšená objednávka má jediný řádek a správný počet
+  položek (`Exists` místo seskupení podle typu položky), stabilní druhotné řazení,
+  anotované filtry v OpenAPI a nullable motif/carrier. Změna dopravce/doručení/
+  metody přepočítá automatickou dopravu (ruční cenu zachová) a zruší potvrzení.
+  Ocenění a doprava se při chybě ceníku atomicky vrátí zpět; potvrzení uzamčené
+  objednávky vrací 409. Bez nových modelů či migrací.
+- Ověření: check bez chyb (6 Orval warnings na duplicitní nullable union),
+  25 unit testů, build, 33 standardních E2E a oba živé API/auth testy prošly.
+  Backendová sada má 158 passed / 1 skipped. Nové scénáře pokrývají nacenění,
+  adresní PATCH, potvrzení a jeho zrušení, ruční/automatickou dopravu, platby,
+  povolené přechody, uzamčení, nejistý výsledek a seznam/filtry/stránkování.
+- Změny objednávek a e-mailové callbacky se ověřují jen v mock browser API a
+  izolované backendové testovací DB. Živý test pouze čte seznam a případný existující
+  detail; nevytváří objednávky ani neposílá zprávy. SMTP doručení se neověřovalo.
+- Ruční založení objednávky, úpravy geometrie podkladů, zásilky/štítky, tiskové
+  listy, samostatné přeposlání e-mailů a zákaznické schválení nabídky zůstávají mimo
+  tento krok. Detail nabízí uložené media podklady, ne nové privátní úložiště.
+  Uživatel schválil commit tohoto kroku včetně předchozích veřejných formulářů;
+  bez pushe. Další bod: výroba a expedice.
 
 ## 6. Nasazení, testy a úplnost
 

@@ -142,9 +142,11 @@ function Footer() {
               <Link to="/tricka">Kolekce triček</Link>
               <Link to="/#vlastni-potisk">Vlastní motiv</Link>
               <Link to="/#faq">Časté dotazy</Link>
+              <Link to="/stav-objednavky">Stav objednávky</Link>
             </div>
             <div>
               <h3>Ozvi se</h3>
+              <Link to="/kontakt">Napsat zprávu / poptat tým</Link>
               {config.isPending && <p aria-live="polite">Načítání kontaktních údajů…</p>}
               {config.data?.contactEmail && (
                 <a href={`mailto:${config.data.contactEmail}`}>{config.data.contactEmail}</a>

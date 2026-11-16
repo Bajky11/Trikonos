@@ -63,7 +63,7 @@ class AdminPlacementSerializer(serializers.ModelSerializer):
 
 
 class AdminOrderItemSerializer(serializers.ModelSerializer):
-    motif = MotifRefSerializer(read_only=True)
+    motif = MotifRefSerializer(read_only=True, allow_null=True)
     product_type = ProductTypeRefSerializer(read_only=True)
     cut = CutRefSerializer(read_only=True)
     color = ColorRefSerializer(read_only=True)
@@ -107,7 +107,7 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
 
 class AdminOrderDetailSerializer(serializers.ModelSerializer):
     customer = CustomerRefSerializer(read_only=True)
-    carrier = CarrierRefSerializer(read_only=True)
+    carrier = CarrierRefSerializer(read_only=True, allow_null=True)
     status_label = serializers.CharField(source='get_status_display', read_only=True)
     items = AdminOrderItemSerializer(many=True, read_only=True)
     billing = serializers.SerializerMethodField()

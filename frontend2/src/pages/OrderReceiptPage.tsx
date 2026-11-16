@@ -29,8 +29,7 @@ export function OrderReceiptPage() {
   const hashToken = hashParams.get("pristup") ?? "";
   const receipt = record?.kind === "receipt" ? record : null;
   const [savedToken, setSavedToken] = useState(
-    () =>
-      (record?.kind === "pending" ? "" : readAccessToken()) || receipt?.response.accessToken || "",
+    () => readAccessToken() || receipt?.response.accessToken || "",
   );
   const token = hasHashToken ? hashToken : savedToken;
   useEffect(() => {
@@ -64,6 +63,9 @@ export function OrderReceiptPage() {
         <Button component={Link} to="/pokladna">
           Zpět do pokladny
         </Button>
+        <Button component={Link} to="/stav-objednavky">
+          Dohledat objednávku
+        </Button>
       </main>
     );
   const current =
@@ -76,6 +78,9 @@ export function OrderReceiptPage() {
           <div role="alert">
             <p>Odkaz je neplatný, prošlý, nebo se detail nepodařilo načíst.</p>
             <Button onClick={() => void detail.refetch()}>Zkusit znovu</Button>
+            <Button component={Link} to="/stav-objednavky">
+              Dohledat podle čísla a e-mailu
+            </Button>
           </div>
         ) : (
           <p role="status">Načítání objednávky…</p>

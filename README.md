@@ -91,18 +91,25 @@ nevolal `localhost` na zařízení návštěvníka.
 Přihlášení je ověřené lokálně mezi různými porty; produkční domény a HTTPS
 cookies je před nasazením potřeba ověřit samostatně.
 
-Ostatní obsah administrace stále používá testovací data. Login v patičce
+Nenapojené části administrace stále používají testovací data. Login v patičce
 a `/prihlaseni` používají skutečnou autentizaci backendu; `/admin` je chráněné.
 Konfigurace, katalogové číselníky, kategorie i motivy se načítají ze skutečného API.
 V `/admin/produkty` lze spravovat motivy, jejich povolené varianty a fotografie
 včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy oblečení
 a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
+`/admin/objednavky` používá skutečný seznam, filtry a detail. Umožňuje upravit
+adresy/dopravu, nacenit položky, potvrdit cenu zákazníkovi a evidovat platbu nebo
+změnit povolený stav. Evidence platby neprovádí bankovní operaci. Zásilky, štítky
+a výrobní přehledy ještě nejsou napojené; statistiky přehledu zůstávají demo.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
 katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
 smíšená objednávka bude celá k nacenění. `/pokladna` podporuje převod/dobírku,
 osobní odběr/doručení na adresu v ČR a skutečné odeslání objednávky. Bez nastaveného
 `SHOP_TERMS_URL` je odeslání ve frontendu zablokované; schválené podmínky zatím nejsou připravené.
 Potvrzení a zákaznický detail jsou na `/objednavka`, včetně odkazů z e-mailu.
+`/stav-objednavky` dohledá objednávku podle čísla a e-mailu; `/kontakt` posílá dotazy
+a týmové poptávky. Kontakt vyžaduje `SHOP_NOTIFY_EMAIL` a nakonfigurovaný e-mailový
+backend; při nedostupném odesílání vrací chybu místo falešného úspěchu.
 
 Pro provoz nastav také `FRONTEND_URL` (veřejný origin frontendu pro e-maily),
 `SHOP_BANK_ACCOUNT`, kontakty, `SHOP_NOTIFY_EMAIL` a skutečné SMTP. Výdejní místa,

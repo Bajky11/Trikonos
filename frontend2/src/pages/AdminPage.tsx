@@ -1,25 +1,12 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
-import {
-  Avatar,
-  Button,
-  Chip,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from "@mui/material";
-import { orders } from "../data/content";
-import { money } from "../data/catalog";
+import { Avatar, Button, Paper, TextField } from "@mui/material";
 import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
 import type { Me } from "../api/generated/models";
 import { ProductsPanel } from "../admin/catalog/ProductsPanel";
 import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
+import { OrdersPanel } from "../admin/orders/OrdersPanel";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -32,7 +19,8 @@ const sections = [
 export function AdminLayout() {
   const user = useOutletContext<Me>();
   const logout = useLogout();
-  const { section = "prehled" } = useParams();
+  const { section: routeSection, orderId } = useParams();
+  const section = routeSection ?? (orderId ? "objednavky" : "prehled");
   const [search, setSearch] = useState("");
   const title = sections.find(([id]) => id === section)?.[1] || "Stránka nenalezena";
   useTitle(`${title} — admin`);
@@ -95,55 +83,6 @@ export function AdminLayout() {
     </div>
   );
 }
-function OrderTable({ search, overview }: { search: string; overview: boolean }) {
-  const normalized = search.toLocaleLowerCase("cs");
-  const visible = orders.filter((order) =>
-    [order.id, order.customer, order.date, money(order.amount), order.status]
-      .join(" ")
-      .toLocaleLowerCase("cs")
-      .includes(normalized),
-  );
-  return (
-    <Paper className="admin-panel" variant="outlined">
-      <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
-      <TableContainer>
-        <Table aria-label="Objednávky">
-          <TableHead>
-            <TableRow>
-              {["Číslo", "Zákazník", "Datum", "Částka", "Stav"].map((label) => (
-                <TableCell key={label} align={label === "Částka" ? "right" : "left"}>
-                  {label}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {visible.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell component="th" scope="row">
-                  <strong>{order.id}</strong>
-                </TableCell>
-                <TableCell>{order.customer}</TableCell>
-                <TableCell className="muted">{order.date}</TableCell>
-                <TableCell align="right">
-                  <strong>{money(order.amount)}</strong>
-                </TableCell>
-                <TableCell>
-                  <Chip className={`status-${order.tone}`} label={order.status} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      {!visible.length && (
-        <p className="admin-empty" role="status">
-          Žádná objednávka neodpovídá hledání.
-        </p>
-      )}
-    </Paper>
-  );
-}
 export function AdminPage({ section: explicitSection }: { section?: string }) {
   const params = useParams();
   const section = explicitSection || params.section || "prehled";
@@ -173,7 +112,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </section>
       )}
       {(section === "prehled" || section === "objednavky") && (
-        <OrderTable search={search} overview={section === "prehled"} />
+        <OrdersPanel search={search} overview={section === "prehled"} />
       )}
       {section === "ciselniky" && <DictionariesPanel search={search} />}
       {section === "sezony" && (
@@ -201,8 +140,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       <p className="admin-prototype">
-        Správa katalogu a číselníků používá backend. Přehled, objednávky a ostatní sekce jsou zatím
-        ukázkové.
+        Katalog, číselníky a objednávky používají backend. Statistiky přehledu a ostatní nepřipojené
+        sekce jsou zatím ukázkové.
       </p>
     </>
   );

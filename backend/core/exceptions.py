@@ -21,6 +21,12 @@ class BusinessError(drf_exceptions.APIException):
         super().__init__(detail=detail or self.default_detail, code=self.code)
 
 
+class ContactUnavailableError(BusinessError):
+    status_code = 503
+    default_code = 'CONTACT_UNAVAILABLE'
+    default_detail = _('Contact messages cannot be sent at the moment. Please try again later.')
+
+
 class OrderLockedError(BusinessError):
     status_code = 409
     default_code = 'ORDER_LOCKED'

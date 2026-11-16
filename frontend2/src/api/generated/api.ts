@@ -22,6 +22,7 @@ import type {
   AdminCategory,
   AdminColor,
   AdminColorsListParams,
+  AdminConfirmOrder,
   AdminCut,
   AdminCutsListParams,
   AdminMotifDetail,
@@ -29,16 +30,21 @@ import type {
   AdminMotifVariantsListParams,
   AdminMotifWrite,
   AdminMotifsListParams,
+  AdminOrderDetail,
+  AdminOrderStatus,
+  AdminOrdersListParams,
   AdminPrintArea,
   AdminPrintAreasListParams,
   AdminProductType,
   AdminProductTypesListParams,
+  AdminShippingCost,
   CartValidate,
   CartValidateResponse,
   CatalogOptionsResponse,
   CategoriesListParams,
   Category,
   ConfigResponse,
+  Contact,
   DesignUploadRequest,
   DesignUploadResponse,
   Login,
@@ -51,11 +57,13 @@ import type {
   OrderCreate,
   OrderCreateResponse,
   OrderCustomerDetail,
+  OrderLookupRequest,
   PaginatedAdminCategoryList,
   PaginatedAdminColorList,
   PaginatedAdminCutList,
   PaginatedAdminMotifListList,
   PaginatedAdminMotifVariantList,
+  PaginatedAdminOrderListList,
   PaginatedAdminPrintAreaList,
   PaginatedAdminProductTypeList,
   PaginatedMotifListList,
@@ -64,6 +72,9 @@ import type {
   PatchedAdminCut,
   PatchedAdminMotifVariant,
   PatchedAdminMotifWrite,
+  PatchedAdminOrderItemPrice,
+  PatchedAdminOrderUpdate,
+  PatchedAdminPaymentStatus,
   PatchedAdminPrintArea,
   PatchedAdminProductType,
   PatchedMotifImagePatch,
@@ -3209,6 +3220,970 @@ export const useAdminMotifsImagesReorderCreate = <TError = ErrorType<unknown>, T
   return useMutation(getAdminMotifsImagesReorderCreateMutationOptions(options), queryClient);
 };
 
+export const getAdminOrdersListUrl = (params?: AdminOrdersListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/orders?${stringifiedParams}`
+    : `/api/v1/admin/orders`;
+};
+
+/**
+ * Filtry: `status` (víc hodnot oddělených čárkou, např. `NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, `paymentMethod`, `carrier` (id dopravce), `customer` (id zákazníka - pro zobrazení "všechny objednávky tohoto zákazníka"), `hasCustom` (true/false - jen objednávky s/bez vlastního potisku), `createdFrom`/`createdTo` (ISO datum), `q` (fulltext: číslo objednávky, e-mail a jméno zákazníka, sledovací číslo). Řazení `ordering`: `-createdAt` (výchozí), `total`, `orderNumber` (a jejich varianty s/bez pomlčky). Řádek obsahuje `itemCount` a `hasCustom` jako anotace z databáze (ne N+1).
+ * @summary Seznam objednávek
+ */
+export const adminOrdersList = async (
+  params?: AdminOrdersListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminOrderListList> => {
+  return apiFetch<PaginatedAdminOrderListList>(getAdminOrdersListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersListQueryKey = (params?: AdminOrdersListParams) => {
+  return [`/api/v1/admin/orders`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminOrdersListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminOrdersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersList>>> = ({ signal }) =>
+    adminOrdersList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminOrdersList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminOrdersListQueryResult = NonNullable<Awaited<ReturnType<typeof adminOrdersList>>>;
+export type AdminOrdersListQueryError = ErrorType<unknown>;
+
+/**
+ * Filtry: `status` (víc hodnot oddělených čárkou, např. `NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, `paymentMethod`, `carrier` (id dopravce), `customer` (id zákazníka - pro zobrazení "všechny objednávky tohoto zákazníka"), `hasCustom` (true/false - jen objednávky s/bez vlastního potisku), `createdFrom`/`createdTo` (ISO datum), `q` (fulltext: číslo objednávky, e-mail a jméno zákazníka, sledovací číslo). Řazení `ordering`: `-createdAt` (výchozí), `total`, `orderNumber` (a jejich varianty s/bez pomlčky). Řádek obsahuje `itemCount` a `hasCustom` jako anotace z databáze (ne N+1).
+ * @summary Seznam objednávek
+ */
+export function useAdminOrdersList<
+  TData = Awaited<ReturnType<typeof adminOrdersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminOrdersListParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminOrdersList>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Filtry: `status` (víc hodnot oddělených čárkou, např. `NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, `paymentMethod`, `carrier` (id dopravce), `customer` (id zákazníka - pro zobrazení "všechny objednávky tohoto zákazníka"), `hasCustom` (true/false - jen objednávky s/bez vlastního potisku), `createdFrom`/`createdTo` (ISO datum), `q` (fulltext: číslo objednávky, e-mail a jméno zákazníka, sledovací číslo). Řazení `ordering`: `-createdAt` (výchozí), `total`, `orderNumber` (a jejich varianty s/bez pomlčky). Řádek obsahuje `itemCount` a `hasCustom` jako anotace z databáze (ne N+1).
+ * @summary Seznam objednávek
+ */
+export function useAdminOrdersList<
+  TData = Awaited<ReturnType<typeof adminOrdersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminOrdersList>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersList>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Filtry: `status` (víc hodnot oddělených čárkou, např. `NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, `paymentMethod`, `carrier` (id dopravce), `customer` (id zákazníka - pro zobrazení "všechny objednávky tohoto zákazníka"), `hasCustom` (true/false - jen objednávky s/bez vlastního potisku), `createdFrom`/`createdTo` (ISO datum), `q` (fulltext: číslo objednávky, e-mail a jméno zákazníka, sledovací číslo). Řazení `ordering`: `-createdAt` (výchozí), `total`, `orderNumber` (a jejich varianty s/bez pomlčky). Řádek obsahuje `itemCount` a `hasCustom` jako anotace z databáze (ne N+1).
+ * @summary Seznam objednávek
+ */
+export function useAdminOrdersList<
+  TData = Awaited<ReturnType<typeof adminOrdersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminOrdersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Filtry: `status` (víc hodnot oddělených čárkou, např. `NEW,PAID,PROCESSING`), `paymentStatus`, `shipmentStatus`, `paymentMethod`, `carrier` (id dopravce), `customer` (id zákazníka - pro zobrazení "všechny objednávky tohoto zákazníka"), `hasCustom` (true/false - jen objednávky s/bez vlastního potisku), `createdFrom`/`createdTo` (ISO datum), `q` (fulltext: číslo objednávky, e-mail a jméno zákazníka, sledovací číslo). Řazení `ordering`: `-createdAt` (výchozí), `total`, `orderNumber` (a jejich varianty s/bez pomlčky). Řádek obsahuje `itemCount` a `hasCustom` jako anotace z databáze (ne N+1).
+ * @summary Seznam objednávek
+ */
+export function useAdminOrdersList<
+  TData = Awaited<ReturnType<typeof adminOrdersList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersListParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof adminOrdersList>>, TError, TData>>;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminOrdersRetrieveUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}`;
+};
+
+/**
+ * Kompletní detail: zákazník, obě adresy, doprava, platba, poznámka, rozpad položek (motiv/typ/střih/barva/velikost/cena) a u vlastních položek `customText` + umístění s náhledem a názvem bloku. Navíc:
+ * - `allowedTransitions` - do kterých stavů lze objednávku z jejího aktuálního stavu právě teď posunout; prázdné pole = žádný přechod není momentálně možný.
+ * - `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit kdykoli).
+ * - `confirmedAt` - kdy admin objednávku naposledy potvrdil (`null` = ještě nikdy, nebo byla potvrzená cena od té doby změněna a potvrzení tím zaniklo).
+ * @summary Detail objednávky
+ */
+export const adminOrdersRetrieve = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersRetrieveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersRetrieveQueryKey = (id: string) => {
+  return [`/api/v1/admin/orders/${id}`] as const;
+};
+
+export const getAdminOrdersRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersRetrieveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersRetrieve>>> = ({ signal }) =>
+    adminOrdersRetrieve(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type AdminOrdersRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersRetrieve>>
+>;
+export type AdminOrdersRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Kompletní detail: zákazník, obě adresy, doprava, platba, poznámka, rozpad položek (motiv/typ/střih/barva/velikost/cena) a u vlastních položek `customText` + umístění s náhledem a názvem bloku. Navíc:
+ * - `allowedTransitions` - do kterých stavů lze objednávku z jejího aktuálního stavu právě teď posunout; prázdné pole = žádný přechod není momentálně možný.
+ * - `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit kdykoli).
+ * - `confirmedAt` - kdy admin objednávku naposledy potvrdil (`null` = ještě nikdy, nebo byla potvrzená cena od té doby změněna a potvrzení tím zaniklo).
+ * @summary Detail objednávky
+ */
+export function useAdminOrdersRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kompletní detail: zákazník, obě adresy, doprava, platba, poznámka, rozpad položek (motiv/typ/střih/barva/velikost/cena) a u vlastních položek `customText` + umístění s náhledem a názvem bloku. Navíc:
+ * - `allowedTransitions` - do kterých stavů lze objednávku z jejího aktuálního stavu právě teď posunout; prázdné pole = žádný přechod není momentálně možný.
+ * - `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit kdykoli).
+ * - `confirmedAt` - kdy admin objednávku naposledy potvrdil (`null` = ještě nikdy, nebo byla potvrzená cena od té doby změněna a potvrzení tím zaniklo).
+ * @summary Detail objednávky
+ */
+export function useAdminOrdersRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kompletní detail: zákazník, obě adresy, doprava, platba, poznámka, rozpad položek (motiv/typ/střih/barva/velikost/cena) a u vlastních položek `customText` + umístění s náhledem a názvem bloku. Navíc:
+ * - `allowedTransitions` - do kterých stavů lze objednávku z jejího aktuálního stavu právě teď posunout; prázdné pole = žádný přechod není momentálně možný.
+ * - `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit kdykoli).
+ * - `confirmedAt` - kdy admin objednávku naposledy potvrdil (`null` = ještě nikdy, nebo byla potvrzená cena od té doby změněna a potvrzení tím zaniklo).
+ * @summary Detail objednávky
+ */
+export function useAdminOrdersRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Kompletní detail: zákazník, obě adresy, doprava, platba, poznámka, rozpad položek (motiv/typ/střih/barva/velikost/cena) a u vlastních položek `customText` + umístění s náhledem a názvem bloku. Navíc:
+ * - `allowedTransitions` - do kterých stavů lze objednávku z jejího aktuálního stavu právě teď posunout; prázdné pole = žádný přechod není momentálně možný.
+ * - `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit kdykoli).
+ * - `confirmedAt` - kdy admin objednávku naposledy potvrdil (`null` = ještě nikdy, nebo byla potvrzená cena od té doby změněna a potvrzení tím zaniklo).
+ * @summary Detail objednávky
+ */
+export function useAdminOrdersRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersRetrieveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminOrdersPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `billing`/`shipping`/`carrierId`/`deliveryType`/`pickupPointId`/`pickupPointName`/`paymentMethod`/`note` jdou měnit **jen ve stavech QUOTE_REQUESTED a NEW** - jinde vrátí 409 `ORDER_LOCKED`. `trackingNumber` je výjimka a smí se měnit kdykoli (i na odeslané/doručené objednávce, pro dodatečnou opravu). Pro ocenění položek a dopravy použij samostatné endpointy (`.../items/{itemId}`, `.../shipping-cost`), ne tento. Změna dopravce, doručení nebo platební metody přepočítá automatickou dopravu a zruší potvrzení; ruční cena zůstává zachovaná.
+ * @summary Upravit adresy, dopravu, platební metodu, poznámku
+ */
+export const adminOrdersPartialUpdate = async (
+  id: string,
+  patchedAdminOrderUpdate?: PatchedAdminOrderUpdate,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminOrderUpdate),
+  });
+};
+
+export const getAdminOrdersPartialUpdateMutationKey = () => ["adminOrdersPartialUpdate"] as const;
+
+export const getAdminOrdersPartialUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersPartialUpdate>>,
+    TError,
+    AdminOrdersPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersPartialUpdate>>,
+  TError,
+  AdminOrdersPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersPartialUpdate>>,
+    AdminOrdersPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersPartialUpdate>>
+>;
+export type AdminOrdersPartialUpdateMutationBody = PatchedAdminOrderUpdate | undefined;
+export type AdminOrdersPartialUpdateMutationError = ErrorType<void>;
+export type AdminOrdersPartialUpdateMutationVariables = {
+  id: string;
+  data?: PatchedAdminOrderUpdate;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `billing`/`shipping`/`carrierId`/`deliveryType`/`pickupPointId`/`pickupPointName`/`paymentMethod`/`note` jdou měnit **jen ve stavech QUOTE_REQUESTED a NEW** - jinde vrátí 409 `ORDER_LOCKED`. `trackingNumber` je výjimka a smí se měnit kdykoli (i na odeslané/doručené objednávce, pro dodatečnou opravu). Pro ocenění položek a dopravy použij samostatné endpointy (`.../items/{itemId}`, `.../shipping-cost`), ne tento. Změna dopravce, doručení nebo platební metody přepočítá automatickou dopravu a zruší potvrzení; ruční cena zůstává zachovaná.
+ * @summary Upravit adresy, dopravu, platební metodu, poznámku
+ */
+export const useAdminOrdersPartialUpdate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersPartialUpdate>>,
+      TError,
+      AdminOrdersPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersPartialUpdate>>,
+  TError,
+  AdminOrdersPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersConfirmCreateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/confirm`;
+};
+
+/**
+ * Odešle zákazníkovi e-mail s finální cenou a platebními instrukcemi (u platby převodem: účet, částka, variabilní symbol). Vyžaduje, aby `total` nebyl `null` (všechny položky oceněné + nastavená doprava), jinak 422 `ORDER_NOT_PRICED`. U stavu QUOTE_REQUESTED navíc přepne objednávku na NEW. Nastaví `confirmedAt` na aktuální čas - to je podmínka pro pozdější přechod NEW → PROCESSING. Nepovinné `message` je osobní text admina, který se vloží do e-mailu (např. poznámka k poptávce). **Je idempotentní** - opakované volání jen znovu pošle e-mail, nic se tím nerozbije. Potvrzovat lze jen editovatelné stavy QUOTE_REQUESTED/NEW; jinak 409 ORDER_LOCKED.
+ * @summary Potvrdit objednávku zákazníkovi
+ */
+export const adminOrdersConfirmCreate = async (
+  id: string,
+  adminConfirmOrder?: AdminConfirmOrder,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersConfirmCreateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminConfirmOrder),
+  });
+};
+
+export const getAdminOrdersConfirmCreateMutationKey = () => ["adminOrdersConfirmCreate"] as const;
+
+export const getAdminOrdersConfirmCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersConfirmCreate>>,
+    TError,
+    AdminOrdersConfirmCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersConfirmCreate>>,
+  TError,
+  AdminOrdersConfirmCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersConfirmCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersConfirmCreate>>,
+    AdminOrdersConfirmCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersConfirmCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersConfirmCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersConfirmCreate>>
+>;
+export type AdminOrdersConfirmCreateMutationBody = AdminConfirmOrder | undefined;
+export type AdminOrdersConfirmCreateMutationError = ErrorType<void>;
+export type AdminOrdersConfirmCreateMutationVariables = { id: string; data?: AdminConfirmOrder };
+
+/**
+ * Odešle zákazníkovi e-mail s finální cenou a platebními instrukcemi (u platby převodem: účet, částka, variabilní symbol). Vyžaduje, aby `total` nebyl `null` (všechny položky oceněné + nastavená doprava), jinak 422 `ORDER_NOT_PRICED`. U stavu QUOTE_REQUESTED navíc přepne objednávku na NEW. Nastaví `confirmedAt` na aktuální čas - to je podmínka pro pozdější přechod NEW → PROCESSING. Nepovinné `message` je osobní text admina, který se vloží do e-mailu (např. poznámka k poptávce). **Je idempotentní** - opakované volání jen znovu pošle e-mail, nic se tím nerozbije. Potvrzovat lze jen editovatelné stavy QUOTE_REQUESTED/NEW; jinak 409 ORDER_LOCKED.
+ * @summary Potvrdit objednávku zákazníkovi
+ */
+export const useAdminOrdersConfirmCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersConfirmCreate>>,
+      TError,
+      AdminOrdersConfirmCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersConfirmCreate>>,
+  TError,
+  AdminOrdersConfirmCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersConfirmCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersItemsPartialUpdateUrl = (id: string, itemId: string) => {
+  return `/api/v1/admin/orders/${id}/items/${itemId}`;
+};
+
+/**
+ * **Hlavní nástroj pro ocenění poptávky** (vlastní potisk čeká na cenu od admina). `unitPrice` v haléřích (pošli `null` pro vrácení položky zpět do stavu "čeká na ocenění") a/nebo `quantity` (1-500) - obě pole nepovinná, pošli jen to, co měníš. Po uložení se automaticky přepočítá `subtotal` a `total` celé objednávky a vrátí se **celá objednávka**, ne jen položka. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Pokud byla objednávka už potvrzená (`confirmedAt` nebylo null), změna ceny potvrzení zruší (`confirmedAt` → null) - admin musí zavolat `/confirm` znovu, aby zákazník dostal e-mail s aktuální cenou.
+ * @summary Ocenit položku objednávky
+ */
+export const adminOrdersItemsPartialUpdate = async (
+  id: string,
+  itemId: string,
+  patchedAdminOrderItemPrice?: PatchedAdminOrderItemPrice,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersItemsPartialUpdateUrl(id, itemId), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminOrderItemPrice),
+  });
+};
+
+export const getAdminOrdersItemsPartialUpdateMutationKey = () =>
+  ["adminOrdersItemsPartialUpdate"] as const;
+
+export const getAdminOrdersItemsPartialUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>,
+    TError,
+    AdminOrdersItemsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>,
+  TError,
+  AdminOrdersItemsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersItemsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>,
+    AdminOrdersItemsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, itemId, data } = props ?? {};
+
+    return adminOrdersItemsPartialUpdate(id, itemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersItemsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>
+>;
+export type AdminOrdersItemsPartialUpdateMutationBody = PatchedAdminOrderItemPrice | undefined;
+export type AdminOrdersItemsPartialUpdateMutationError = ErrorType<void>;
+export type AdminOrdersItemsPartialUpdateMutationVariables = {
+  id: string;
+  itemId: string;
+  data?: PatchedAdminOrderItemPrice;
+};
+
+/**
+ * **Hlavní nástroj pro ocenění poptávky** (vlastní potisk čeká na cenu od admina). `unitPrice` v haléřích (pošli `null` pro vrácení položky zpět do stavu "čeká na ocenění") a/nebo `quantity` (1-500) - obě pole nepovinná, pošli jen to, co měníš. Po uložení se automaticky přepočítá `subtotal` a `total` celé objednávky a vrátí se **celá objednávka**, ne jen položka. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Pokud byla objednávka už potvrzená (`confirmedAt` nebylo null), změna ceny potvrzení zruší (`confirmedAt` → null) - admin musí zavolat `/confirm` znovu, aby zákazník dostal e-mail s aktuální cenou.
+ * @summary Ocenit položku objednávky
+ */
+export const useAdminOrdersItemsPartialUpdate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>,
+      TError,
+      AdminOrdersItemsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersItemsPartialUpdate>>,
+  TError,
+  AdminOrdersItemsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersItemsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersPaymentStatusPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/payment-status`;
+};
+
+/**
+ * `paymentStatus` nezávisle na `status` objednávky - např. ruční potvrzení příchozí platby převodem, aniž by se měnil stav objednávky. Frontend může po zaplacení nabídnout i posun `status` na PAID, ale server to **sám automaticky neudělá** - jsou to dvě oddělené akce.
+ *
+ * Povolené přechody: `PENDING→PAID`, `PENDING→FAILED`, `FAILED→PENDING`, `FAILED→PAID`, `PAID→REFUNDED` - jiná kombinace 409. `PAID` navíc vyžaduje stanovenou cenu (422 `ORDER_NOT_PRICED`). U zrušené nebo vrácené objednávky (status CANCELLED/REFUNDED) nejde platební stav změnit vůbec (409).
+ * @summary Změnit stav platby
+ */
+export const adminOrdersPaymentStatusPartialUpdate = async (
+  id: string,
+  patchedAdminPaymentStatus?: PatchedAdminPaymentStatus,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersPaymentStatusPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminPaymentStatus),
+  });
+};
+
+export const getAdminOrdersPaymentStatusPartialUpdateMutationKey = () =>
+  ["adminOrdersPaymentStatusPartialUpdate"] as const;
+
+export const getAdminOrdersPaymentStatusPartialUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>,
+    TError,
+    AdminOrdersPaymentStatusPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>,
+  TError,
+  AdminOrdersPaymentStatusPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersPaymentStatusPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>,
+    AdminOrdersPaymentStatusPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersPaymentStatusPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersPaymentStatusPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>
+>;
+export type AdminOrdersPaymentStatusPartialUpdateMutationBody =
+  | PatchedAdminPaymentStatus
+  | undefined;
+export type AdminOrdersPaymentStatusPartialUpdateMutationError = ErrorType<void>;
+export type AdminOrdersPaymentStatusPartialUpdateMutationVariables = {
+  id: string;
+  data?: PatchedAdminPaymentStatus;
+};
+
+/**
+ * `paymentStatus` nezávisle na `status` objednávky - např. ruční potvrzení příchozí platby převodem, aniž by se měnil stav objednávky. Frontend může po zaplacení nabídnout i posun `status` na PAID, ale server to **sám automaticky neudělá** - jsou to dvě oddělené akce.
+ *
+ * Povolené přechody: `PENDING→PAID`, `PENDING→FAILED`, `FAILED→PENDING`, `FAILED→PAID`, `PAID→REFUNDED` - jiná kombinace 409. `PAID` navíc vyžaduje stanovenou cenu (422 `ORDER_NOT_PRICED`). U zrušené nebo vrácené objednávky (status CANCELLED/REFUNDED) nejde platební stav změnit vůbec (409).
+ * @summary Změnit stav platby
+ */
+export const useAdminOrdersPaymentStatusPartialUpdate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>,
+      TError,
+      AdminOrdersPaymentStatusPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersPaymentStatusPartialUpdate>>,
+  TError,
+  AdminOrdersPaymentStatusPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersPaymentStatusPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersShippingCostUpdateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipping-cost`;
+};
+
+/**
+ * `shippingCost` v haléřích (`0` znamená dopravu zdarma, ne "nenastaveno" - rozdíl od `null`, které znamená "ještě nerozhodnuto"). Nastaví `shippingCostManual: true` - od té chvíle se cena dopravy při změně počtu kusů nepřepočítává automaticky (vrať se k automatice přes `DELETE` na stejné URL). Po uložení se přepočítá `total` celé objednávky. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Stejně jako u ocenění položky, pokud byla objednávka už potvrzená, tímto se potvrzení zruší a je nutné zavolat `/confirm` znovu.
+ * @summary Nastavit cenu dopravy
+ */
+export const adminOrdersShippingCostUpdate = async (
+  id: string,
+  adminShippingCost: AdminShippingCost,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersShippingCostUpdateUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminShippingCost),
+  });
+};
+
+export const getAdminOrdersShippingCostUpdateMutationKey = () =>
+  ["adminOrdersShippingCostUpdate"] as const;
+
+export const getAdminOrdersShippingCostUpdateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>,
+    TError,
+    AdminOrdersShippingCostUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>,
+  TError,
+  AdminOrdersShippingCostUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersShippingCostUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>,
+    AdminOrdersShippingCostUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersShippingCostUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersShippingCostUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>
+>;
+export type AdminOrdersShippingCostUpdateMutationBody = AdminShippingCost;
+export type AdminOrdersShippingCostUpdateMutationError = ErrorType<void>;
+export type AdminOrdersShippingCostUpdateMutationVariables = {
+  id: string;
+  data: AdminShippingCost;
+};
+
+/**
+ * `shippingCost` v haléřích (`0` znamená dopravu zdarma, ne "nenastaveno" - rozdíl od `null`, které znamená "ještě nerozhodnuto"). Nastaví `shippingCostManual: true` - od té chvíle se cena dopravy při změně počtu kusů nepřepočítává automaticky (vrať se k automatice přes `DELETE` na stejné URL). Po uložení se přepočítá `total` celé objednávky. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Stejně jako u ocenění položky, pokud byla objednávka už potvrzená, tímto se potvrzení zruší a je nutné zavolat `/confirm` znovu.
+ * @summary Nastavit cenu dopravy
+ */
+export const useAdminOrdersShippingCostUpdate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>,
+      TError,
+      AdminOrdersShippingCostUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersShippingCostUpdate>>,
+  TError,
+  AdminOrdersShippingCostUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersShippingCostUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersShippingCostDestroyUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/shipping-cost`;
+};
+
+/**
+ * Zruší `shippingCostManual` a dopočítá cenu dopravy znovu podle aktuálního dopravce, typu doručení a počtu kusů (stejně jako při vzniku objednávky) - `null`, pokud pro tuto kombinaci není nastavená cena. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`.
+ * @summary Vrátit cenu dopravy na automatiku
+ */
+export const adminOrdersShippingCostDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersShippingCostDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminOrdersShippingCostDestroyMutationKey = () =>
+  ["adminOrdersShippingCostDestroy"] as const;
+
+export const getAdminOrdersShippingCostDestroyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>,
+    TError,
+    AdminOrdersShippingCostDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>,
+  TError,
+  AdminOrdersShippingCostDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersShippingCostDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>,
+    AdminOrdersShippingCostDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminOrdersShippingCostDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersShippingCostDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>
+>;
+
+export type AdminOrdersShippingCostDestroyMutationError = ErrorType<void>;
+export type AdminOrdersShippingCostDestroyMutationVariables = { id: string };
+
+/**
+ * Zruší `shippingCostManual` a dopočítá cenu dopravy znovu podle aktuálního dopravce, typu doručení a počtu kusů (stejně jako při vzniku objednávky) - `null`, pokud pro tuto kombinaci není nastavená cena. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`.
+ * @summary Vrátit cenu dopravy na automatiku
+ */
+export const useAdminOrdersShippingCostDestroy = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>,
+      TError,
+      AdminOrdersShippingCostDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersShippingCostDestroy>>,
+  TError,
+  AdminOrdersShippingCostDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersShippingCostDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminOrdersStatusCreateUrl = (id: string) => {
+  return `/api/v1/admin/orders/${id}/status`;
+};
+
+/**
+ * Posune `status` podle pevné mapy povolených přechodů (viz návod, kapitola 3) - nepovolený přechod vrací 409 `INVALID_STATUS_TRANSITION`. Některé přechody navíc vyžadují splněnou podmínku (např. NEW→PAID potřebuje stanovený `total`, PROCESSING→SHIPPED potřebuje vyplněného dopravce) - při nesplnění také 409. Zjisti dopředu, co je právě povolené, z pole `allowedTransitions` v detailu objednávky. Speciální případ: cílový stav `PAID` u objednávky placené na dobírku se automaticky přesměruje na `PROCESSING` (dobírka nikdy neprochází stavem PAID). Návazné změny (např. SHIPPED nastaví `shipmentStatus` na HANDED_OVER, pokud byl nižší) se dějí automaticky. Nepovinné `note` jde k internímu záznamu.
+ * @summary Změnit stav objednávky
+ */
+export const adminOrdersStatusCreate = async (
+  id: string,
+  adminOrderStatus: AdminOrderStatus,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminOrderDetail> => {
+  return apiFetch<AdminOrderDetail>(getAdminOrdersStatusCreateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminOrderStatus),
+  });
+};
+
+export const getAdminOrdersStatusCreateMutationKey = () => ["adminOrdersStatusCreate"] as const;
+
+export const getAdminOrdersStatusCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminOrdersStatusCreate>>,
+    TError,
+    AdminOrdersStatusCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminOrdersStatusCreate>>,
+  TError,
+  AdminOrdersStatusCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminOrdersStatusCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminOrdersStatusCreate>>,
+    AdminOrdersStatusCreateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminOrdersStatusCreate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminOrdersStatusCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersStatusCreate>>
+>;
+export type AdminOrdersStatusCreateMutationBody = AdminOrderStatus;
+export type AdminOrdersStatusCreateMutationError = ErrorType<void>;
+export type AdminOrdersStatusCreateMutationVariables = { id: string; data: AdminOrderStatus };
+
+/**
+ * Posune `status` podle pevné mapy povolených přechodů (viz návod, kapitola 3) - nepovolený přechod vrací 409 `INVALID_STATUS_TRANSITION`. Některé přechody navíc vyžadují splněnou podmínku (např. NEW→PAID potřebuje stanovený `total`, PROCESSING→SHIPPED potřebuje vyplněného dopravce) - při nesplnění také 409. Zjisti dopředu, co je právě povolené, z pole `allowedTransitions` v detailu objednávky. Speciální případ: cílový stav `PAID` u objednávky placené na dobírku se automaticky přesměruje na `PROCESSING` (dobírka nikdy neprochází stavem PAID). Návazné změny (např. SHIPPED nastaví `shipmentStatus` na HANDED_OVER, pokud byl nižší) se dějí automaticky. Nepovinné `note` jde k internímu záznamu.
+ * @summary Změnit stav objednávky
+ */
+export const useAdminOrdersStatusCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminOrdersStatusCreate>>,
+      TError,
+      AdminOrdersStatusCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminOrdersStatusCreate>>,
+  TError,
+  AdminOrdersStatusCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminOrdersStatusCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminPrintAreasListUrl = (params?: AdminPrintAreasListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4580,6 +5555,93 @@ export function useConfigRetrieve<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getContactCreateUrl = () => {
+  return `/api/v1/contact`;
+};
+
+/**
+ * Pro stránku "Kontakt" nebo "Poptat tým" bez průchodu editorem vlastního potisku. Nic se neukládá do databáze - endpoint jen pošle e-mail na adresu obchodu (`SHOP_NOTIFY_EMAIL`). Pole `website` je honeypot proti botům: na frontendu ho schovej (např. `display:none`) a nech prázdné - člověk ho nevyplní, bot často ano. Pokud je vyplněné, endpoint tiše vrátí 204 a nic neodešle (bot se to nedozví). Úspěch i honeypot vrací 204; chybějící příjemce nebo selhání e-mailového backendu vrací 503.
+ * @summary Odeslat kontaktní/poptávkový formulář
+ */
+export const contactCreate = async (
+  contact: Contact,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getContactCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(contact),
+  });
+};
+
+export const getContactCreateMutationKey = () => ["contactCreate"] as const;
+
+export const getContactCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof contactCreate>>,
+    TError,
+    ContactCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof contactCreate>>,
+  TError,
+  ContactCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getContactCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof contactCreate>>,
+    ContactCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return contactCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ContactCreateMutationResult = NonNullable<Awaited<ReturnType<typeof contactCreate>>>;
+export type ContactCreateMutationBody = Contact;
+export type ContactCreateMutationError = ErrorType<void>;
+export type ContactCreateMutationVariables = { data: Contact };
+
+/**
+ * Pro stránku "Kontakt" nebo "Poptat tým" bez průchodu editorem vlastního potisku. Nic se neukládá do databáze - endpoint jen pošle e-mail na adresu obchodu (`SHOP_NOTIFY_EMAIL`). Pole `website` je honeypot proti botům: na frontendu ho schovej (např. `display:none`) a nech prázdné - člověk ho nevyplní, bot často ano. Pokud je vyplněné, endpoint tiše vrátí 204 a nic neodešle (bot se to nedozví). Úspěch i honeypot vrací 204; chybějící příjemce nebo selhání e-mailového backendu vrací 503.
+ * @summary Odeslat kontaktní/poptávkový formulář
+ */
+export const useContactCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof contactCreate>>,
+      TError,
+      ContactCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof contactCreate>>,
+  TError,
+  ContactCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getContactCreateMutationOptions(options), queryClient);
+};
+
 export const getMotifsListUrl = (params?: MotifsListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5263,6 +6325,95 @@ export function useOrdersAccessRetrieve<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getOrdersLookupCreateUrl = () => {
+  return `/api/v1/orders/lookup`;
+};
+
+/**
+ * Pro stránku "Stav objednávky", kam se zákazník dostane bez odkazu z e-mailu - zadá číslo objednávky (`orderNumber`, např. `TRK-2026-0042`) a e-mail, který uvedl při objednání. Shoda obojího → vrátí detail objednávky + čerstvý `accessToken` (stejný tvar jako `GET /orders/access/{accessToken}`). Neshoda v čísle NEBO v e-mailu → **vždy stejná 404** - odpověď nikdy neprozradí, jestli bylo špatně číslo, e-mail, nebo objednávka neexistuje. E-mail se posílá v těle požadavku, nikdy v URL (aby nezůstal v historii prohlížeče ani v logu serveru). Číslo objednávky je sekvenční, takže limit je přísnější než u ostatních veřejných zápisů - 5 požadavků/min na IP.
+ * @summary Dohledat objednávku (číslo + e-mail)
+ */
+export const ordersLookupCreate = async (
+  orderLookupRequest: OrderLookupRequest,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<OrderCustomerDetail> => {
+  return apiFetch<OrderCustomerDetail>(getOrdersLookupCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(orderLookupRequest),
+  });
+};
+
+export const getOrdersLookupCreateMutationKey = () => ["ordersLookupCreate"] as const;
+
+export const getOrdersLookupCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ordersLookupCreate>>,
+    TError,
+    OrdersLookupCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ordersLookupCreate>>,
+  TError,
+  OrdersLookupCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getOrdersLookupCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ordersLookupCreate>>,
+    OrdersLookupCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ordersLookupCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OrdersLookupCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ordersLookupCreate>>
+>;
+export type OrdersLookupCreateMutationBody = OrderLookupRequest;
+export type OrdersLookupCreateMutationError = ErrorType<void>;
+export type OrdersLookupCreateMutationVariables = { data: OrderLookupRequest };
+
+/**
+ * Pro stránku "Stav objednávky", kam se zákazník dostane bez odkazu z e-mailu - zadá číslo objednávky (`orderNumber`, např. `TRK-2026-0042`) a e-mail, který uvedl při objednání. Shoda obojího → vrátí detail objednávky + čerstvý `accessToken` (stejný tvar jako `GET /orders/access/{accessToken}`). Neshoda v čísle NEBO v e-mailu → **vždy stejná 404** - odpověď nikdy neprozradí, jestli bylo špatně číslo, e-mail, nebo objednávka neexistuje. E-mail se posílá v těle požadavku, nikdy v URL (aby nezůstal v historii prohlížeče ani v logu serveru). Číslo objednávky je sekvenční, takže limit je přísnější než u ostatních veřejných zápisů - 5 požadavků/min na IP.
+ * @summary Dohledat objednávku (číslo + e-mail)
+ */
+export const useOrdersLookupCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof ordersLookupCreate>>,
+      TError,
+      OrdersLookupCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof ordersLookupCreate>>,
+  TError,
+  OrdersLookupCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getOrdersLookupCreateMutationOptions(options), queryClient);
+};
 
 export const getUploadsDesignsCreateUrl = () => {
   return `/api/v1/uploads/designs`;

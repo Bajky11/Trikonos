@@ -27,6 +27,15 @@ const OrderReceiptPage = lazy(() =>
 const OrderAccessLinkPage = lazy(() =>
   import("./pages/OrderReceiptPage").then((module) => ({ default: module.OrderAccessLinkPage })),
 );
+const OrderLookupPage = lazy(() =>
+  import("./pages/OrderLookupPage").then((module) => ({ default: module.OrderLookupPage })),
+);
+const ContactPage = lazy(() =>
+  import("./pages/ContactPage").then((module) => ({ default: module.ContactPage })),
+);
+const OrderDetailPage = lazy(() =>
+  import("./admin/orders/OrderDetailPage").then((module) => ({ default: module.OrderDetailPage })),
+);
 
 function ScrollToLocation() {
   const { pathname, hash } = useLocation();
@@ -74,6 +83,8 @@ export function App() {
               <Route path="kosik" element={<CartPage />} />
               <Route path="pokladna" element={<CheckoutPage />} />
               <Route path="objednavka" element={<OrderReceiptPage />} />
+              <Route path="stav-objednavky" element={<OrderLookupPage />} />
+              <Route path="kontakt" element={<ContactPage />} />
               <Route path="orders/:accessToken" element={<OrderAccessLinkPage />} />
               <Route path="prihlaseni" element={<LoginPage />} />
               <Route path="*" element={<NotFound />} />
@@ -81,6 +92,8 @@ export function App() {
             <Route element={<RequireAuth />}>
               <Route path="admin" element={<AdminLayout />}>
                 <Route index element={<AdminPage section="prehled" />} />
+                <Route path="objednavky/:orderId" element={<OrderDetailPage />} />
+                <Route path="orders/:orderId" element={<OrderDetailPage />} />
                 <Route path=":section" element={<AdminPage />} />
               </Route>
             </Route>

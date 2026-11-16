@@ -92,7 +92,7 @@ test("admin search and navigation across all routes", async ({ page }) => {
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Přehled", exact: true })).toBeVisible();
   await page.getByRole("searchbox").fill("Petra");
-  await expect(page.getByRole("cell", { name: "Petra Malá" })).toBeVisible();
+  await expect(page.getByText("Žádná objednávka neodpovídá hledání.")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Jan Novák" })).toHaveCount(0);
   await page.getByRole("searchbox").fill("nic-takoveho");
   await expect(page.getByRole("status")).toContainText("Žádná objednávka");

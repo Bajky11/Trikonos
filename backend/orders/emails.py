@@ -38,7 +38,7 @@ def send_shop_notification_email(order):
             'order_number': order.order_number,
             'customer_email': order.customer.email,
             'has_custom': order.items.filter(is_custom=True).exists(),
-            'admin_url': f'{settings.FRONTEND_URL}/admin/orders/{order.id}',
+            'admin_url': f"{settings.FRONTEND_URL.rstrip('/')}/admin/objednavky/{order.id}",
         },
         subject=f'Nová objednávka {order.order_number}',
         recipient_list=[notify_email],

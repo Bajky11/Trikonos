@@ -284,6 +284,7 @@ def _order_queryset():
     )
 
 
+@method_decorator(never_cache, name='dispatch')
 class OrderLookupView(APIView):
     """POST /orders/lookup - number + e-mail. A mismatch on either field
     returns the exact same 404, so the response never reveals which part

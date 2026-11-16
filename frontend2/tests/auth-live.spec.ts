@@ -15,10 +15,28 @@ test("local Docker login, session after reload and CSRF-protected logout", async
   await page.getByRole("textbox", { name: "E-mail", exact: true }).fill(email);
   await page.getByLabel(/^Heslo/).fill(password);
   const loginResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/login");
+  const ordersResponse = page.waitForResponse(
+    (response) =>
+      response.url().startsWith("http://localhost:8000/api/v1/admin/orders?") &&
+      response.request().method() === "GET",
+  );
   await page.getByRole("button", { name: "Přihlásit se" }).click();
   expect((await loginResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/admin\/objednavky$/);
   await expect(page.locator(".admin-app")).toBeVisible();
+  const orders = await ordersResponse;
+  expect(orders.status()).toBe(200);
+  expect(orders.headers()["cache-control"]).toContain("no-store");
+  const orderData = (await orders.json()) as { results: { id: string; orderNumber: string }[] };
+  await expect(page.getByRole("table", { name: "Objednávky", exact: true })).toBeVisible();
+  if (orderData.results.length) {
+    const first = orderData.results[0]!;
+    await page.getByRole("link", { name: first.orderNumber, exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: `Objednávka ${first.orderNumber}`, exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Zpět na objednávky", exact: true }).click();
+  }
   await page.reload();
   await expect(page.locator(".admin-app")).toBeVisible();
   const motifsResponse = page.waitForResponse(

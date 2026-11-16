@@ -12,6 +12,9 @@ export const admin: Me = { id: "admin-id", email: "admin@example.com", name: "Te
 
 export async function mockAuthApi(page: Page, authenticated = false) {
   let active = authenticated;
+  await page.route(/\/api\/v1\/admin\/orders(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { count: 0, results: [], next: null, previous: null } }),
+  );
   await page.route("**/api/v1/admin/auth/me", (route) =>
     route.fulfill(
       active

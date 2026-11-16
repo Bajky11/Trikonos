@@ -52,6 +52,98 @@ def _order(*, motif, product_type, cut, color, packeta_carrier, delivery_type=De
     return order
 
 
+def test_mixed_order_list_is_unique_and_filters_preserve_total_item_count(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+    item = order.items.first()
+    item.pk = None
+    item.is_custom = True
+    item.motif = None
+    item.save()
+    for params in [{}, {'hasCustom': 'true'}, {'q': order.order_number, 'status': 'NEW'}]:
+        response = admin_client.get('/api/v1/admin/orders', params)
+        assert response.status_code == 200
+        assert response.data['count'] == 1
+        assert response.data['results'][0]['item_count'] == 2
+        assert response.data['results'][0]['has_custom'] is True
+        assert 'no-store' in response['Cache-Control']
+    assert admin_client.get('/api/v1/admin/orders', {'hasCustom': 'false'}).data['count'] == 0
+
+
+def test_admin_shipping_changes_reprice_and_rollback_on_missing_rate(admin_client, motif, product_type, cut, color, packeta_carrier):
+    from django.utils import timezone
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, confirmed_at=timezone.now())
+    base = f'/api/v1/admin/orders/{order.id}'
+    response = admin_client.patch(base, {'deliveryType': 'HOME_DELIVERY'}, format='json')
+    assert response.status_code == 503
+    order.refresh_from_db()
+    assert order.delivery_type == DeliveryType.PICKUP_POINT
+    assert order.confirmed_at is not None
+    ShippingPrice.objects.create(carrier=packeta_carrier, delivery_type=DeliveryType.HOME_DELIVERY, price=7900)
+    response = admin_client.patch(base, {'deliveryType': 'HOME_DELIVERY'}, format='json')
+    assert response.status_code == 200
+    order.refresh_from_db()
+    assert order.shipping_cost == 7900
+    assert order.total == order.subtotal + 7900
+    assert order.confirmed_at is None
+    response = admin_client.patch(base, {'deliveryType': 'PERSONAL_PICKUP', 'carrierId': None}, format='json')
+    assert response.status_code == 200
+    assert response.data['shipping_cost'] == 0
+
+
+def test_pricing_failure_rolls_back_item_and_confirm_rejects_locked_order(admin_client, motif, product_type, cut, color, packeta_carrier):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+    item = order.items.first()
+    response = admin_client.patch(f'/api/v1/admin/orders/{order.id}/items/{item.id}', {'quantity': 2, 'unitPrice': 1}, format='json')
+    assert response.status_code == 503
+    item.refresh_from_db()
+    assert item.quantity == 1
+    assert item.unit_price != 1
+    order.status = OrderStatus.CANCELLED
+    order.save()
+    with patch('orders.emails.send_order_confirmed_email') as send:
+        response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+        assert response.status_code == 409
+        assert response.data['error']['code'] == 'ORDER_LOCKED'
+        send.assert_not_called()
+
+
+def test_admin_quote_lifecycle_requires_session_csrf_and_respects_separate_payment_state(motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks):
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None)
+    item = order.items.first()
+    item.unit_price = None
+    item.is_custom = True
+    item.motif = None
+    item.save()
+    client = APIClient(enforce_csrf_checks=True)
+    base = f'/api/v1/admin/orders/{order.id}'
+    assert client.get(base).status_code == 403
+    client.force_login(User.objects.create_user(email='pricing@example.cz', password='test-only'))
+    price_body = {'unitPrice': 34990, 'quantity': 1}
+    assert client.patch(f'{base}/items/{item.id}', price_body, format='json').status_code == 403
+    token = client.get('/api/v1/admin/auth/csrf')['X-CSRFToken']
+    response = client.patch(f'{base}/items/{item.id}', price_body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert response.status_code == 200
+    assert response.data['total'] == 39990
+    assert response.data['confirmed_at'] is None
+    with patch('orders.emails.send_order_confirmed_email') as send, django_capture_on_commit_callbacks(execute=True):
+        confirmed = client.post(f'{base}/confirm', {'message': 'Cena za týmový potisk.'}, format='json', HTTP_X_CSRFTOKEN=token)
+    assert confirmed.status_code == 200
+    assert confirmed.data['status'] == OrderStatus.NEW
+    assert confirmed.data['confirmed_at']
+    send.assert_called_once()
+    assert send.call_args.kwargs['message'] == 'Cena za týmový potisk.'
+    payment = client.patch(f'{base}/payment-status', {'paymentStatus': 'PAID'}, format='json', HTTP_X_CSRFTOKEN=token)
+    assert payment.status_code == 200
+    assert payment.data['status'] == OrderStatus.NEW
+    assert payment.data['payment_status'] == PaymentStatus.PAID
+    changed = client.post(f'{base}/status', {'status': 'PROCESSING'}, format='json', HTTP_X_CSRFTOKEN=token)
+    assert changed.status_code == 200
+    assert changed.data['is_locked'] is True
+    assert client.patch(f'{base}/items/{item.id}', price_body, format='json', HTTP_X_CSRFTOKEN=token).status_code == 409
+    assert client.patch(base, {'note': 'Must not save'}, format='json', HTTP_X_CSRFTOKEN=token).status_code == 409
+    assert client.patch(base, {'trackingNumber': 'Z123456'}, format='json', HTTP_X_CSRFTOKEN=token).status_code == 200
+
+
 def test_create_shipment_pickup_point_success(admin_client, motif, product_type, cut, color, packeta_carrier):
     order = _order(
         motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,

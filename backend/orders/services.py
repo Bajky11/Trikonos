@@ -359,6 +359,7 @@ def _unconfirm_if_confirmed(order):
         order.save(update_fields=['confirmed_at', 'updated_at'])
 
 
+@transaction.atomic
 def update_item_pricing(order, item, *, unit_price=UNSET, quantity=UNSET):
     """unit_price/quantity default to the UNSET sentinel (not None) so a
     caller can explicitly set unit_price=None to revert an item back to
@@ -387,6 +388,7 @@ def update_item_pricing(order, item, *, unit_price=UNSET, quantity=UNSET):
     return item
 
 
+@transaction.atomic
 def set_shipping_cost(order, shipping_cost):
     ensure_order_editable(order)
     order.shipping_cost = shipping_cost
@@ -397,6 +399,7 @@ def set_shipping_cost(order, shipping_cost):
     return order
 
 
+@transaction.atomic
 def reset_shipping_cost(order):
     """DELETE /admin/orders/{id}/shipping-cost. Reverts a manual override
     back to the automatic price for this order's (carrier, delivery_type)
@@ -414,11 +417,23 @@ def reset_shipping_cost(order):
     return order
 
 
+def refresh_order_shipping(order):
+    """Reprice after changing delivery/carrier/payment, preserving manual overrides."""
+    ensure_order_editable(order)
+    if not order.shipping_cost_manual:
+        order.shipping_cost = None
+        order.save(update_fields=['shipping_cost', 'updated_at'])
+        _apply_automatic_shipping_cost(order, total_quantity=sum(item.quantity for item in order.items.all()))
+        recalculate_totals(order)
+    _unconfirm_if_confirmed(order)
+
+
 def confirm_order(order):
     """POST /orders/{id}/confirm. Idempotent - calling it again just re-sends
     the e-mail (that part is wired in the view/task #11), confirmed_at only
     gets set once but is re-saved to keep `updated_at` honest.
     """
+    ensure_order_editable(order)
     if order.total is None:
         raise BusinessError(_('The order does not have a total price set.'), code='ORDER_NOT_PRICED')
     if order.status == OrderStatus.QUOTE_REQUESTED:
