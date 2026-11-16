@@ -1,36 +1,25 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
 import {
   Avatar,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
   Paper,
-  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tabs,
   TextField,
 } from "@mui/material";
-import EditOutlined from "@mui/icons-material/EditOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutlined";
-import Close from "@mui/icons-material/Close";
-import { defaultDictionaries, dictionaryTitles, orders } from "../data/content";
-import type { Dictionaries, DictionaryItem, DictionaryKind } from "../data/content";
+import { orders } from "../data/content";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
 import type { Me } from "../api/generated/models";
 import { ProductsPanel } from "../admin/catalog/ProductsPanel";
+import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
 
 const sections = [
   ["prehled", "Přehled"],
@@ -81,7 +70,11 @@ export function AdminLayout() {
               slotProps={{
                 htmlInput: {
                   "aria-label":
-                    section === "produkty" ? "Hledat v motivech" : "Hledat v objednávkách",
+                    section === "produkty"
+                      ? "Hledat v motivech"
+                      : section === "ciselniky"
+                        ? "Hledat v číselníku"
+                        : "Hledat v objednávkách",
                 },
               }}
             />
@@ -151,228 +144,6 @@ function OrderTable({ search, overview }: { search: string; overview: boolean })
     </Paper>
   );
 }
-const dictionaryKey = "trikonos-react-dictionaries-v1";
-export function validDictionaries(value: unknown): value is Dictionaries {
-  if (!value || typeof value !== "object") return false;
-  return (Object.keys(dictionaryTitles) as DictionaryKind[]).every((kind) => {
-    const entries: unknown = (value as Dictionaries)[kind];
-    if (!Array.isArray(entries) || entries.length > 2000) return false;
-    const ids = new Set(),
-      names = new Set();
-    return entries.every((item: DictionaryItem) => {
-      if (
-        !item ||
-        typeof item.id !== "string" ||
-        !item.id ||
-        typeof item.name !== "string" ||
-        !item.name.trim() ||
-        item.name.length > 80 ||
-        ids.has(item.id) ||
-        names.has(item.name.toLocaleLowerCase("cs")) ||
-        (kind === "colors" && !/^#[0-9a-f]{6}$/i.test(item.hex || ""))
-      )
-        return false;
-      ids.add(item.id);
-      names.add(item.name.toLocaleLowerCase("cs"));
-      return true;
-    });
-  });
-}
-function readDictionaries(): Dictionaries {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(dictionaryKey) || "null");
-    if (validDictionaries(stored)) return stored;
-  } catch {
-    /* Use demo defaults if storage is unavailable or damaged. */
-  }
-  return structuredClone(defaultDictionaries);
-}
-function DictionariesPanel() {
-  const [data, setData] = useState(readDictionaries);
-  const [kind, setKind] = useState<DictionaryKind>("colors");
-  const [editing, setEditing] = useState<DictionaryItem | null>(null);
-  const [deleting, setDeleting] = useState<DictionaryItem | null>(null);
-  const [name, setName] = useState("");
-  const [hex, setHex] = useState("#0e584d");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const save = (items: DictionaryItem[]) => {
-    const next = { ...data, [kind]: items };
-    try {
-      localStorage.setItem(dictionaryKey, JSON.stringify(next));
-      setData(next);
-      return true;
-    } catch {
-      setError("Změnu se nepodařilo uložit. Povolte místní úložiště prohlížeče.");
-      return false;
-    }
-  };
-  const open = (item: DictionaryItem) => {
-    setEditing(item);
-    setName(item.name);
-    setHex(item.hex || "#0e584d");
-    setError("");
-  };
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const clean = name.trim().replace(/\s+/g, " ").normalize("NFC");
-    if (!clean) {
-      setError("Zadejte název.");
-      return;
-    }
-    if (
-      data[kind].some(
-        (item) =>
-          item.id !== editing?.id &&
-          item.name.normalize("NFC").toLocaleLowerCase("cs") === clean.toLocaleLowerCase("cs"),
-      )
-    ) {
-      setError("Položka s tímto názvem už existuje.");
-      return;
-    }
-    const item = {
-      id: editing?.id || crypto.randomUUID(),
-      name: clean,
-      ...(kind === "colors" ? { hex } : {}),
-    };
-    const next = editing?.id
-      ? data[kind].map((old) => (old.id === item.id ? item : old))
-      : [...data[kind], item];
-    if (save(next)) {
-      setEditing(null);
-      setMessage("Položka byla uložena.");
-    }
-  };
-  return (
-    <>
-      <Tabs
-        value={kind}
-        onChange={(_, value: DictionaryKind) => {
-          setKind(value);
-          setMessage("");
-        }}
-        aria-label="Vyberte číselník"
-      >
-        {(Object.keys(dictionaryTitles) as DictionaryKind[]).map((key) => (
-          <Tab key={key} value={key} label={dictionaryTitles[key]} />
-        ))}
-      </Tabs>
-      <Paper className="admin-panel dictionary-panel" variant="outlined">
-        <div className="dictionary-heading">
-          <h2>
-            {dictionaryTitles[kind]} ({data[kind].length})
-          </h2>
-          <Button variant="contained" onClick={() => open({ id: "", name: "" })}>
-            + Přidat
-          </Button>
-        </div>
-        {message && (
-          <p className="dictionary-message" role="status">
-            {message}
-          </p>
-        )}
-        <Table aria-label={dictionaryTitles[kind]} className="dictionary-table">
-          <TableBody>
-            {data[kind].map((item) => (
-              <TableRow key={item.id}>
-                <TableCell component="th" scope="row">
-                  {item.hex && <i className="dictionary-swatch" style={{ background: item.hex }} />}
-                  {item.name}
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton aria-label={`Upravit: ${item.name}`} onClick={() => open(item)}>
-                    <EditOutlined fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    className="danger-icon"
-                    aria-label={`Smazat: ${item.name}`}
-                    onClick={() => {
-                      setDeleting(item);
-                      setError("");
-                    }}
-                  >
-                    <DeleteOutline fontSize="small" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {!data[kind].length && (
-          <p className="admin-empty">Zatím žádné položky. Klikněte na „+ Přidat“.</p>
-        )}
-      </Paper>
-      <Dialog open={editing !== null} onClose={() => setEditing(null)} fullWidth maxWidth="xs">
-        <DialogTitle>
-          {editing?.id ? "Upravit položku" : "Přidat položku"}
-          <IconButton className="dialog-close" onClick={() => setEditing(null)} aria-label="Zavřít">
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <form onSubmit={submit}>
-          <DialogContent className="dialog-form">
-            <TextField
-              label="Název"
-              autoFocus
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              slotProps={{ htmlInput: { maxLength: 80 } }}
-            />
-            {kind === "colors" && (
-              <label>
-                Barva
-                <input
-                  className="dictionary-color-input"
-                  type="color"
-                  value={hex}
-                  onChange={(event) => setHex(event.target.value)}
-                />
-              </label>
-            )}
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditing(null)}>Zrušit</Button>
-            <Button type="submit" variant="contained">
-              Uložit
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
-      <Dialog open={deleting !== null} onClose={() => setDeleting(null)}>
-        <DialogTitle>Smazat položku?</DialogTitle>
-        <DialogContent>
-          Opravdu chcete smazat „{deleting?.name}“?
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleting(null)}>Zrušit</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              if (save(data[kind].filter((item) => item.id !== deleting?.id))) {
-                setDeleting(null);
-                setMessage("Položka byla smazána.");
-              }
-            }}
-          >
-            Smazat
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
-  );
-}
 export function AdminPage({ section: explicitSection }: { section?: string }) {
   const params = useParams();
   const section = explicitSection || params.section || "prehled";
@@ -404,7 +175,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
       {(section === "prehled" || section === "objednavky") && (
         <OrderTable search={search} overview={section === "prehled"} />
       )}
-      {section === "ciselniky" && <DictionariesPanel />}
+      {section === "ciselniky" && <DictionariesPanel search={search} />}
       {section === "sezony" && (
         <Paper className="admin-panel" variant="outlined">
           <h2>Sezóny do budoucna</h2>
@@ -430,8 +201,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       <p className="admin-prototype">
-        Správa motivů, variant a fotografií používá backend. Přehled, objednávky a ostatní sekce
-        jsou zatím ukázkové.
+        Správa katalogu a číselníků používá backend. Přehled, objednávky a ostatní sekce jsou zatím
+        ukázkové.
       </p>
     </>
   );

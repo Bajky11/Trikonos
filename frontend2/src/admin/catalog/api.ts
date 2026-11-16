@@ -13,7 +13,7 @@ import { withCsrf } from "../../auth/csrf";
 type Page<T> = { results: T[]; next?: string | null };
 
 // Lookup endpoints are paginated too; never silently truncate the editor's choices.
-async function allPages<T>(fetchPage: (page: number) => Promise<Page<T>>) {
+export async function allPages<T>(fetchPage: (page: number) => Promise<Page<T>>) {
   const items: T[] = [];
   for (let page = 1; ; page++) {
     const result = await fetchPage(page);
@@ -57,7 +57,14 @@ export function useAdminColors() {
 export const catalogMutationKey = ["admin-catalog-write"];
 
 export function useCatalogMutation<T, R>(
-  resource: "motifs" | "motif-variants",
+  resource:
+    | "motifs"
+    | "motif-variants"
+    | "categories"
+    | "colors"
+    | "cuts"
+    | "product-types"
+    | "print-areas",
   request: (data: T) => Promise<R>,
 ) {
   const client = useQueryClient();
@@ -69,12 +76,28 @@ export function useCatalogMutation<T, R>(
     onSuccess: () => {
       const prefixes = [`/api/v1/admin/${resource}`, "/api/v1/motifs"];
       if (resource === "motifs") prefixes.push("/api/v1/categories");
+      const lookup = resource !== "motifs" && resource !== "motif-variants";
+      if (lookup)
+        prefixes.push(
+          "/api/v1/categories",
+          "/api/v1/catalog/options",
+          ...[
+            "categories",
+            "colors",
+            "cuts",
+            "product-types",
+            "print-areas",
+            "motifs",
+            "motif-variants",
+          ].map((name) => `/api/v1/admin/${name}`),
+        );
       return client.invalidateQueries({
         predicate: (query) => {
           const path = query.queryKey[0];
           return (
             typeof path === "string" &&
-            prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+            (prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)) ||
+              (lookup && path === "/api/v1/admin/" && query.queryKey[1] === "variant-lookups"))
           );
         },
       });

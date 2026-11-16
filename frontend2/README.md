@@ -61,7 +61,7 @@ bun run api:generate
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
 Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog
-a používané administrační operace motivů, variant a čtení číselníků;
+a používané administrační operace motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
 kontejneru použij `http://backend:8000/api/v1/schema/?format=json`; to je adresa
@@ -128,8 +128,26 @@ košíku a obnovu po reloadu. Prázdný katalog/nedostupné varianty jsou platn�
 - Lze změnit popisek, přiřadit/odebrat barvu a šipkami změnit pořadí; první fotografie
   je hlavní obrázek katalogu. Potvrzené smazání odstraní originál i oba náhledy.
 - Zápisy používají CSRF bootstrap a invalidují odpovídající admin i veřejnou cache.
-  CRUD číselníků zatím zbývá; sekce Číselníky je stále demo. Fotografie se neukládají
-  do localStorage. Produkční zálohy musí zahrnovat databázi i media volume.
+  Fotografie se neukládají do localStorage. Produkční zálohy musí zahrnovat databázi
+  i media volume.
+
+### Katalogové číselníky
+
+- `/admin/ciselniky` používá backendový CRUD kategorií, barev, střihů, typů oblečení
+  a tiskových ploch, hledání, stav aktivní/neaktivní, stránkování a editovatelné pořadí.
+  Plochy lze filtrovat podle typu oblečení. Velikosti jsou pevný backendový seznam,
+  zobrazený pouze pro čtení; kombinace velikostí motivu se spravují u jeho variant.
+- Cena typu se zadává v Kč a posílá v haléřích, rozměry ploch v celých kladných mm.
+  Kategorie při editaci posílá explicitní slug, aby změna názvu neměnila URL.
+  Deaktivace kategorie skryje navigační kategorii, nikoli automaticky její motivy.
+- Po zápisu se obnoví související admin seznamy, volby formulářů, veřejné kategorie,
+  katalog a options. Zápisy používají stejný CSRF bootstrap jako správa motivů.
+- Mazání se potvrzuje a respektuje stávající backendové vazby: `IN_USE` není úspěch.
+  Barva/střih/typ mohou smazat i povolené kombinace, typ také své tiskové plochy,
+  pokud tomu nebrání chráněné vazby. U barvy předem změňte přiřazení fotografií.
+  Bezpečnější je deaktivace; pravidla CASCADE/PROTECT se touto integrací nemění.
+- Staré lokální demo číselníky se nečtou ani neimportují do DB. Editor vlastního
+  potisku má stále vlastní demo volby; jeho funkční napojení je samostatný krok.
 
 ### Přihlášení a session
 
@@ -149,7 +167,7 @@ bun run test:e2e:auth
 ```
 
 Tento test **provádí login a logout** pouze proti lokálnímu backendu; administraci
-motivů, detail, varianty a dialog fotografií ověřuje pouze čtením, bez změn katalogových dat. Výchozí
+motivů, detail, varianty, fotografie i číselníky ověřuje pouze čtením, bez změn katalogových dat. Výchozí
 dev účet odpovídá Docker seedu (`admin@trikonos.cz` / `change-me`); vlastní
 lokální testovací účet lze zadat přes `API_TEST_ADMIN_EMAIL` a
 `API_TEST_ADMIN_PASSWORD`. Nikdy sem nevkládej produkční údaje. Živý test neběží
@@ -172,7 +190,8 @@ bun run test:e2e
 Testy běží v Chromium na desktopu 1440 × 900. Pokrývají navigaci, galerie,
 sezóny, FAQ, filtrování a stránkování katalogu, detail produktu a košík,
 výběr/nahrávání/úpravy potisku, administrativní vyhledávání, správu motivů/variant/fotografií
-a dosavadní lokální demo CRUD číselníků.
+a backendový CRUD číselníků na řízených mock datech, invalidaci variantových voleb
+a přenos nové ceny typu do veřejného detailu.
 
 ## Routy
 
@@ -196,6 +215,7 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
 - `src/data/` — statický obsah, sezónní fotografie a zatím demo číselníky vlastního potisku
 - `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
 - `src/admin/catalog/` — správa skutečných motivů, variant a fotografií
+- `src/admin/lookups/` — správa katalogových číselníků a přehled pevných velikostí
 - `public/` — samostatné kopie potřebných obrázků z původního frontendu, včetně
   dokumentace jejich zdrojů
 
@@ -205,11 +225,11 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 
 ## Záměrná omezení prototypu
 
-- Na backend jsou napojené config, katalog, čtení jeho číselníků, správa motivů/variant/fotografií
-  a session autentizace. Správa číselníků, serverový košík, platby
+- Na backend jsou napojené config, katalog a jeho číselníky, správa motivů/variant/fotografií
+  a session autentizace. Serverový košík, platby
   a objednávání zatím napojené nejsou.
-- Košík a číselníky se ukládají jen do `localStorage` v prohlížeči, pod vlastními
-  klíči `trikonos-cart-v2` a `trikonos-react-dictionaries-v1`.
+- Rozpracovaný košík se ukládá do `localStorage` pod `trikonos-cart-v2`. Starý klíč
+  `trikonos-react-dictionaries-v1` se již nepoužívá a jeho data se automaticky nepřenášejí.
 - Nahrané obrázky vlastního potisku zůstávají v prohlížeči; větší soubor může přesáhnout jeho
   úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.

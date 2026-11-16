@@ -139,9 +139,12 @@ provedení a odpovídajícím ověření; zbývající omezení zapsat u dané e
 - [x] Doplnit loading, empty, error, 404 a nedostupné varianty.
 - [x] Napojit admin CRUD motivů a jejich povolených variant.
 - [x] Napojit správu obrázků a jejich pořadí.
-- [ ] Napojit správu kategorií, typů oblečení, barev, střihů, velikostí
-  a tiskových ploch podle skutečné podpory API; případné mezery dořešit.
+- [x] Napojit správu kategorií, typů oblečení, barev, střihů a tiskových ploch;
+  velikosti zobrazit pouze pro čtení podle skutečné podpory API.
 - [x] Po změnách motivů/variant invalidovat odpovídající data a ověřit nové načtení.
+- [x] Po změnách číselníků obnovit veřejný katalog/options i volby admin formulářů.
+- [ ] Před produkcí dohodnout přísnější pravidla mazání číselníků, pokud jsou žádoucí:
+  dnešní CASCADE maže varianty, barva použitá pouze v JSON fotografií nemá FK ochranu.
 
 **Ověření etapy:** katalog a detail čerpají z API; admin změna se po načtení
 projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě demem.
@@ -211,7 +214,37 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
   a 31 backendových testů katalogu/core prošly. Živé ověření fotografií pouze četlo;
   upload a mazání se testovaly na izolovaných datech. Skutečná katalogová DB ani
   media volume nebyly doplňovány či měněny. Stávající build/deprecation warnings zůstávají.
-- Fotografie jsou zatím necommitnuté a nepushnuté. Další bod je skutečný CRUD číselníků.
+- Fotografie byly na pokyn uživatele commitnuté jako `7d6c5c4`; bez pushe.
+
+### Katalogové číselníky (16. 11. 2026)
+
+- `/admin/ciselniky` nahradil lokální demo skutečným CRUD kategorií, barev, střihů,
+  typů oblečení a tiskových ploch. Zahrnuje hledání, filtr stavu, stránkování,
+  pořadí, deaktivaci, potvrzené mazání a filtr ploch podle typu oblečení.
+- Formuláře posílají cenu typu v haléřích, HEX barvy a kladné celočíselné rozměry
+  ploch v mm. Kategorie při editaci posílá explicitní slug; deaktivace kategorie
+  neskrývá její motivy. Velikosti jsou pevný seznam backendu, pouze pro čtení.
+- Stará data `trikonos-react-dictionaries-v1` se ignorují, neimportují se do DB.
+  Statické volby editoru vlastního potisku se tím nemění; jeho napojení zbývá.
+- Mutace invalidují veřejné kategorie/motivy/options i odpovídající privátní cache
+  včetně stránkovaných lookupů a variantových voleb. Session cache se nemění.
+- Backend dostal OpenAPI parametry filtrů, opravu popisu `productType` u ploch,
+  stabilní ID tiebreaker pro stránkování lookupů a odmítnutí prázdného generovaného
+  slugu kategorie. Obchodní pravidla mazání ani struktura DB se neměnily.
+- UI upozorňuje na existující CASCADE variant (barva/střih/typ) a ploch (typ),
+  doporučuje deaktivaci a před smazáním barvy změnu přiřazení fotografií.
+  Větší změna těchto backendových pravidel vyžaduje samostatné odsouhlasení.
+- Dva ucelené nové E2E scénáře pokrývají stránkování, hledání, duplicitu, reload,
+  CRUD, CSRF, obnovu variantových voleb, stabilní URL, `IN_USE`, cenu typu ve
+  veřejném detailu, rozměry ploch a read-only velikosti. Starý demo CRUD test
+  byl nahrazen; jeden backendový kontraktový test pokrývá klíčové číselné/URL hranice.
+- Ověření: check/build, 21 unit testů, 22 standardních E2E, oba živé API/auth testy
+  a 47 backendových testů (catalog/core 32, shipping 15) prošly. Živé ověření pouze
+  četlo; skutečná katalogová DB ani media se neměnily. Build/deprecation warnings
+  zůstávají stejné jako v předchozích krocích.
+- Tato práce zůstává necommitnutá a nepushnutá. Další ucelený krok: košíková stránka
+  a serverová validace katalogových položek přes `/cart/validate`; vlastní potisk
+  bude vyžadovat samostatné potvrzení UX a kontraktu.
 
 ## 3. Košík a vlastní potisk
 

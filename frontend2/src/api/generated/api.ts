@@ -19,13 +19,19 @@ import type {
 
 import type {
   AdminCategoriesListParams,
+  AdminCategory,
+  AdminColor,
   AdminColorsListParams,
+  AdminCut,
   AdminCutsListParams,
   AdminMotifDetail,
   AdminMotifVariant,
   AdminMotifVariantsListParams,
   AdminMotifWrite,
   AdminMotifsListParams,
+  AdminPrintArea,
+  AdminPrintAreasListParams,
+  AdminProductType,
   AdminProductTypesListParams,
   CatalogOptionsResponse,
   CategoriesListParams,
@@ -43,10 +49,16 @@ import type {
   PaginatedAdminCutList,
   PaginatedAdminMotifListList,
   PaginatedAdminMotifVariantList,
+  PaginatedAdminPrintAreaList,
   PaginatedAdminProductTypeList,
   PaginatedMotifListList,
+  PatchedAdminCategory,
+  PatchedAdminColor,
+  PatchedAdminCut,
   PatchedAdminMotifVariant,
   PatchedAdminMotifWrite,
+  PatchedAdminPrintArea,
+  PatchedAdminProductType,
   PatchedMotifImagePatch,
 } from "./models";
 
@@ -718,6 +730,278 @@ export function useAdminCategoriesList<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getAdminCategoriesCreateUrl = () => {
+  return `/api/v1/admin/categories`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace. `slug` se při vynechání vygeneruje automaticky z `name` (musí být unikátní).
+ * @summary Vytvořit kategorii
+ */
+export const adminCategoriesCreate = async (
+  adminCategory: NonReadonly<AdminCategory>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCategory> => {
+  return apiFetch<AdminCategory>(getAdminCategoriesCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminCategory),
+  });
+};
+
+export const getAdminCategoriesCreateMutationKey = () => ["adminCategoriesCreate"] as const;
+
+export const getAdminCategoriesCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCategoriesCreate>>,
+    TError,
+    AdminCategoriesCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCategoriesCreate>>,
+  TError,
+  AdminCategoriesCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCategoriesCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCategoriesCreate>>,
+    AdminCategoriesCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCategoriesCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCategoriesCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCategoriesCreate>>
+>;
+export type AdminCategoriesCreateMutationBody = NonReadonly<AdminCategory>;
+export type AdminCategoriesCreateMutationError = ErrorType<unknown>;
+export type AdminCategoriesCreateMutationVariables = { data: NonReadonly<AdminCategory> };
+
+/**
+ * Vyžaduje přihlášení do administrace. `slug` se při vynechání vygeneruje automaticky z `name` (musí být unikátní).
+ * @summary Vytvořit kategorii
+ */
+export const useAdminCategoriesCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCategoriesCreate>>,
+      TError,
+      AdminCategoriesCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCategoriesCreate>>,
+  TError,
+  AdminCategoriesCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCategoriesCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminCategoriesPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/categories/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `slug` se při vynechání vygeneruje automaticky z `name` (musí být unikátní).
+ * @summary Upravit kategorii
+ */
+export const adminCategoriesPartialUpdate = async (
+  id: string,
+  patchedAdminCategory?: NonReadonly<PatchedAdminCategory>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCategory> => {
+  return apiFetch<AdminCategory>(getAdminCategoriesPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminCategory),
+  });
+};
+
+export const getAdminCategoriesPartialUpdateMutationKey = () =>
+  ["adminCategoriesPartialUpdate"] as const;
+
+export const getAdminCategoriesPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>,
+    TError,
+    AdminCategoriesPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>,
+  TError,
+  AdminCategoriesPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCategoriesPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>,
+    AdminCategoriesPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminCategoriesPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCategoriesPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>
+>;
+export type AdminCategoriesPartialUpdateMutationBody =
+  | NonReadonly<PatchedAdminCategory>
+  | undefined;
+export type AdminCategoriesPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminCategoriesPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminCategory>;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `slug` se při vynechání vygeneruje automaticky z `name` (musí být unikátní).
+ * @summary Upravit kategorii
+ */
+export const useAdminCategoriesPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>,
+      TError,
+      AdminCategoriesPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCategoriesPartialUpdate>>,
+  TError,
+  AdminCategoriesPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCategoriesPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminCategoriesDestroyUrl = (id: string) => {
+  return `/api/v1/admin/categories/${id}`;
+};
+
+/**
+ * Pokud je kategorii použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat kategorii
+ */
+export const adminCategoriesDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminCategoriesDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminCategoriesDestroyMutationKey = () => ["adminCategoriesDestroy"] as const;
+
+export const getAdminCategoriesDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCategoriesDestroy>>,
+    TError,
+    AdminCategoriesDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCategoriesDestroy>>,
+  TError,
+  AdminCategoriesDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCategoriesDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCategoriesDestroy>>,
+    AdminCategoriesDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminCategoriesDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCategoriesDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCategoriesDestroy>>
+>;
+
+export type AdminCategoriesDestroyMutationError = ErrorType<unknown>;
+export type AdminCategoriesDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je kategorii použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat kategorii
+ */
+export const useAdminCategoriesDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCategoriesDestroy>>,
+      TError,
+      AdminCategoriesDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCategoriesDestroy>>,
+  TError,
+  AdminCategoriesDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCategoriesDestroyMutationOptions(options), queryClient);
+};
+
 export const getAdminColorsListUrl = (params?: AdminColorsListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -864,6 +1148,275 @@ export function useAdminColorsList<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getAdminColorsCreateUrl = () => {
+  return `/api/v1/admin/colors`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace. `hexValue` musí být ve formátu `#RRGGBB`.
+ * @summary Vytvořit barvu
+ */
+export const adminColorsCreate = async (
+  adminColor: NonReadonly<AdminColor>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminColor> => {
+  return apiFetch<AdminColor>(getAdminColorsCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminColor),
+  });
+};
+
+export const getAdminColorsCreateMutationKey = () => ["adminColorsCreate"] as const;
+
+export const getAdminColorsCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminColorsCreate>>,
+    TError,
+    AdminColorsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminColorsCreate>>,
+  TError,
+  AdminColorsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminColorsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminColorsCreate>>,
+    AdminColorsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminColorsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminColorsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminColorsCreate>>
+>;
+export type AdminColorsCreateMutationBody = NonReadonly<AdminColor>;
+export type AdminColorsCreateMutationError = ErrorType<unknown>;
+export type AdminColorsCreateMutationVariables = { data: NonReadonly<AdminColor> };
+
+/**
+ * Vyžaduje přihlášení do administrace. `hexValue` musí být ve formátu `#RRGGBB`.
+ * @summary Vytvořit barvu
+ */
+export const useAdminColorsCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminColorsCreate>>,
+      TError,
+      AdminColorsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminColorsCreate>>,
+  TError,
+  AdminColorsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminColorsCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminColorsPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/colors/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `hexValue` musí být ve formátu `#RRGGBB`.
+ * @summary Upravit barvu
+ */
+export const adminColorsPartialUpdate = async (
+  id: string,
+  patchedAdminColor?: NonReadonly<PatchedAdminColor>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminColor> => {
+  return apiFetch<AdminColor>(getAdminColorsPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminColor),
+  });
+};
+
+export const getAdminColorsPartialUpdateMutationKey = () => ["adminColorsPartialUpdate"] as const;
+
+export const getAdminColorsPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminColorsPartialUpdate>>,
+    TError,
+    AdminColorsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminColorsPartialUpdate>>,
+  TError,
+  AdminColorsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminColorsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminColorsPartialUpdate>>,
+    AdminColorsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminColorsPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminColorsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminColorsPartialUpdate>>
+>;
+export type AdminColorsPartialUpdateMutationBody = NonReadonly<PatchedAdminColor> | undefined;
+export type AdminColorsPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminColorsPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminColor>;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `hexValue` musí být ve formátu `#RRGGBB`.
+ * @summary Upravit barvu
+ */
+export const useAdminColorsPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminColorsPartialUpdate>>,
+      TError,
+      AdminColorsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminColorsPartialUpdate>>,
+  TError,
+  AdminColorsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminColorsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminColorsDestroyUrl = (id: string) => {
+  return `/api/v1/admin/colors/${id}`;
+};
+
+/**
+ * Pokud je barvu použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat barvu
+ */
+export const adminColorsDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminColorsDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminColorsDestroyMutationKey = () => ["adminColorsDestroy"] as const;
+
+export const getAdminColorsDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminColorsDestroy>>,
+    TError,
+    AdminColorsDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminColorsDestroy>>,
+  TError,
+  AdminColorsDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminColorsDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminColorsDestroy>>,
+    AdminColorsDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminColorsDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminColorsDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminColorsDestroy>>
+>;
+
+export type AdminColorsDestroyMutationError = ErrorType<unknown>;
+export type AdminColorsDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je barvu použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat barvu
+ */
+export const useAdminColorsDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminColorsDestroy>>,
+      TError,
+      AdminColorsDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminColorsDestroy>>,
+  TError,
+  AdminColorsDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminColorsDestroyMutationOptions(options), queryClient);
+};
+
 export const getAdminCutsListUrl = (params?: AdminCutsListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1009,6 +1562,275 @@ export function useAdminCutsList<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getAdminCutsCreateUrl = () => {
+  return `/api/v1/admin/cuts`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace.
+ * @summary Vytvořit střih
+ */
+export const adminCutsCreate = async (
+  adminCut: NonReadonly<AdminCut>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCut> => {
+  return apiFetch<AdminCut>(getAdminCutsCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminCut),
+  });
+};
+
+export const getAdminCutsCreateMutationKey = () => ["adminCutsCreate"] as const;
+
+export const getAdminCutsCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCutsCreate>>,
+    TError,
+    AdminCutsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCutsCreate>>,
+  TError,
+  AdminCutsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCutsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCutsCreate>>,
+    AdminCutsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCutsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCutsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCutsCreate>>
+>;
+export type AdminCutsCreateMutationBody = NonReadonly<AdminCut>;
+export type AdminCutsCreateMutationError = ErrorType<unknown>;
+export type AdminCutsCreateMutationVariables = { data: NonReadonly<AdminCut> };
+
+/**
+ * Vyžaduje přihlášení do administrace.
+ * @summary Vytvořit střih
+ */
+export const useAdminCutsCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCutsCreate>>,
+      TError,
+      AdminCutsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCutsCreate>>,
+  TError,
+  AdminCutsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCutsCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminCutsPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/cuts/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš.
+ * @summary Upravit střih
+ */
+export const adminCutsPartialUpdate = async (
+  id: string,
+  patchedAdminCut?: NonReadonly<PatchedAdminCut>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCut> => {
+  return apiFetch<AdminCut>(getAdminCutsPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminCut),
+  });
+};
+
+export const getAdminCutsPartialUpdateMutationKey = () => ["adminCutsPartialUpdate"] as const;
+
+export const getAdminCutsPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCutsPartialUpdate>>,
+    TError,
+    AdminCutsPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCutsPartialUpdate>>,
+  TError,
+  AdminCutsPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCutsPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCutsPartialUpdate>>,
+    AdminCutsPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminCutsPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCutsPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCutsPartialUpdate>>
+>;
+export type AdminCutsPartialUpdateMutationBody = NonReadonly<PatchedAdminCut> | undefined;
+export type AdminCutsPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminCutsPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminCut>;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš.
+ * @summary Upravit střih
+ */
+export const useAdminCutsPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCutsPartialUpdate>>,
+      TError,
+      AdminCutsPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCutsPartialUpdate>>,
+  TError,
+  AdminCutsPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCutsPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminCutsDestroyUrl = (id: string) => {
+  return `/api/v1/admin/cuts/${id}`;
+};
+
+/**
+ * Pokud je střih použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat střih
+ */
+export const adminCutsDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminCutsDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminCutsDestroyMutationKey = () => ["adminCutsDestroy"] as const;
+
+export const getAdminCutsDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCutsDestroy>>,
+    TError,
+    AdminCutsDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCutsDestroy>>,
+  TError,
+  AdminCutsDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCutsDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCutsDestroy>>,
+    AdminCutsDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminCutsDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCutsDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCutsDestroy>>
+>;
+
+export type AdminCutsDestroyMutationError = ErrorType<unknown>;
+export type AdminCutsDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je střih použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat střih
+ */
+export const useAdminCutsDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCutsDestroy>>,
+      TError,
+      AdminCutsDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCutsDestroy>>,
+  TError,
+  AdminCutsDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCutsDestroyMutationOptions(options), queryClient);
+};
 
 export const getAdminMotifVariantsListUrl = (params: AdminMotifVariantsListParams) => {
   const normalizedParams = new URLSearchParams();
@@ -2380,6 +3202,436 @@ export const useAdminMotifsImagesReorderCreate = <TError = ErrorType<unknown>, T
   return useMutation(getAdminMotifsImagesReorderCreateMutationOptions(options), queryClient);
 };
 
+export const getAdminPrintAreasListUrl = (params?: AdminPrintAreasListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/print-areas?${stringifiedParams}`
+    : `/api/v1/admin/print-areas`;
+};
+
+/**
+ * Vrátí všechny tiskové bloky včetně neaktivních. Navíc k `isActive`/`q` podporuje filtr `productType` (id typu oblečení) pro zobrazení jen bloků patřících danému typu.
+ * @summary Seznam tiskových bloků
+ */
+export const adminPrintAreasList = async (
+  params?: AdminPrintAreasListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<PaginatedAdminPrintAreaList> => {
+  return apiFetch<PaginatedAdminPrintAreaList>(getAdminPrintAreasListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminPrintAreasListQueryKey = (params?: AdminPrintAreasListParams) => {
+  return [`/api/v1/admin/print-areas`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminPrintAreasListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminPrintAreasList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminPrintAreasListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPrintAreasList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminPrintAreasListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminPrintAreasList>>> = ({ signal }) =>
+    adminPrintAreasList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminPrintAreasList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminPrintAreasListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminPrintAreasList>>
+>;
+export type AdminPrintAreasListQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí všechny tiskové bloky včetně neaktivních. Navíc k `isActive`/`q` podporuje filtr `productType` (id typu oblečení) pro zobrazení jen bloků patřících danému typu.
+ * @summary Seznam tiskových bloků
+ */
+export function useAdminPrintAreasList<
+  TData = Awaited<ReturnType<typeof adminPrintAreasList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminPrintAreasListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPrintAreasList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminPrintAreasList>>,
+          TError,
+          Awaited<ReturnType<typeof adminPrintAreasList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí všechny tiskové bloky včetně neaktivních. Navíc k `isActive`/`q` podporuje filtr `productType` (id typu oblečení) pro zobrazení jen bloků patřících danému typu.
+ * @summary Seznam tiskových bloků
+ */
+export function useAdminPrintAreasList<
+  TData = Awaited<ReturnType<typeof adminPrintAreasList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminPrintAreasListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPrintAreasList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminPrintAreasList>>,
+          TError,
+          Awaited<ReturnType<typeof adminPrintAreasList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí všechny tiskové bloky včetně neaktivních. Navíc k `isActive`/`q` podporuje filtr `productType` (id typu oblečení) pro zobrazení jen bloků patřících danému typu.
+ * @summary Seznam tiskových bloků
+ */
+export function useAdminPrintAreasList<
+  TData = Awaited<ReturnType<typeof adminPrintAreasList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminPrintAreasListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPrintAreasList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí všechny tiskové bloky včetně neaktivních. Navíc k `isActive`/`q` podporuje filtr `productType` (id typu oblečení) pro zobrazení jen bloků patřících danému typu.
+ * @summary Seznam tiskových bloků
+ */
+export function useAdminPrintAreasList<
+  TData = Awaited<ReturnType<typeof adminPrintAreasList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminPrintAreasListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPrintAreasList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminPrintAreasListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminPrintAreasCreateUrl = () => {
+  return `/api/v1/admin/print-areas`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace. `productType` je povinné, `widthMm`/`heightMm` musí být kladné a `name` musí být unikátní v rámci daného `productType` (ne globálně - "Přední strana" může existovat pro Tričko i Mikinu zároveň).
+ * @summary Vytvořit tiskový blok
+ */
+export const adminPrintAreasCreate = async (
+  adminPrintArea: NonReadonly<AdminPrintArea>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminPrintArea> => {
+  return apiFetch<AdminPrintArea>(getAdminPrintAreasCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminPrintArea),
+  });
+};
+
+export const getAdminPrintAreasCreateMutationKey = () => ["adminPrintAreasCreate"] as const;
+
+export const getAdminPrintAreasCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminPrintAreasCreate>>,
+    TError,
+    AdminPrintAreasCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminPrintAreasCreate>>,
+  TError,
+  AdminPrintAreasCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminPrintAreasCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminPrintAreasCreate>>,
+    AdminPrintAreasCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminPrintAreasCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminPrintAreasCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminPrintAreasCreate>>
+>;
+export type AdminPrintAreasCreateMutationBody = NonReadonly<AdminPrintArea>;
+export type AdminPrintAreasCreateMutationError = ErrorType<unknown>;
+export type AdminPrintAreasCreateMutationVariables = { data: NonReadonly<AdminPrintArea> };
+
+/**
+ * Vyžaduje přihlášení do administrace. `productType` je povinné, `widthMm`/`heightMm` musí být kladné a `name` musí být unikátní v rámci daného `productType` (ne globálně - "Přední strana" může existovat pro Tričko i Mikinu zároveň).
+ * @summary Vytvořit tiskový blok
+ */
+export const useAdminPrintAreasCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminPrintAreasCreate>>,
+      TError,
+      AdminPrintAreasCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminPrintAreasCreate>>,
+  TError,
+  AdminPrintAreasCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminPrintAreasCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminPrintAreasPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/print-areas/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `productType` je povinné, `widthMm`/`heightMm` musí být kladné a `name` musí být unikátní v rámci daného `productType` (ne globálně - "Přední strana" může existovat pro Tričko i Mikinu zároveň).
+ * @summary Upravit tiskový blok
+ */
+export const adminPrintAreasPartialUpdate = async (
+  id: string,
+  patchedAdminPrintArea?: NonReadonly<PatchedAdminPrintArea>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminPrintArea> => {
+  return apiFetch<AdminPrintArea>(getAdminPrintAreasPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminPrintArea),
+  });
+};
+
+export const getAdminPrintAreasPartialUpdateMutationKey = () =>
+  ["adminPrintAreasPartialUpdate"] as const;
+
+export const getAdminPrintAreasPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>,
+    TError,
+    AdminPrintAreasPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>,
+  TError,
+  AdminPrintAreasPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminPrintAreasPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>,
+    AdminPrintAreasPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminPrintAreasPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminPrintAreasPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>
+>;
+export type AdminPrintAreasPartialUpdateMutationBody =
+  | NonReadonly<PatchedAdminPrintArea>
+  | undefined;
+export type AdminPrintAreasPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminPrintAreasPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminPrintArea>;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. `productType` je povinné, `widthMm`/`heightMm` musí být kladné a `name` musí být unikátní v rámci daného `productType` (ne globálně - "Přední strana" může existovat pro Tričko i Mikinu zároveň).
+ * @summary Upravit tiskový blok
+ */
+export const useAdminPrintAreasPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>,
+      TError,
+      AdminPrintAreasPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminPrintAreasPartialUpdate>>,
+  TError,
+  AdminPrintAreasPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminPrintAreasPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminPrintAreasDestroyUrl = (id: string) => {
+  return `/api/v1/admin/print-areas/${id}`;
+};
+
+/**
+ * Pokud je tiskový blok použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat tiskový blok
+ */
+export const adminPrintAreasDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminPrintAreasDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminPrintAreasDestroyMutationKey = () => ["adminPrintAreasDestroy"] as const;
+
+export const getAdminPrintAreasDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminPrintAreasDestroy>>,
+    TError,
+    AdminPrintAreasDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminPrintAreasDestroy>>,
+  TError,
+  AdminPrintAreasDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminPrintAreasDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminPrintAreasDestroy>>,
+    AdminPrintAreasDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminPrintAreasDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminPrintAreasDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminPrintAreasDestroy>>
+>;
+
+export type AdminPrintAreasDestroyMutationError = ErrorType<unknown>;
+export type AdminPrintAreasDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je tiskový blok použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat tiskový blok
+ */
+export const useAdminPrintAreasDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminPrintAreasDestroy>>,
+      TError,
+      AdminPrintAreasDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminPrintAreasDestroy>>,
+  TError,
+  AdminPrintAreasDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminPrintAreasDestroyMutationOptions(options), queryClient);
+};
+
 export const getAdminProductTypesListUrl = (params?: AdminProductTypesListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2537,6 +3789,278 @@ export function useAdminProductTypesList<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getAdminProductTypesCreateUrl = () => {
+  return `/api/v1/admin/product-types`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace. Detail obsahuje zanořené `printAreas` daného typu.
+ * @summary Vytvořit typ oblečení
+ */
+export const adminProductTypesCreate = async (
+  adminProductType: NonReadonly<AdminProductType>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminProductType> => {
+  return apiFetch<AdminProductType>(getAdminProductTypesCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminProductType),
+  });
+};
+
+export const getAdminProductTypesCreateMutationKey = () => ["adminProductTypesCreate"] as const;
+
+export const getAdminProductTypesCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProductTypesCreate>>,
+    TError,
+    AdminProductTypesCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminProductTypesCreate>>,
+  TError,
+  AdminProductTypesCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminProductTypesCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminProductTypesCreate>>,
+    AdminProductTypesCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminProductTypesCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminProductTypesCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductTypesCreate>>
+>;
+export type AdminProductTypesCreateMutationBody = NonReadonly<AdminProductType>;
+export type AdminProductTypesCreateMutationError = ErrorType<unknown>;
+export type AdminProductTypesCreateMutationVariables = { data: NonReadonly<AdminProductType> };
+
+/**
+ * Vyžaduje přihlášení do administrace. Detail obsahuje zanořené `printAreas` daného typu.
+ * @summary Vytvořit typ oblečení
+ */
+export const useAdminProductTypesCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminProductTypesCreate>>,
+      TError,
+      AdminProductTypesCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminProductTypesCreate>>,
+  TError,
+  AdminProductTypesCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminProductTypesCreateMutationOptions(options), queryClient);
+};
+
+export const getAdminProductTypesPartialUpdateUrl = (id: string) => {
+  return `/api/v1/admin/product-types/${id}`;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. Detail obsahuje zanořené `printAreas` daného typu.
+ * @summary Upravit typ oblečení
+ */
+export const adminProductTypesPartialUpdate = async (
+  id: string,
+  patchedAdminProductType?: NonReadonly<PatchedAdminProductType>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminProductType> => {
+  return apiFetch<AdminProductType>(getAdminProductTypesPartialUpdateUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(patchedAdminProductType),
+  });
+};
+
+export const getAdminProductTypesPartialUpdateMutationKey = () =>
+  ["adminProductTypesPartialUpdate"] as const;
+
+export const getAdminProductTypesPartialUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>,
+    TError,
+    AdminProductTypesPartialUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>,
+  TError,
+  AdminProductTypesPartialUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminProductTypesPartialUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>,
+    AdminProductTypesPartialUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminProductTypesPartialUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminProductTypesPartialUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>
+>;
+export type AdminProductTypesPartialUpdateMutationBody =
+  | NonReadonly<PatchedAdminProductType>
+  | undefined;
+export type AdminProductTypesPartialUpdateMutationError = ErrorType<unknown>;
+export type AdminProductTypesPartialUpdateMutationVariables = {
+  id: string;
+  data?: NonReadonly<PatchedAdminProductType>;
+};
+
+/**
+ * Částečná úprava (PATCH) - pošli jen pole, která měníš. Detail obsahuje zanořené `printAreas` daného typu.
+ * @summary Upravit typ oblečení
+ */
+export const useAdminProductTypesPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>,
+      TError,
+      AdminProductTypesPartialUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminProductTypesPartialUpdate>>,
+  TError,
+  AdminProductTypesPartialUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminProductTypesPartialUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminProductTypesDestroyUrl = (id: string) => {
+  return `/api/v1/admin/product-types/${id}`;
+};
+
+/**
+ * Pokud je typ oblečení použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat typ oblečení
+ */
+export const adminProductTypesDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminProductTypesDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminProductTypesDestroyMutationKey = () => ["adminProductTypesDestroy"] as const;
+
+export const getAdminProductTypesDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProductTypesDestroy>>,
+    TError,
+    AdminProductTypesDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminProductTypesDestroy>>,
+  TError,
+  AdminProductTypesDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminProductTypesDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminProductTypesDestroy>>,
+    AdminProductTypesDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminProductTypesDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminProductTypesDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminProductTypesDestroy>>
+>;
+
+export type AdminProductTypesDestroyMutationError = ErrorType<unknown>;
+export type AdminProductTypesDestroyMutationVariables = { id: string };
+
+/**
+ * Pokud je typ oblečení použitý v objednávce nebo motivu (DB vazba `PROTECT`), vrátí 409 `IN_USE` - použij `isActive: false` místo mazání.
+ * @summary Smazat typ oblečení
+ */
+export const useAdminProductTypesDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminProductTypesDestroy>>,
+      TError,
+      AdminProductTypesDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminProductTypesDestroy>>,
+  TError,
+  AdminProductTypesDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminProductTypesDestroyMutationOptions(options), queryClient);
+};
 
 export const getCatalogOptionsRetrieveUrl = () => {
   return `/api/v1/catalog/options`;

@@ -288,6 +288,30 @@ def test_admin_motif_writes_return_the_detail_shape(admin_client, category):
     assert 'slug' in invalid.json()['error']['fields']
 
 
+def test_admin_lookup_contract_validates_prices_dimensions_and_category_urls(admin_client, product_type, category):
+    updated = admin_client.patch(f'/api/v1/admin/product-types/{product_type.id}', {'price': 12345}, format='json')
+    assert updated.status_code == 200
+    assert updated.json()['price'] == 12345
+    created = admin_client.post('/api/v1/admin/print-areas', {
+        'name': 'Test přední plochy', 'productType': str(product_type.id), 'widthMm': 250, 'heightMm': 300,
+    }, format='json')
+    assert created.status_code == 201
+    assert created.json()['productType'] == str(product_type.id)
+    area_id = created.json()['id']
+    invalid = admin_client.patch(f'/api/v1/admin/print-areas/{area_id}', {'widthMm': 0}, format='json')
+    assert invalid.status_code == 400
+    assert 'widthMm' in invalid.json()['error']['fields']
+    original_slug = category.slug
+    renamed = admin_client.patch(f'/api/v1/admin/categories/{category.id}', {
+        'name': 'Nový název kategorie', 'slug': original_slug, 'isActive': False,
+    }, format='json')
+    assert renamed.status_code == 200
+    assert renamed.json()['slug'] == original_slug
+    invalid_slug = admin_client.post('/api/v1/admin/categories', {'name': '!!!'}, format='json')
+    assert invalid_slug.status_code == 400
+    assert 'slug' in invalid_slug.json()['error']['fields']
+
+
 def test_inactive_motif_returns_404_on_public_detail(motif):
     motif.is_active = False
     motif.save(update_fields=['is_active'])

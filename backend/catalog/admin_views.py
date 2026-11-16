@@ -65,13 +65,17 @@ class AdminProductTypeViewSet(LookupAdminViewSet):
             'podporuje filtr `productType` (id typu oblečení) pro zobrazení jen '
             'bloků patřících danému typu.'
         ),
-        parameters=[OpenApiParameter('productType', str, OpenApiParameter.QUERY, description='UUID typu oblečení.')],
+        parameters=[
+            OpenApiParameter('productType', str, OpenApiParameter.QUERY, description='UUID typu oblečení.'),
+            OpenApiParameter('isActive', bool, description='Filtrovat aktivní/neaktivní položky.'),
+            OpenApiParameter('q', str, description='Hledat v názvu.'),
+        ],
     ),
 )
 @lookup_schema_view(
     'tiskový blok', 'tiskových bloků',
     extra_note=(
-        '`productTypeId` je povinné, `widthMm`/`heightMm` musí být kladné a '
+        '`productType` je povinné, `widthMm`/`heightMm` musí být kladné a '
         '`name` musí být unikátní v rámci daného `productType` (ne globálně - '
         '"Přední strana" může existovat pro Tričko i Mikinu zároveň).'
     ),

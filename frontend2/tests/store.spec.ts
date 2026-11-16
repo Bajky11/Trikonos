@@ -126,9 +126,7 @@ test("custom print selection, editing, upload, removal and cart", async ({ page 
   await expect(section.locator(".design-dimensions")).toContainText("moje.png");
 });
 
-test("admin search, all routes, dictionaries CRUD, validation and persistence", async ({
-  page,
-}) => {
+test("admin search and navigation across all routes", async ({ page }) => {
   await mockAuthApi(page, true);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Přehled", exact: true })).toBeVisible();
@@ -142,27 +140,11 @@ test("admin search, all routes, dictionaries CRUD, validation and persistence", 
     ["produkty", "Produkty"],
     ["klienti", "Klienti"],
     ["sezony", "Sezóny"],
+    ["ciselniky", "Číselníky"],
   ]) {
     await page.goto(`/admin/${route}`);
     await expect(page.locator(".admin-header h1")).toHaveText(heading!);
   }
-  await page.goto("/admin/ciselniky");
-  await page.getByRole("button", { name: "+ Přidat" }).click();
-  await page.getByLabel("Název").fill("Bílá");
-  await page.getByRole("button", { name: "Uložit", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("už existuje");
-  await page.getByLabel("Název").fill("Testovací barva");
-  await page.getByRole("button", { name: "Uložit", exact: true }).click();
-  await expect(page.getByRole("rowheader", { name: "Testovací barva" })).toBeVisible();
-  await page.reload();
-  await page.getByRole("button", { name: "Upravit: Testovací barva" }).click();
-  await page.getByLabel("Název").fill("Upravená barva");
-  await page.getByRole("button", { name: "Uložit", exact: true }).click();
-  await page.getByRole("button", { name: "Smazat: Upravená barva" }).click();
-  await page.getByRole("button", { name: "Smazat", exact: true }).click();
-  await expect(page.getByRole("rowheader", { name: "Upravená barva" })).toHaveCount(0);
-  await page.getByRole("tab", { name: "Střihy" }).click();
-  await expect(page.getByRole("rowheader", { name: "Oversize", exact: true })).toBeVisible();
 });
 
 test("login sends credentials only to the auth endpoint and does not persist them", async ({

@@ -54,6 +54,19 @@ test("local Docker login, session after reload and CSRF-protected logout", async
     await expect(page.getByRole("dialog").getByLabel("Soubor fotografie")).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
   }
+  await page
+    .getByRole("navigation", { name: "Administrace" })
+    .getByRole("link", { name: "Číselníky" })
+    .click();
+  for (const title of ["Barvy", "Střihy", "Typy oblečení", "Kategorie", "Tiskové plochy"]) {
+    await page.getByRole("tab", { name: title, exact: true }).click();
+    await expect(page.getByRole("table", { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  }
+  await page.getByRole("tab", { name: "Velikosti", exact: true }).click();
+  await expect(
+    page.getByText("Velikosti jsou pevný seznam backendu", { exact: false }),
+  ).toBeVisible();
   const logoutResponse = page.waitForResponse("http://localhost:8000/api/v1/admin/auth/logout");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
   expect((await logoutResponse).status()).toBe(204);

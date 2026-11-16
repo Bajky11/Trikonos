@@ -3,8 +3,12 @@
  */
 
 export type AdminCutsListParams = {
+  /** Filtrovat aktivní/neaktivní položky. */
+  isActive?: boolean;
   /** A page number within the paginated result set. */
   page?: number;
   /** Number of results to return per page. */
   pageSize?: number;
+  /** Hledat v názvu. */
+  q?: string;
 };
