@@ -70,7 +70,11 @@ def get_image_dimensions(data, kind):
         from PIL import Image
         from io import BytesIO
         with Image.open(BytesIO(data)) as image:
-            return image.width, image.height
+            dimensions = image.width, image.height
+            image.verify()
+            with Image.open(BytesIO(data)) as decoded:
+                decoded.load()
+            return dimensions
     except Exception:
         return None, None
 

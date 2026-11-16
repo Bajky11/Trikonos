@@ -3,6 +3,9 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from catalog.models import MotifVariant
 from orders.models import Order, OrderItem
+from django.core.files.uploadedfile import SimpleUploadedFile
+from io import BytesIO
+from PIL import Image
 
 from orders.models import DeliveryType
 from shipping.models import ShippingPrice
@@ -92,3 +95,50 @@ def test_cart_preview_reports_unavailable_variant_and_rejects_deleted_reference(
     assert result.json()['subtotal'] is None
     body['items'][1]['motifId'] = '00000000-0000-0000-0000-000000000000'
     assert client.post('/api/v1/cart/validate', body, format='json').status_code == 400
+
+
+def test_design_upload_and_custom_cart_require_session_csrf_and_do_not_create_orders(print_area, cut, color, settings, tmp_path, monkeypatch):
+    settings.MEDIA_ROOT = tmp_path
+    client = APIClient(enforce_csrf_checks=True)
+    user = User.objects.create_user(email='design-admin@example.cz', password='test-only')
+    client.force_login(user)
+    buffer = BytesIO()
+    Image.new('RGB', (200, 100), color='red').save(buffer, format='PNG')
+    def image():
+        return SimpleUploadedFile('design.png', buffer.getvalue(), content_type='image/png')
+    assert client.post('/api/v1/uploads/designs', {'file': image()}, format='multipart').status_code == 403
+    token = client.get('/api/v1/admin/auth/csrf')['X-CSRFToken']
+    assert client.post('/api/v1/uploads/designs', {}, format='multipart', HTTP_X_CSRFTOKEN=token).status_code == 400
+    unsupported = client.post('/api/v1/uploads/designs', {'file': SimpleUploadedFile('fake.txt', b'not an image')}, format='multipart', HTTP_X_CSRFTOKEN=token)
+    assert unsupported.status_code == 422
+    with monkeypatch.context() as limits:
+        limits.setattr('orders.views.DesignUploadView.MAX_SIZE', 1)
+        assert client.post('/api/v1/uploads/designs', {'file': image()}, format='multipart', HTTP_X_CSRFTOKEN=token).status_code == 413
+    damaged = client.post('/api/v1/uploads/designs', {'file': SimpleUploadedFile('broken.png', b'\x89PNG\r\n\x1a\nnot-an-image')}, format='multipart', HTTP_X_CSRFTOKEN=token)
+    assert damaged.status_code == 422
+    jpeg = BytesIO()
+    Image.new('RGB', (200, 100), color='red').save(jpeg, format='JPEG')
+    truncated = client.post('/api/v1/uploads/designs', {'file': SimpleUploadedFile('broken.jpg', jpeg.getvalue()[:-10], content_type='image/jpeg')}, format='multipart', HTTP_X_CSRFTOKEN=token)
+    assert truncated.status_code == 422
+    assert not list(tmp_path.rglob('*.png'))
+    response = client.post('/api/v1/uploads/designs', {'file': image()}, format='multipart', HTTP_X_CSRFTOKEN=token)
+    assert response.status_code == 201
+    uploaded = response.json()
+    assert (uploaded['widthPx'], uploaded['heightPx']) == (200, 100)
+    assert uploaded['mimeType'] == 'image/png'
+    assert len(list(tmp_path.rglob('*.png'))) == 1
+    body = {'items': [{
+        'isCustom': True, 'productTypeId': str(print_area.product_type_id), 'cutId': str(cut.id), 'colorId': str(color.id), 'size': 'M', 'quantity': 2,
+        'placements': [{'printAreaId': str(print_area.id), 'fileToken': uploaded['fileToken'], 'x': 0, 'y': 0, 'width': 200, 'height': 100}],
+    }]}
+    valid = client.post('/api/v1/cart/validate', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert valid.status_code == 200
+    assert valid.json()['items'][0]['valid'] is True
+    assert valid.json()['items'][0]['unitPrice'] is None
+    assert valid.json()['subtotal'] is None
+    assert valid.json()['requiresQuote'] is True
+    assert not Order.objects.exists()
+    monkeypatch.setattr('core.tokens.FILE_TOKEN_MAX_AGE', -1)
+    expired = client.post('/api/v1/cart/validate', body, format='json', HTTP_X_CSRFTOKEN=token)
+    assert expired.status_code == 422
+    assert expired.json()['error']['code'] == 'INVALID_FILE_TOKEN'

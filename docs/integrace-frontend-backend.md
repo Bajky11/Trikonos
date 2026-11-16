@@ -250,20 +250,24 @@ projeví ve storefrontu, prázdný katalog nepadá a nenahrazuje se skrytě deme
 
 - [x] Definovat backendové identifikátory katalogových položek a verzovaný formát
   lokálního košíku; staré demo ceny se nepřevádějí do objednávek.
-- [ ] Převést vlastní potisk z demo draftu na serverový kontrakt.
+- [x] Převést nové vlastní potisky PNG/JPG na serverový kontrakt; staré demo drafty
+  zachovat jako neověřené, neimportovat je automaticky.
 - [x] Doplnit košíkovou stránku, editaci množství, odebrání a obnovu po reloadu.
 - [x] Napojit `/cart/validate` pro katalogové položky; zobrazit změnu ceny,
   nedostupnost a chyby. Lokální cena není autoritativní.
-- [ ] Rozšířit validaci o vlastní potisk, skutečný `requiresQuote` a volbu dopravy;
-  neznámou cenu/dopravu nyní zobrazovat bez konečného součtu.
+- [x] Rozšířit validaci o nový vlastní potisk a skutečný `requiresQuote`.
+- [ ] Doplnit volbu dopravy; neznámou cenu/dopravu nyní zobrazovat bez konečného součtu.
 - [x] U `/cart/validate` ověřit CSRF hosta i přihlášeného administrátora.
-- [ ] Stejné ověření provést pro budoucí upload a vytvoření objednávky;
+- [x] Ověřit CSRF a skutečný multipart upload podkladu v izolovaných testech.
+- [ ] Stejné ověření provést pro budoucí vytvoření objednávky;
   současné veřejné API dědí session autentizaci.
-- [ ] Napojit editor na tiskové plochy, rozměry v mm a serverová transformační
+- [x] Napojit editor na tiskové plochy, rozměry v mm a serverová transformační
   pravidla; otestovat převod souřadnic a meze návrhu.
-- [ ] Napojit multipart upload a `fileToken`, ošetřit limity, formáty,
-  chyby, expiraci tokenu a opuštěné uploady; neukládat velké soubory do localStorage.
-- [ ] Dohodnout UX vlastního potisku a smíšeného košíku: objednávka k nacenění
+- [x] Napojit multipart upload PNG/JPG a `fileToken`, ošetřit limity, chyby
+  a expiraci tokenu; nové obrázky neukládat do localStorage.
+- [ ] Při nasazení naplánovat existující `cleanup_orphan_designs` pro opuštěné uploady.
+- [ ] SVG/PDF řešit samostatně včetně bezpečného zpracování a náhledu.
+- [x] Dohodnout UX vlastního potisku a smíšeného košíku: objednávka k nacenění
   versus nabídka ke schválení; neprezentovat neznámou cenu jako nulovou.
 
 **Ověření etapy:** katalogové i vlastní položky se obnoví a projdou serverovou
@@ -299,9 +303,43 @@ validací; testy pokryjí změnu ceny, neplatnou variantu a expirovaný upload.
 - Check nově hlásí dvě neblokující duplicity `NullEnum | null` v Orvalem
   generovaných volitelných parametrech dopravy/platby. Generované typy nebyly ručně
   opravované. Stávající varování velikosti JS chunku a Django/DRF zůstávají.
-- Tento krok zůstává necommitnutý a nepushnutý. Další krok vyžaduje upřesnit UX
-  vlastního potisku/nacenění a serverový upload; alternativou je checkout čistě
-  katalogových položek, který ale nesmí potichu zahodit custom návrhy.
+- Košík byl na pokyn uživatele commitnutý jako `201bbf9`; bez pushe.
+
+### Vlastní potisk PNG/JPG a smíšený košík (16. 11. 2026)
+
+- Uživatel schválil celý smíšený košík k nacenění a první krok pouze s PNG/JPG;
+  SVG/PDF i checkout jsou mimo tento rozsah. Katalogové ceny jsou známé, konečnou
+  cenu celé objednávky s vlastním potiskem musí potvrdit administrátor.
+- Editor načítá skutečné typy, střihy, barvy, velikosti a tiskové plochy. Nabízí
+  jeden podklad na jednu plochu v položce, bez vymyšlených voleb při prázdném API.
+  Statická galerie zůstává v kódu, ale vybraný obrázek se skutečně nahraje.
+- Podklad PNG/JPG do 20 MB prochází Orval multipart klientem a CSRF bootstrapem.
+  V košíku je pouze `kind: custom`, metadata uploadu, `fileToken`, skutečná ID a
+  umístění; žádný nový base64 obrázek nebo demo cena 456 Kč. Staré demo drafty
+  se nepřevádějí a zůstávají výslovně neověřené.
+- Náhled drží fyzický poměr stran plochy. Posun/resize/centrování používají její
+  meze, převod na celá mm zůstává uvnitř backendových rozměrů i po zaokrouhlení.
+  Změna plochy/rozměrů nesmí použít souřadnice z jiné plochy. Oděv je ilustrační.
+- `/cart/validate` ověřuje nové vlastní i katalogové položky v jednom požadavku,
+  zobrazuje skutečné `requiresQuote` a zachovává známý katalogový mezisoučet bez
+  vydávání neznámé ceny potisku za nulu. Neplatný/prošlý token vyžaduje nový upload
+  a nahrazení staré položky, která se sama nemaže. Platnost tokenu je 7 dní.
+- Malé backendové opravy: přesný binární multipart OpenAPI popis, ověření a
+  dekódování rastru před uložením a oprava lokálního `_`, který překrýval překlady
+  a vedl na 500 u chyb uploadu. Business workflow a datový model se neměnily.
+- Opuštěné uploady řeší existující příkaz `cleanup_orphan_designs` (soubory starší
+  7 dní bez vazby na objednávku); produkční plánování zbývá. DELETE upload API
+  neexistuje. UI tedy neprovádí destruktivní mazání podkladů při odebrání návrhu.
+  Podklady jsou běžné veřejné media URL; soukromé řízení přístupu není doplněné.
+- Ověření: check bez chyb (stejné 2 Orval warnings), 24 unit testů, build,
+  26 standardních E2E, oba živé API/auth testy a 150 backendových testů (1 skipped)
+  prošly. Nové scénáře pokrývají upload/CSRF/limity/poškozený soubor, geometrii,
+  smíšený košík, reload a expiraci tokenu. Uploady se testovaly v mock browser API
+  a izolovaném backendovém MEDIA_ROOT; do skutečné katalogové DB ani media se
+  podklady nedoplňovaly. Jeden starší upload test byl také izolován do tmp_path.
+- Tento krok zůstává necommitnutý a nepushnutý. Další bod: checkout, zákaznické
+  údaje a volba dopravy/platby podle skutečných možností backendu; finální online
+  platební brána není automaticky součástí.
 
 ## 4. Checkout a zákaznická cesta
 

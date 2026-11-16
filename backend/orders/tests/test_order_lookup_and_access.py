@@ -178,7 +178,8 @@ def test_order_with_expired_file_token_is_rejected(print_area, cut, color, monke
     assert response.data['error']['code'] == 'INVALID_FILE_TOKEN'
 
 
-def test_order_with_valid_file_token_from_upload_is_accepted(print_area, cut, color):
+def test_order_with_valid_file_token_from_upload_is_accepted(print_area, cut, color, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     png_bytes = (

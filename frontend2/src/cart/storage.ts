@@ -22,7 +22,7 @@ export interface CatalogCartItem {
   unitPrice: number; // haléře, unlike the legacy custom-print demo's price in Kč
 }
 
-interface CustomCartItem {
+interface LegacyCustomCartItem {
   kind?: never;
   id: "custom-print";
   name: string;
@@ -34,7 +34,36 @@ interface CustomCartItem {
   design?: Design;
 }
 
-export type CartItem = CatalogCartItem | CustomCartItem;
+export interface CustomCartItem {
+  kind: "custom";
+  name: string;
+  productTypeId: string;
+  cutId: string;
+  colorId: string;
+  size: string;
+  quantity: number;
+  upload: {
+    fileToken: string;
+    url: string;
+    fileName: string;
+    mimeType: string;
+    widthPx: number;
+    heightPx: number;
+    uploadedAt: number;
+  };
+  placement: {
+    printAreaId: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotationDeg: number;
+  };
+  areaWidthMm: number;
+  areaHeightMm: number;
+}
+
+export type CartItem = CatalogCartItem | CustomCartItem | LegacyCustomCartItem;
 export const cartStorageKey = "trikonos-cart-v2";
 export const maxCartItems = 500;
 const legacyKey = "trikonos-react-demo-cart-v1";
@@ -63,6 +92,38 @@ export function validCartItem(value: unknown): value is CartItem {
       item.unitPrice >= 0
     );
   }
+  if (item.kind === "custom") {
+    const upload = item.upload as CustomCartItem["upload"] | undefined;
+    const placement = item.placement as CustomCartItem["placement"] | undefined;
+    const integer = (value: unknown, min: number): value is number =>
+      typeof value === "number" && Number.isSafeInteger(value) && value >= min;
+    return (
+      [item.productTypeId, item.cutId, item.colorId, placement?.printAreaId].every(
+        (id) => typeof id === "string" && uuid.test(id),
+      ) &&
+      !!upload &&
+      typeof upload.fileToken === "string" &&
+      !!upload.fileToken &&
+      typeof upload.url === "string" &&
+      !/^(data|blob):/i.test(upload.url) &&
+      typeof upload.fileName === "string" &&
+      ["image/png", "image/jpeg"].includes(upload.mimeType) &&
+      integer(upload.widthPx, 1) &&
+      integer(upload.heightPx, 1) &&
+      integer(upload.uploadedAt, 1) &&
+      !!placement &&
+      integer(placement.x, 0) &&
+      integer(placement.y, 0) &&
+      integer(placement.width, 1) &&
+      integer(placement.height, 1) &&
+      placement.rotationDeg === 0 &&
+      integer(item.areaWidthMm, 1) &&
+      integer(item.areaHeightMm, 1) &&
+      placement.x + placement.width <= item.areaWidthMm &&
+      placement.y + placement.height <= item.areaHeightMm
+    );
+  }
+  if (item.kind !== undefined) return false;
   const type = shirtTypes.find((option) => option.id === item.type);
   return (
     item.id === "custom-print" &&

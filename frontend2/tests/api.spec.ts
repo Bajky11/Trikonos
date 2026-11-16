@@ -76,7 +76,12 @@ test("failed options can be recovered without refetching successful config", asy
     return failing ? route.fulfill({ status: 400, json: {} }) : route.fulfill({ json: options });
   });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("Katalogové číselníky se nepodařilo načíst.");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Katalogové číselníky se nepodařilo načíst." }),
+  ).toBeVisible();
+  await expect(page.locator("#vlastni-potisk").getByRole("alert")).toContainText(
+    "Možnosti vlastního potisku se nepodařilo načíst.",
+  );
   const initialOptionsCalls = optionsCalls;
   const initialConfigCalls = configCalls;
   failing = false;

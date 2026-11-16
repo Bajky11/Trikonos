@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Paper, TextField, Typography } from "@mui/material";
 import { cartValidateCreate, useCatalogOptionsRetrieve } from "../api/generated/api";
 import { withCsrf } from "../auth/csrf";
-import { catalogLines, cartError } from "../cart/validation";
+import { validationLines, cartError } from "../cart/validation";
 import { useShop } from "../components/ShopContext";
-import { CatalogFeedback } from "../components/Products";
+import { CatalogFeedback, ProductArt } from "../components/Products";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
 
@@ -46,7 +46,7 @@ export function CartPage() {
   useTitle("Košík — Trikonoš");
   const shop = useShop();
   const options = useCatalogOptionsRetrieve();
-  const lines = catalogLines(shop.items);
+  const lines = validationLines(shop.items);
   const submitted = lines.filter((line) => line.input !== null);
   const inputs = submitted.flatMap((line) => (line.input ? [line.input] : []));
   const validation = useQuery({
@@ -65,7 +65,20 @@ export function CartPage() {
   });
   const verified = validation.isSuccess && !validation.isFetching;
   const hasCustom = shop.items.some((item) => item.kind !== "catalog");
-  const subtotal = verified && inputs.length === lines.length ? validation.data.subtotal : null;
+  const catalogResults = lines
+    .filter((line) => line.item.kind === "catalog")
+    .map((line) =>
+      verified
+        ? validation.data.items[
+            submitted.findIndex((submittedLine) => submittedLine.index === line.index)
+          ]
+        : undefined,
+    );
+  const subtotal =
+    catalogResults.length > 0 &&
+    catalogResults.every((result) => result?.valid && result.lineTotal !== null)
+      ? catalogResults.reduce((sum, result) => sum + (result?.lineTotal ?? 0), 0)
+      : null;
   return (
     <main className="shell page-main cart-page">
       <Typography variant="h1">Košík</Typography>
@@ -92,7 +105,9 @@ export function CartPage() {
               )}
               {validation.isError && <p role="alert">{cartError(validation.error)}</p>}
               <Button disabled={validation.isFetching} onClick={() => void validation.refetch()}>
-                Znovu ověřit katalogové položky
+                {shop.items.some((item) => item.kind === "custom")
+                  ? "Znovu ověřit košík"
+                  : "Znovu ověřit katalogové položky"}
               </Button>
             </>
           )}
@@ -102,13 +117,14 @@ export function CartPage() {
               const result =
                 verified && lineIndex >= 0 ? validation.data.items[lineIndex] : undefined;
               const catalog = item.kind === "catalog";
-              const type = catalog
+              const known = item.kind === "catalog" || item.kind === "custom";
+              const type = known
                 ? options.data?.productTypes.find((type) => type.id === item.productTypeId)?.name
                 : item.type;
-              const color = catalog
+              const color = known
                 ? options.data?.colors.find((color) => color.id === item.colorId)?.name
                 : item.color;
-              const cut = catalog
+              const cut = known
                 ? options.data?.cuts.find((cut) => cut.id === item.cutId)?.name
                 : undefined;
               return (
@@ -183,6 +199,47 @@ export function CartPage() {
                       )}
                       {!result && <p>Cena a dostupnost zatím nejsou ověřené.</p>}
                     </>
+                  ) : item.kind === "custom" ? (
+                    <>
+                      <p>
+                        {type ?? "Typ není v aktuální nabídce"} ·{" "}
+                        {cut ?? "Střih není v aktuální nabídce"} ·{" "}
+                        {color ?? "Barva není v aktuální nabídce"} · {item.size}
+                      </p>
+                      <ProductArt
+                        src={item.upload.url}
+                        name={item.upload.fileName}
+                        className="cart-design"
+                      />
+                      <p>
+                        Umístění: {item.placement.width} × {item.placement.height} mm, pozice{" "}
+                        {item.placement.x} × {item.placement.y} mm.
+                      </p>
+                      <p>Cena vlastního potisku bude k nacenění; není nulová.</p>
+                      {lines.find((line) => line.index === index)?.localError && (
+                        <p role="alert">{lines.find((line) => line.index === index)?.localError}</p>
+                      )}
+                      {result?.valid && (
+                        <p role="status">
+                          Podklad a varianta byly ověřené. Cenu potvrdí administrátor.
+                        </p>
+                      )}
+                      {result && !result.valid && (
+                        <div role="alert">
+                          {result.errors.map((error, i) => (
+                            <p key={i}>{error}</p>
+                          ))}
+                        </div>
+                      )}
+                      {!result && <p>Podklad a varianta zatím nejsou ověřené.</p>}
+                      <Button component={Link} to="/#vlastni-potisk">
+                        Nahrát podklad znovu v editoru
+                      </Button>
+                      <p>
+                        Odkaz na podklad platí 7 dní od nahrání. Při neplatném podkladu vytvořte
+                        návrh znovu a tuto položku odeberte.
+                      </p>
+                    </>
                   ) : (
                     <>
                       <p>
@@ -221,10 +278,17 @@ export function CartPage() {
             </p>
             {hasCustom && (
               <p>
-                Vlastní potisk vyžaduje samostatné ověření a nacenění. Jeho odeslání zatím není
-                napojené.
+                Celý košík s vlastním potiskem půjde k nacenění. Konečnou cenu potvrdí
+                administrátor; odeslání objednávky zatím není napojené.
               </p>
             )}
+            {verified &&
+              validation.data.requiresQuote &&
+              inputs.length === lines.length &&
+              validation.data.items.every((item) => item.valid) &&
+              !shop.items.some((item) => item.kind === undefined) && (
+                <p role="status">Košík je ověřený a bude vyžadovat nacenění.</p>
+              )}
             <p>Doprava není zvolená. Celková cena objednávky zatím není stanovena.</p>
             <Button component={Link} to="/tricka">
               Pokračovat ve výběru

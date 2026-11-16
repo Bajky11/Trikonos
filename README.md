@@ -12,8 +12,8 @@ Nová aplikace je ve složce [`frontend2`](frontend2/README.md) (Vite+, React,
 TypeScript, MUI a Bun). Spuštění: v `frontend2` spusť `bun install` a `bun run dev`.
 Konfiguraci, katalog a jeho číselníky načítá přímo z backendu přes
 TanStack Query a klienta generovaného Orvalem. Administrace motivů, variant, fotografií
-a katalogových číselníků je také napojená; ostatní administrační sekce a editor
-vlastního potisku jsou zatím demo.
+a katalogových číselníků je také napojená. Vlastní potisk používá skutečný upload
+PNG/JPG, tiskové plochy v mm a košík k nacenění; ostatní administrační sekce jsou zatím demo.
 Přístup do administrace vyžaduje skutečné přihlášení.
 Nastavení API a generování jsou v [návodu frontendu](frontend2/README.md#api-tanstack-query-a-orval).
 
@@ -91,15 +91,15 @@ nevolal `localhost` na zařízení návštěvníka.
 Přihlášení je ověřené lokálně mezi různými porty; produkční domény a HTTPS
 cookies je před nasazením potřeba ověřit samostatně.
 
-Ostatní obsah administrace a vlastní potisk stále používají testovací data. Login v patičce
+Ostatní obsah administrace stále používá testovací data. Login v patičce
 a `/prihlaseni` používají skutečnou autentizaci backendu; `/admin` je chráněné.
 Konfigurace, katalogové číselníky, kategorie i motivy se načítají ze skutečného API.
 V `/admin/produkty` lze spravovat motivy, jejich povolené varianty a fotografie
 včetně pořadí. `/admin/ciselniky` spravuje kategorie, barvy, střihy, typy oblečení
 a tiskové plochy; velikosti jsou pevný seznam backendu pouze pro čtení.
 `/kosik` umožňuje změnit množství, odebrat položky a ověřit aktuální ceny i dostupnost
-katalogu přes `/cart/validate`. Košík zůstává lokální; vlastní potisk je zatím
-neověřený návrh, checkout a objednání nejsou dostupné.
+katalogu i nových vlastních potisků přes `/cart/validate`. Košík zůstává lokální;
+smíšená objednávka bude celá k nacenění. Checkout a objednání nejsou dostupné.
 
 ### HTTPS a přístup z internetu
 

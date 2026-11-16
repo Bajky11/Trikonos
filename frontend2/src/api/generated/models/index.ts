@@ -37,6 +37,8 @@ export * from "./category.ts";
 export * from "./choiceOption.ts";
 export * from "./configResponse.ts";
 export * from "./deliveryTypeEnum.ts";
+export * from "./designUploadRequest.ts";
+export * from "./designUploadResponse.ts";
 export * from "./login.ts";
 export * from "./me.ts";
 export * from "./motifCategoryRef.ts";

@@ -425,8 +425,13 @@ class CartValidateResponseSerializer(serializers.Serializer):
     total = serializers.IntegerField(allow_null=True)
 
 
+@extend_schema_field({'type': 'string', 'format': 'binary'})
+class DesignFileField(serializers.FileField):
+    pass
+
+
 class DesignUploadRequestSerializer(serializers.Serializer):
-    file = serializers.FileField()
+    file = DesignFileField()
 
 
 class DesignUploadResponseSerializer(serializers.Serializer):

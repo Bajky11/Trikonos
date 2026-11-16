@@ -39,6 +39,8 @@ import type {
   CategoriesListParams,
   Category,
   ConfigResponse,
+  DesignUploadRequest,
+  DesignUploadResponse,
   Login,
   Me,
   MotifDetail,
@@ -4994,3 +4996,98 @@ export function useMotifsRelatedList<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getUploadsDesignsCreateUrl = () => {
+  return `/api/v1/uploads/designs`;
+};
+
+/**
+ * První krok editoru vlastního potisku - nahraje se sem obrázek PŘED odesláním objednávky. Multipart `file`, povolené PNG, JPG, SVG, PDF, max 20 MB (jinak 413). Typ souboru se ověřuje podle **skutečného obsahu** (magic bytes), ne podle přípony v názvu - podvržený soubor s jinou příponou vrátí 422 `UNSUPPORTED_FILE_TYPE`. SVG se navíc sanitizuje (odstraní se `<script>`, `on*` atributy a externí odkazy).
+ *
+ * Soubor se uloží pod náhodným názvem (nikdy pod jménem od uživatele) a vrátí se `fileToken` - **podepsaný, platný 7 dní**. Tento token (ne `url`) pošli v `placements[].fileToken` při `POST /orders` - je to jediný způsob, jak soubor napojit na objednávku. `url` slouží jen k zobrazení náhledu v editoru. `widthPx`/`heightPx` jsou k dispozici jen pro rastrové obrázky (PNG/JPG), pro SVG/PDF jsou `null`.
+ * @summary Nahrát podklad pro vlastní potisk
+ */
+export const uploadsDesignsCreate = async (
+  designUploadRequest: DesignUploadRequest,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<DesignUploadResponse> => {
+  const formData = new FormData();
+  formData.append(`file`, designUploadRequest.file);
+
+  return apiFetch<DesignUploadResponse>(getUploadsDesignsCreateUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadsDesignsCreateMutationKey = () => ["uploadsDesignsCreate"] as const;
+
+export const getUploadsDesignsCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadsDesignsCreate>>,
+    TError,
+    UploadsDesignsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadsDesignsCreate>>,
+  TError,
+  UploadsDesignsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadsDesignsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadsDesignsCreate>>,
+    UploadsDesignsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadsDesignsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadsDesignsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadsDesignsCreate>>
+>;
+export type UploadsDesignsCreateMutationBody = DesignUploadRequest;
+export type UploadsDesignsCreateMutationError = ErrorType<void>;
+export type UploadsDesignsCreateMutationVariables = { data: DesignUploadRequest };
+
+/**
+ * První krok editoru vlastního potisku - nahraje se sem obrázek PŘED odesláním objednávky. Multipart `file`, povolené PNG, JPG, SVG, PDF, max 20 MB (jinak 413). Typ souboru se ověřuje podle **skutečného obsahu** (magic bytes), ne podle přípony v názvu - podvržený soubor s jinou příponou vrátí 422 `UNSUPPORTED_FILE_TYPE`. SVG se navíc sanitizuje (odstraní se `<script>`, `on*` atributy a externí odkazy).
+ *
+ * Soubor se uloží pod náhodným názvem (nikdy pod jménem od uživatele) a vrátí se `fileToken` - **podepsaný, platný 7 dní**. Tento token (ne `url`) pošli v `placements[].fileToken` při `POST /orders` - je to jediný způsob, jak soubor napojit na objednávku. `url` slouží jen k zobrazení náhledu v editoru. `widthPx`/`heightPx` jsou k dispozici jen pro rastrové obrázky (PNG/JPG), pro SVG/PDF jsou `null`.
+ * @summary Nahrát podklad pro vlastní potisk
+ */
+export const useUploadsDesignsCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadsDesignsCreate>>,
+      TError,
+      UploadsDesignsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadsDesignsCreate>>,
+  TError,
+  UploadsDesignsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getUploadsDesignsCreateMutationOptions(options), queryClient);
+};

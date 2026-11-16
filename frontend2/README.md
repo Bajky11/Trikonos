@@ -60,7 +60,7 @@ bun run api:generate
 
 Orval 8 generuje typy, fetch funkce a TanStack Query 5 hooky ze schématu
 `http://localhost:8000/api/v1/schema/?format=json` (nikoli z HTML Swagger UI).
-Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku
+Filtr `operationIds` v `orval.config.ts` zahrnuje config/options, session, veřejný katalog, validaci košíku a upload podkladů
 a používané administrační operace motivů, variant, fotografií a katalogových číselníků;
 při integraci dalších endpointů ho rozšiř.
 Jiný zdroj lze zadat proměnnou `OPENAPI_URL`. Při generování uvnitř frontendového
@@ -78,7 +78,7 @@ pro generátor, **ne** pro browser. Po změně API klienta vždy regeneruj.
 - `src/api/queryClient.ts` nastavuje pětiminutovou čerstvost dat, nejvýše jeden
   retry čtení při síťové/serverové chybě, žádný retry 4xx ani automatický retry mutací.
 - Hlavička/patička používají živou konfiguraci. Katalog používá živé kategorie,
-  motivy a povolené varianty; pouze editor vlastního potisku je zatím demo. Prázdné kontakty
+  motivy a povolené varianty; editor vlastního potisku čte stejné živé číselníky a tiskové plochy. Prázdné kontakty
   se nezastupují vymyšleným e-mailem; chyba API nabízí opakované načtení.
 
 Standardní Playwright testy mockují API a nepotřebují backend.
@@ -109,7 +109,7 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
 - `src/cart/storage.ts` ukládá reálná ID a vybranou variantu pod `trikonos-cart-v2`.
   Staré demo katalogové položky se nepřevádějí, staré návrhy vlastního potisku se
   zachovají. **Snapshot ceny ani lokální validace nejsou serverové ověření košíku.**
-  `/kosik` nyní katalogové položky serverově ověřuje; před budoucím vytvořením
+  `/kosik` nyní katalogové položky i nové vlastní potisky serverově ověřuje; před budoucím vytvořením
   objednávky bude nutné kontrolu zopakovat. Checkout zatím neexistuje.
 - Homepage používá ruční pořadí jako „Výběr z kolekce“. Skutečné bestsellery jsou
   odložené: současné backendové `popular` nerozlišuje stavy objednávek. Data ani
@@ -121,7 +121,8 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   obnovit po reloadu a přijmout novou serverovou cenu jako lokální snapshot.
   Neúspěšný zápis do localStorage se nevydává za úspěch.
 - Při otevření a po uložení změny množství se přes Orval volá `POST /cart/validate`.
-  Odesílají se pouze katalogová ID, velikost a množství, nikdy uložená cena/popisek.
+  Odesílají se skutečná ID, velikost a množství, u nových vlastních potisků také
+  tisková plocha, `fileToken` a umístění v mm; nikdy uložená cena/popisek.
   CSRF bootstrap funguje pro hosta i administrátora se session. Server nic neukládá.
 - Výsledek patří konkrétním odeslaným položkám: během nové kontroly nebo po chybě
   se staré ceny netváří jako ověřené. Změna ceny je viditelná, nedostupná varianta
@@ -132,8 +133,37 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
 - Staré návrhy vlastního potisku zůstávají zachované a lze je odebrat nebo změnit
   počet, ale neposílají se do API. Nemají backendová ID/fileToken; jejich cena není
   potvrzená a nezapočítává se do ověřeného katalogového mezisoučtu.
+- Nové vlastní potisky se ověřují společně s katalogem. `requiresQuote: true` znamená,
+  že konečnou cenu celého smíšeného košíku potvrdí administrátor. Ověřené katalogové
+  ceny zůstávají viditelné, vlastní potisk nemá vymyšlenou ani nulovou cenu.
 - Doprava, konečná cena smíšeného košíku, checkout a objednání zůstávají nenapojené.
   `null` v ceně se nezobrazuje jako nula.
+
+### Vlastní potisk: PNG/JPG k nacenění
+
+- Editor používá typ oblečení s aktivní tiskovou plochou, samostatný střih, barvu
+  a velikost z API. Bez skutečné plochy nenabízí demo náhradu. Zatím jde o jeden
+  obrázek na jednu vybranou tiskovou plochu v položce; lze přidat více položek.
+- Nahraný PNG/JPG do 20 MB i vybraný obrázek ze statické galerie prochází
+  `POST /uploads/designs` s CSRF. Server kontroluje skutečný obsah a rastrový obrázek
+  ověří/dekóduje. SVG/PDF se v editoru nenabízejí; jejich backendové zpracování
+  a bezpečnost vyžadují samostatný krok. WebP není součástí veřejného upload API.
+- Náhled zachovává poměr stran tiskové plochy z backendu. Posun, změna velikosti
+  a centrování se převádějí na celá mm od jejího levého horního rohu a zůstávají
+  uvnitř rozměrů plochy. Obrázek oděvu je pouze ilustrační, nikoli přesný mockup
+  zvoleného typu/střihu nebo skutečné polohy například kapsy.
+- Do `trikonos-cart-v2` se uloží `kind: custom`, metadata uploadu, token, skutečná ID
+  a umístění v mm. Nové obrázky se **neukládají jako data URL ani binární obsah**.
+  Předchozí lokální demo drafty se zachovávají odděleně jako neověřené.
+- `fileToken` platí 7 dní. Při vypršení/neplatnosti zůstává položka viditelná,
+  ale košík není celý ověřený; UI vyzve k opětovnému nahrání v editoru a nahrazení
+  staré položky. Podklad se bez původního souboru automaticky neobnovuje.
+- Uploady zůstávají v backendovém media volume pod `designs/rok/měsíc/`.
+  Zrušení nebo odebrání návrhu nevolá neexistující DELETE API. Opuštěné soubory
+  starší 7 dní řeší existující `python manage.py cleanup_orphan_designs`;
+  v produkci je nutné naplánovat pravidelný běh a zálohování. V této integraci
+  se cleanup nespouští a cron se nenastavuje. URL podkladů jsou běžné media URL,
+  nikoli soukromé odkazy s řízením přístupu.
 
 ### Administrace motivů, variant a fotografií
 
@@ -169,8 +199,8 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
   Barva/střih/typ mohou smazat i povolené kombinace, typ také své tiskové plochy,
   pokud tomu nebrání chráněné vazby. U barvy předem změňte přiřazení fotografií.
   Bezpečnější je deaktivace; pravidla CASCADE/PROTECT se touto integrací nemění.
-- Staré lokální demo číselníky se nečtou ani neimportují do DB. Editor vlastního
-  potisku má stále vlastní demo volby; jeho funkční napojení je samostatný krok.
+- Staré lokální demo číselníky se nečtou ani neimportují do DB. Staré volby vlastního
+  potisku se používají už jen pro rozpoznání a zachování historických demo draftů.
 
 ### Přihlášení a session
 
@@ -180,7 +210,7 @@ na přihlášení a po úspěchu vrátí na původní administrační URL. Serve
 není považovaný za odhlášení a nabízí opakované ověření. Session se ověřuje také
 po návratu na kartu a každou minutu, pokud je uživatel přihlášený.
 
-Před loginem, logoutem i katalogovými zápisy proběhne CSRF bootstrap. Token se po loginu obnoví,
+Před loginem, logoutem, katalogovými zápisy i uploadem proběhne CSRF bootstrap. Token se po loginu obnoví,
 odhlášení/expirace odstraní chráněná query data. Profil ani přihlašovací údaje
 se nepersistují do web storage; heslo se po pokusu vymaže z formuláře a mutation
 cache. Neúspěšné odhlášení se nevydává za úspěšné.
@@ -221,7 +251,7 @@ a přenos nové ceny typu do veřejného detailu.
 - `/` — úvodní stránka, galerie realizací, sezóny, katalog, editor potisku a FAQ
 - `/tricka` — celý katalog (`?kategorie=bitcoin&strana=2` pro filtr a stránku)
 - `/produkt/:slug` — detail skutečného motivu podle slugu z API
-- `/kosik` — lokální košík se serverovou validací katalogových položek
+- `/kosik` — lokální košík se serverovou validací katalogu i nových vlastních potisků
 - `/prihlaseni` — skutečné přihlášení do administrace
 - `/admin` — přehled
 - `/admin/objednavky`, `/admin/produkty`, `/admin/sezony`, `/admin/klienti`, `/admin/ciselniky`
@@ -236,7 +266,7 @@ Původní `.html` URL se nepodporují. Při nasazení statického buildu nastavt
   barvy čerpají z theme přes CSS proměnné, komponenty neopakují vlastní `sx` styly
 - `src/components/` — společný shell, produktové karty, galerie, sezóny, košík a editor
 - `src/pages/` — veřejné stránky a samostatný, líně načítaný administrační modul
-- `src/data/` — statický obsah, sezónní fotografie a zatím demo číselníky vlastního potisku
+- `src/data/` — statický obsah, sezónní fotografie, galerie návrhů a staré volby pro rozpoznání demo draftů
 - `src/cart/` — typy, validace a obnova lokálního rozpracovaného košíku
 - `src/admin/catalog/` — správa skutečných motivů, variant a fotografií
 - `src/admin/lookups/` — správa katalogových číselníků a přehled pevných velikostí
@@ -250,12 +280,13 @@ Fontsource; aplikace nepotřebuje Google Fonts. Živý katalog vyžaduje dostupn
 ## Záměrná omezení prototypu
 
 - Na backend jsou napojené config, katalog a jeho číselníky, správa motivů/variant/fotografií,
-  validace katalogových položek košíku a session autentizace. Serverové ukládání košíku, platby
+  editor/upload vlastního potisku, validace košíku a session autentizace. Serverové ukládání košíku, platby
   a objednávání zatím napojené nejsou.
 - Rozpracovaný košík se ukládá do `localStorage` pod `trikonos-cart-v2`. Starý klíč
   `trikonos-react-dictionaries-v1` se již nepoužívá a jeho data se automaticky nepřenášejí.
-- Nahrané obrázky vlastního potisku zůstávají v prohlížeči; větší soubor může přesáhnout jeho
-  úložnou kvótu. Aplikace v takovém případě zobrazí chybu a nepotvrdí uložení.
+- Nové podklady vlastního potisku jsou na backendu; prohlížeč ukládá jen metadata a token.
+  Staré demo drafty mohou dosud obsahovat lokální obrázek. Při selhání úložiště aplikace
+  zobrazí chybu a nepotvrdí změnu košíku.
 - Obnova a změna hesla zatím nemají frontendové rozhraní.
 - Statistiky, objednávky a recenze jsou ukázkové. Sekce Klienti má zástupnou
   obrazovku, Sezóny obsahují informační seznam.

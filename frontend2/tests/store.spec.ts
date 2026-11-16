@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import type { Request } from "@playwright/test";
-import { Buffer } from "node:buffer";
 import { mockStoreApi, mockAuthApi } from "./api-fixtures";
 
 test.beforeEach(async ({ page }) => mockStoreApi(page));
@@ -77,53 +76,15 @@ test("catalog failure can be retried and an empty catalog does not fall back to 
   await expect(page.locator(".product-card")).toHaveCount(0);
 });
 
-test("custom print selection, editing, upload, removal and cart", async ({ page }) => {
+test("custom print does not invent options when no active print area exists", async ({ page }) => {
   await page.goto("/#vlastni-potisk");
   const section = page.locator("#vlastni-potisk");
-  await section.getByRole("button", { name: "Do košíku za" }).click();
-  await expect(section.getByRole("status")).toContainText("Nejprve vyberte");
-  await section.getByRole("button", { name: "Naše potisky", exact: true }).click();
-  await page.getByRole("button", { name: "Motiv 1", exact: true }).click();
-  await expect(section.locator(".design-dimensions")).toBeVisible();
-  const move = section.getByRole("button", { name: "Posunout potisk." });
-  const before = await move.getAttribute("y");
-  await move.focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(move).not.toHaveAttribute("y", before!);
-  const beforeDrag = await move.getAttribute("x");
-  const bounds = await move.boundingBox();
-  if (!bounds) throw new Error("Print drag handle is not visible");
-  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(bounds.x + bounds.width / 2 + 30, bounds.y + bounds.height / 2 + 20);
-  await page.mouse.up();
-  await expect(move).not.toHaveAttribute("x", beforeDrag!);
-  const resize = section.getByRole("button", { name: "Změnit velikost potisku." });
-  const widthBefore = await move.getAttribute("width");
-  await resize.focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect(move).not.toHaveAttribute("width", widthBefore!);
-  await section.getByRole("button", { name: "Černá", exact: true }).click();
-  await expect(section.getByRole("group", { name: "Náhled trička – Černá" })).toBeVisible();
-  await section.getByRole("button", { name: "Přidat jeden kus" }).click();
-  await section.getByRole("button", { name: "Do košíku za" }).click();
-  await expect(page.getByRole("button", { name: "Košík, počet položek: 2" })).toBeVisible();
-  await section.getByRole("button", { name: "Odebrat potisk" }).click();
-  await expect(section.locator(".design-dimensions")).toHaveCount(0);
-  await section.locator("input[type=file]").setInputFiles({
-    name: "invalid.txt",
-    mimeType: "text/plain",
-    buffer: Buffer.from("not an image"),
-  });
-  await expect(section.getByRole("status")).toContainText("Vyberte PNG");
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1ioAAAAASUVORK5CYII=",
-    "base64",
-  );
-  await section
-    .locator("input[type=file]")
-    .setInputFiles({ name: "moje.png", mimeType: "image/png", buffer: png });
-  await expect(section.locator(".design-dimensions")).toContainText("moje.png");
+  await expect(
+    section.getByText("Vlastní potisk zatím není dostupný.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    section.getByRole("button", { name: "Přidat návrh do košíku k nacenění" }),
+  ).toBeDisabled();
 });
 
 test("admin search and navigation across all routes", async ({ page }) => {

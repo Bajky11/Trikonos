@@ -232,7 +232,7 @@ class DesignUploadView(APIView):
             '`widthPx`/`heightPx` jsou k dispozici jen pro rastrové obrázky '
             '(PNG/JPG), pro SVG/PDF jsou `null`.'
         ),
-        request=DesignUploadRequestSerializer,
+        request={'multipart/form-data': DesignUploadRequestSerializer},
         responses={
             201: DesignUploadResponseSerializer,
             413: OpenApiResponse(description='Soubor větší než 20 MB.'),
@@ -254,7 +254,9 @@ class DesignUploadView(APIView):
             data = sanitize_svg(data)
 
         width_px, height_px = get_image_dimensions(data, kind)
-        _, url = save_random_file(data, design_upload_directory(), kind)
+        if kind in (PNG, JPG) and (width_px is None or height_px is None):
+            raise UnsupportedFileTypeError(_('The image is damaged or could not be decoded.'))
+        _stored_path, url = save_random_file(data, design_upload_directory(), kind)
         payload = {
             'url': url,
             'mime_type': MIME_BY_KIND[kind],
