@@ -1,13 +1,14 @@
 {% extends "emails/base.html" %}
+{% block preheader %}Děkujeme za objednávku {{ order_number }}.{% endblock %}
 {% block content %}
-<p>Dobrý den,</p>
-<p>děkujeme za objednávku <strong>{{ order_number }}</strong>.</p>
-{% if requires_quote %}
-<p>Objednávka obsahuje vlastní potisk, proto vám cenu a dopravu potvrdíme e-mailem po kontrole.</p>
-{% else %}
-<p>Cenu dopravy a finální částku vám pošleme po kontrole objednávky.</p>
-{% endif %}
-<p style="margin:24px 0;">
-  <a href="{{ url }}" style="background:#111111; color:#ffffff; padding:12px 20px; border-radius:6px; text-decoration:none;">Zobrazit stav objednávky</a>
+<p style="margin:0 0 16px;">Dobrý den,</p>
+<p style="margin:0 0 16px;">děkujeme za objednávku
+  <span style="background:#e8eee6; color:#0e584d; font-weight:700; padding:2px 8px;">{{ order_number }}</span>.
 </p>
+{% if requires_quote %}
+<p style="margin:0 0 8px;">Objednávka obsahuje vlastní potisk, proto vám cenu a dopravu potvrdíme e-mailem po kontrole.</p>
+{% else %}
+<p style="margin:0 0 8px;">Cenu dopravy a finální částku vám pošleme po kontrole objednávky.</p>
+{% endif %}
+{% include "emails/_button.html" with button_url=url button_label="Zobrazit stav objednávky" %}
 {% endblock %}
