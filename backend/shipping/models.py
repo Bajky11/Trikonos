@@ -63,7 +63,11 @@ class PacketaConfig(models.Model):
     api_password = models.CharField(max_length=100, blank=True, default='')
     eshop = models.CharField(
         max_length=100, blank=True, default='',
-        help_text='Sender label - only needed if the Packeta account has multiple senders.',
+        help_text="Sender indication - only needed if the Packeta account has multiple senders. "
+                  "This is the text value from the 'Označení' column in the client zone's "
+                  "Odesílatelé (senders) list, e.g. 'Trikonoš' - NOT the numeric 'Odesílatel ID' "
+                  "shown in the same table. Packeta's createPacket rejects the numeric ID with "
+                  "'eshop_id: Není zadán odesilatel zásilky'.",
     )
     home_delivery_address_id = models.CharField(
         max_length=50, blank=True, default='',

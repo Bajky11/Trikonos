@@ -10,6 +10,7 @@ import openpyxl
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
+from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -20,6 +21,7 @@ from core.exceptions import (
     BusinessError,
     InvalidStatusTransitionError,
     OrderLockedError,
+    PacketaApiError,
     ShipmentAlreadyCreatedError,
     ShippingPriceNotConfigured,
 )
@@ -54,7 +56,12 @@ def generate_order_number():
     with connection.cursor() as cursor:
         cursor.execute("SELECT nextval('order_number_seq')")
         value = cursor.fetchone()[0]
-    return f'TRK-{timezone.now().year}-{value:04d}'
+    # DEBUG only runs in local/dev environments (settings.DEBUG is False in
+    # production - see docker-compose.yaml vs docker-compose.dev.yaml), so
+    # prefixing here keeps test orders visibly distinct everywhere the
+    # number is used, including the Packeta "number" sent in build_packet_attributes.
+    prefix = 'TEST_TRK' if settings.DEBUG else 'TRK'
+    return f'{prefix}-{timezone.now().year}-{value:04d}'
 
 
 # ---------------------------------------------------------------------------
@@ -677,11 +684,32 @@ def get_shipment_label_pdf(order):
         raise BusinessError(_('No shipment has been created for this order yet.'), code='SHIPMENT_NOT_CREATED')
 
     from shipping.models import PacketaConfig
-    from shipping.packeta_client import get_label_pdf
+    from shipping.packeta_client import get_label_pdf, get_packet_status
 
     pdf_bytes = get_label_pdf(
         packet_id=order.carrier_shipment_id, label_format=PacketaConfig.get_solo().label_format,
     )
+
+    # Packeta's packetLabelPdf can return a "successful" base64 blob that
+    # isn't actually a PDF (e.g. the packet was cancelled after creation,
+    # such as for an invalid pickup point) - without this check that garbage
+    # would go straight to the frontend labelled application/pdf, and
+    # shipment_status would silently advance below as if printing had worked.
+    if not pdf_bytes.startswith(b'%PDF'):
+        status = get_packet_status(packet_id=order.carrier_shipment_id)
+        raise PacketaApiError(
+            _('Packeta did not return a valid label (packet status: %(status)s).')
+            % {'status': status.status_text},
+        )
+
+    # DEBUG-only (local/dev, see generate_order_number above) - persists the
+    # label to disk so it can be opened/inspected while developing/testing
+    # the Packeta integration, without re-hitting their API each time.
+    if settings.DEBUG:
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        default_storage.save(f'labels/{order.order_number}.pdf', ContentFile(pdf_bytes))
 
     if order.shipment_status == ShipmentStatus.CREATED:
         order.shipment_status = ShipmentStatus.LABEL_PRINTED

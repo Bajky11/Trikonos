@@ -1,4 +1,3 @@
-import base64
 from unittest.mock import Mock, patch
 
 import pytest
@@ -378,10 +377,12 @@ def test_create_packet_fault_raises_packeta_api_error():
             packeta_client.create_packet(packet_attributes={})
 
 
-def test_get_label_pdf_decodes_base64():
-    encoded = base64.b64encode(b'%PDF-1.4 fake label').decode()
+def test_get_label_pdf_returns_raw_bytes():
+    """zeep already decodes the WSDL's base64Binary return type to raw bytes -
+    get_label_pdf must return that as-is, not base64-decode it again.
+    """
     fake_client = Mock()
-    fake_client.service.packetLabelPdf.return_value = encoded
+    fake_client.service.packetLabelPdf.return_value = b'%PDF-1.4 fake label'
 
     with patch('shipping.packeta_client._get_client', return_value=fake_client):
         pdf_bytes = packeta_client.get_label_pdf(packet_id='123', label_format='A6 on A4')

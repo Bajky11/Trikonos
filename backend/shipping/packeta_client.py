@@ -1,13 +1,36 @@
-import base64
 from dataclasses import dataclass
 
 import zeep
+from lxml import etree
 
 from core.exceptions import PacketaApiError
 
 from .models import PacketaConfig
 
 SOAP_WSDL = 'https://www.zasilkovna.cz/api/soap.wsdl'
+
+
+def _fault_message(exc):
+    """zeep's exc.message is Packeta's generic "Failed to validate
+    attributes. See detail." - the actual per-field reason (e.g. "value:
+    missing insurance amount") is nested in exc.detail's PacketAttributesFault
+    XML instead. Falls back to the generic message when there's no such
+    detail (other fault types don't carry one).
+    """
+    if exc.detail is None:
+        return str(exc.message)
+
+    field_faults = []
+    for node in exc.detail.iter():
+        if etree.QName(node).localname != 'fault':
+            continue
+        name_node = next((c for c in node if etree.QName(c).localname == 'name'), None)
+        message_node = next((c for c in node if etree.QName(c).localname == 'fault'), None)
+        if name_node is not None and message_node is not None:
+            field_faults.append(f'{name_node.text}: {message_node.text}')
+
+    return '; '.join(field_faults) if field_faults else str(exc.message)
+
 
 # Lazy singleton - the WSDL is fetched over the network on first use, not at
 # import time, so importing this module never requires network access (safe
@@ -37,23 +60,24 @@ def create_packet(*, packet_attributes: dict) -> CreatedPacket:
     try:
         result = _get_client().service.createPacket(PacketaConfig.get_solo().api_password, packet_attributes)
     except zeep.exceptions.Fault as exc:
-        raise PacketaApiError(str(exc.message)) from exc
+        raise PacketaApiError(_fault_message(exc)) from exc
 
     return CreatedPacket(packet_id=str(result.id), barcode=result.barcode, barcode_text=result.barcodeText)
 
 
 def get_label_pdf(*, packet_id: str, label_format: str) -> bytes:
-    """Fetches a packet's shipping label via packetLabelPdf. Packeta returns
-    the PDF base64-encoded - this returns the decoded bytes.
+    """Fetches a packet's shipping label via packetLabelPdf. The WSDL types
+    this response as base64Binary, which zeep already decodes to raw bytes -
+    base64-decoding it again here would corrupt it.
     """
     try:
         result = _get_client().service.packetLabelPdf(
             PacketaConfig.get_solo().api_password, packet_id, label_format, 0,
         )
     except zeep.exceptions.Fault as exc:
-        raise PacketaApiError(str(exc.message)) from exc
+        raise PacketaApiError(_fault_message(exc)) from exc
 
-    return base64.b64decode(result)
+    return result
 
 
 @dataclass
@@ -70,7 +94,7 @@ def get_packet_status(*, packet_id: str) -> PacketStatus:
     try:
         result = _get_client().service.packetStatus(PacketaConfig.get_solo().api_password, packet_id)
     except zeep.exceptions.Fault as exc:
-        raise PacketaApiError(str(exc.message)) from exc
+        raise PacketaApiError(_fault_message(exc)) from exc
 
     return PacketStatus(
         status_code=int(result.statusCode), code_text=result.codeText, status_text=result.statusText,
@@ -100,6 +124,6 @@ def create_courier_pickup(
             {'id': packet_ids}, note,
         )
     except zeep.exceptions.Fault as exc:
-        raise PacketaApiError(str(exc.message)) from exc
+        raise PacketaApiError(_fault_message(exc)) from exc
 
     return CreatedCourierPickup(pickup_id=str(result.pickupId), external_id=str(result.externalId))

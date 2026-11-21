@@ -253,6 +253,30 @@ def test_shipment_label_success_bumps_shipment_status(admin_client, motif, produ
     assert order.shipment_status == ShipmentStatus.LABEL_PRINTED
 
 
+def test_shipment_label_rejects_non_pdf_response(admin_client, motif, product_type, cut, color, packeta_carrier):
+    """Packeta can return a "successful" base64 blob that isn't a PDF - e.g.
+    the packet was cancelled after creation (invalid pickup point). That must
+    surface as a clear error, not get forwarded to the frontend as
+    application/pdf, and must not advance shipment_status either.
+    """
+    order = _order(
+        motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
+        carrier_shipment_id='111', tracking_number='Z 111',
+    )
+
+    with patch('shipping.packeta_client.get_label_pdf', return_value=b'\x89not a pdf'), \
+         patch('shipping.packeta_client.get_packet_status') as mock_status:
+        mock_status.return_value.status_text = 'Zásilka byla stornována.'
+        response = admin_client.get(f'/api/v1/admin/orders/{order.id}/shipment/label')
+
+    assert response.status_code == 502
+    assert response.data['error']['code'] == 'CARRIER_API_ERROR'
+    assert 'stornov' in response.data['error']['message']
+
+    order.refresh_from_db()
+    assert order.shipment_status == ShipmentStatus.CREATED
+
+
 def test_shipment_tracking_without_shipment_fails(admin_client, motif, product_type, cut, color, packeta_carrier):
     order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
 
