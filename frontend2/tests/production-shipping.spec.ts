@@ -184,6 +184,25 @@ test("creates a packet once, downloads a real PDF blob, syncs shipment independe
   expect(shipment.posts).toHaveLength(1);
 });
 
+test("shows the carrier's invalid-label error without pretending the PDF was downloaded", async ({
+  page,
+}) => {
+  const { state } = await mockExpedition(page);
+  state.order.carrierShipmentId = "111";
+  await page.route(`**/api/v1/admin/orders/${adminOrderId}/shipment/label`, (route) =>
+    route.fulfill({
+      status: 502,
+      json: { error: { code: "CARRIER_API_ERROR", message: "Packeta nevrátila platný štítek." } },
+    }),
+  );
+  const downloads: string[] = [];
+  page.on("download", (download) => downloads.push(download.suggestedFilename()));
+  await page.goto(`/admin/objednavky/${adminOrderId}`);
+  await page.getByRole("button", { name: "Stáhnout PDF štítek" }).click();
+  await expect(page.getByText("Packeta nevrátila platný štítek.")).toBeVisible();
+  expect(downloads).toEqual([]);
+});
+
 test("does not force unsupported distinct-recipient shipping through the backend", async ({
   page,
 }) => {

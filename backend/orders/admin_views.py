@@ -1,5 +1,6 @@
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import CharField, Count, Exists, OuterRef, Q
+from django.db.models.functions import Cast
 from django.utils.translation import gettext as _
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -10,6 +11,7 @@ from rest_framework.exceptions import MethodNotAllowed, NotFound
 from rest_framework.response import Response
 
 from accounts.permissions import IsAdmin
+from shipping.models import CourierPickupPacket
 
 from . import services
 from .admin_serializers import (
@@ -52,7 +54,7 @@ _PLACEMENT_ID_PARAM = OpenApiParameter('placement_id', str, OpenApiParameter.PAT
         summary='Seznam objednávek',
         parameters=[OpenApiParameter(name, str, OpenApiParameter.QUERY) for name in (
             'status', 'paymentStatus', 'shipmentStatus', 'paymentMethod', 'carrier',
-            'customer', 'hasCustom', 'createdFrom', 'createdTo', 'q', 'ordering',
+            'customer', 'hasCustom', 'pickupEligible', 'createdFrom', 'createdTo', 'q', 'ordering',
         )],
         description=(
             'Filtry: `status` (víc hodnot oddělených čárkou, např. '
@@ -131,6 +133,15 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         if has_custom is not None:
             wants_custom = has_custom.lower() in ('1', 'true', 'yes')
             queryset = queryset.filter(Exists(has_custom_item)) if wants_custom else queryset.exclude(Exists(has_custom_item))
+
+        if params.get('pickupEligible') == 'true':
+            reserved = CourierPickupPacket.objects.annotate(packet_code=Cast('packet_id', CharField())).filter(
+                packet_code=OuterRef('carrier_shipment_id'),
+            )
+            queryset = queryset.filter(
+                carrier__code='PACKETA', carrier_shipment_id__regex=r'^[1-9][0-9]{0,18}$',
+                shipment_status__in=[ShipmentStatus.CREATED, ShipmentStatus.LABEL_PRINTED],
+            ).exclude(status__in=[OrderStatus.CANCELLED, OrderStatus.REFUNDED]).exclude(Exists(reserved))
 
         created_from = params.get('createdFrom')
         if created_from:
@@ -452,7 +463,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         summary='Export seznamu objednávek (Excel)',
         parameters=[OpenApiParameter(name, str, OpenApiParameter.QUERY) for name in (
             'status', 'paymentStatus', 'shipmentStatus', 'paymentMethod', 'carrier',
-            'customer', 'hasCustom', 'createdFrom', 'createdTo', 'q', 'ordering',
+            'customer', 'hasCustom', 'pickupEligible', 'createdFrom', 'createdTo', 'q', 'ordering',
         )],
         description=(
             'Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil '
@@ -463,7 +474,8 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'přes API.'
         ),
         responses={
-            200: OpenApiResponse(
+            (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiResponse(
+                response=OpenApiTypes.BINARY,
                 description='Soubor .xlsx, Content-Type application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.',
             ),
         },

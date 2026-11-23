@@ -23,11 +23,15 @@ import type {
   AdminColor,
   AdminColorsListParams,
   AdminConfirmOrder,
+  AdminCourierPickup,
+  AdminCourierPickupHistory,
+  AdminCourierPickupResult,
   AdminCreateShipment,
   AdminCustomerDetail,
   AdminCustomersListParams,
   AdminCut,
   AdminCutsListParams,
+  AdminDashboardResponse,
   AdminMotifDetail,
   AdminMotifVariant,
   AdminMotifVariantsListParams,
@@ -35,7 +39,9 @@ import type {
   AdminMotifsListParams,
   AdminOrderDetail,
   AdminOrderStatus,
+  AdminOrdersExportRetrieveParams,
   AdminOrdersListParams,
+  AdminPacketaConfig,
   AdminPrintArea,
   AdminPrintAreasListParams,
   AdminProductType,
@@ -43,9 +49,13 @@ import type {
   AdminProductionPlacementsListParams,
   AdminProductionSummaryListParams,
   AdminResendEmail,
+  AdminRevenuePeriod,
   AdminSearchResponse,
   AdminSearchRetrieveParams,
   AdminShippingCost,
+  AdminStatsRevenueListParams,
+  AdminStatsTopMotifsListParams,
+  AdminTopMotif,
   AdminUser,
   AdminUserCreate,
   AdminUsersListParams,
@@ -1909,6 +1919,221 @@ export const useAdminColorsReorderCreate = <TError = ErrorType<unknown>, TContex
   return useMutation(getAdminColorsReorderCreateMutationOptions(options), queryClient);
 };
 
+export const getAdminCourierPickupsListUrl = () => {
+  return `/api/v1/admin/courier-pickups`;
+};
+
+/**
+ * POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou.
+ */
+export const adminCourierPickupsList = async (
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCourierPickupHistory[]> => {
+  return apiFetch<AdminCourierPickupHistory[]>(getAdminCourierPickupsListUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminCourierPickupsListQueryKey = () => {
+  return [`/api/v1/admin/courier-pickups`] as const;
+};
+
+export const getAdminCourierPickupsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminCourierPickupsList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof adminCourierPickupsList>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminCourierPickupsListQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminCourierPickupsList>>> = ({
+    signal,
+  }) => adminCourierPickupsList({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminCourierPickupsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminCourierPickupsListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminCourierPickupsList>>
+>;
+export type AdminCourierPickupsListQueryError = ErrorType<unknown>;
+
+/** POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou. */
+export function useAdminCourierPickupsList<
+  TData = Awaited<ReturnType<typeof adminCourierPickupsList>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCourierPickupsList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCourierPickupsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCourierPickupsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou. */
+export function useAdminCourierPickupsList<
+  TData = Awaited<ReturnType<typeof adminCourierPickupsList>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCourierPickupsList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminCourierPickupsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminCourierPickupsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou. */
+export function useAdminCourierPickupsList<
+  TData = Awaited<ReturnType<typeof adminCourierPickupsList>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCourierPickupsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou. */
+export function useAdminCourierPickupsList<
+  TData = Awaited<ReturnType<typeof adminCourierPickupsList>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminCourierPickupsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminCourierPickupsListQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminCourierPickupsCreateUrl = () => {
+  return `/api/v1/admin/courier-pickups`;
+};
+
+/**
+ * Zavolá Packeta API (`createCourierPickup`) a objedná svoz pro víc objednávek najednou - na rozdíl od založení zásilky, štítku a sledování stavu (ty se dělají po jedné na `/admin/orders/{id}/shipment...`), svoz se neobjednává pro každou objednávku zvlášť a nestane se při každé objednávce. Všechny `orderIds` musí mít už založenou zásilku u Packety, jinak 422 `SHIPMENT_NOT_CREATED`; neexistující id vrátí 422 `ORDER_NOT_FOUND`. Adresa, ze které se sváží, se nastavuje jednou v `/admin/packeta-config` (pole `pickup*`), ne tady - bez ní 422. `pickupFrom`/`pickupTo` je časové okno, kdy může kurýr dorazit. Vrací `pickupId`/`externalId` přidělené Packetou.
+ * @summary Objednat svoz zásilek u Packety
+ */
+export const adminCourierPickupsCreate = async (
+  adminCourierPickup: AdminCourierPickup,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminCourierPickupResult> => {
+  return apiFetch<AdminCourierPickupResult>(getAdminCourierPickupsCreateUrl(), {
+    ...options,
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminCourierPickup),
+  });
+};
+
+export const getAdminCourierPickupsCreateMutationKey = () => ["adminCourierPickupsCreate"] as const;
+
+export const getAdminCourierPickupsCreateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCourierPickupsCreate>>,
+    TError,
+    AdminCourierPickupsCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCourierPickupsCreate>>,
+  TError,
+  AdminCourierPickupsCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminCourierPickupsCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCourierPickupsCreate>>,
+    AdminCourierPickupsCreateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCourierPickupsCreate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCourierPickupsCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCourierPickupsCreate>>
+>;
+export type AdminCourierPickupsCreateMutationBody = AdminCourierPickup;
+export type AdminCourierPickupsCreateMutationError = ErrorType<void>;
+export type AdminCourierPickupsCreateMutationVariables = { data: AdminCourierPickup };
+
+/**
+ * Zavolá Packeta API (`createCourierPickup`) a objedná svoz pro víc objednávek najednou - na rozdíl od založení zásilky, štítku a sledování stavu (ty se dělají po jedné na `/admin/orders/{id}/shipment...`), svoz se neobjednává pro každou objednávku zvlášť a nestane se při každé objednávce. Všechny `orderIds` musí mít už založenou zásilku u Packety, jinak 422 `SHIPMENT_NOT_CREATED`; neexistující id vrátí 422 `ORDER_NOT_FOUND`. Adresa, ze které se sváží, se nastavuje jednou v `/admin/packeta-config` (pole `pickup*`), ne tady - bez ní 422. `pickupFrom`/`pickupTo` je časové okno, kdy může kurýr dorazit. Vrací `pickupId`/`externalId` přidělené Packetou.
+ * @summary Objednat svoz zásilek u Packety
+ */
+export const useAdminCourierPickupsCreate = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminCourierPickupsCreate>>,
+      TError,
+      AdminCourierPickupsCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminCourierPickupsCreate>>,
+  TError,
+  AdminCourierPickupsCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminCourierPickupsCreateMutationOptions(options), queryClient);
+};
+
 export const getAdminCustomersListUrl = (params?: AdminCustomersListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2960,6 +3185,144 @@ export const useAdminCutsReorderCreate = <TError = ErrorType<unknown>, TContext 
 > => {
   return useMutation(getAdminCutsReorderCreateMutationOptions(options), queryClient);
 };
+
+export const getAdminDashboardRetrieveUrl = () => {
+  return `/api/v1/admin/dashboard`;
+};
+
+/**
+ * Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek (`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, datum, total, status).
+ * @summary Dashboard: karty s přehledem a posledních 10 objednávek
+ */
+export const adminDashboardRetrieve = async (
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminDashboardResponse> => {
+  return apiFetch<AdminDashboardResponse>(getAdminDashboardRetrieveUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminDashboardRetrieveQueryKey = () => {
+  return [`/api/v1/admin/dashboard`] as const;
+};
+
+export const getAdminDashboardRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof adminDashboardRetrieve>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminDashboardRetrieveQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminDashboardRetrieve>>> = ({ signal }) =>
+    adminDashboardRetrieve({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminDashboardRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminDashboardRetrieve>>
+>;
+export type AdminDashboardRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek (`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, datum, total, status).
+ * @summary Dashboard: karty s přehledem a posledních 10 objednávek
+ */
+export function useAdminDashboardRetrieve<
+  TData = Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminDashboardRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminDashboardRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek (`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, datum, total, status).
+ * @summary Dashboard: karty s přehledem a posledních 10 objednávek
+ */
+export function useAdminDashboardRetrieve<
+  TData = Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminDashboardRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminDashboardRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek (`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, datum, total, status).
+ * @summary Dashboard: karty s přehledem a posledních 10 objednávek
+ */
+export function useAdminDashboardRetrieve<
+  TData = Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminDashboardRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek (`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, datum, total, status).
+ * @summary Dashboard: karty s přehledem a posledních 10 objednávek
+ */
+export function useAdminDashboardRetrieve<
+  TData = Awaited<ReturnType<typeof adminDashboardRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminDashboardRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminDashboardRetrieveQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export const getAdminMotifVariantsListUrl = (params: AdminMotifVariantsListParams) => {
   const normalizedParams = new URLSearchParams();
@@ -6238,6 +6601,423 @@ export const useAdminOrdersStatusCreate = <TError = ErrorType<void>, TContext = 
   return useMutation(getAdminOrdersStatusCreateMutationOptions(options), queryClient);
 };
 
+export const getAdminOrdersExportRetrieveUrl = (params?: AdminOrdersExportRetrieveParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/orders/export?${stringifiedParams}`
+    : `/api/v1/admin/orders/export`;
+};
+
+/**
+ * Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil `GET /admin/orders` se stejnými filtry (žádné stránkování - export vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování přes API.
+ * @summary Export seznamu objednávek (Excel)
+ */
+export const adminOrdersExportRetrieve = async (
+  params?: AdminOrdersExportRetrieveParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<Blob> => {
+  return apiFetch<Blob>(getAdminOrdersExportRetrieveUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminOrdersExportRetrieveQueryKey = (params?: AdminOrdersExportRetrieveParams) => {
+  return [`/api/v1/admin/orders/export`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminOrdersExportRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersExportRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminOrdersExportRetrieveQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>> = ({
+    signal,
+  }) => adminOrdersExportRetrieve(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminOrdersExportRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminOrdersExportRetrieve>>
+>;
+export type AdminOrdersExportRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil `GET /admin/orders` se stejnými filtry (žádné stránkování - export vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování přes API.
+ * @summary Export seznamu objednávek (Excel)
+ */
+export function useAdminOrdersExportRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminOrdersExportRetrieveParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersExportRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil `GET /admin/orders` se stejnými filtry (žádné stránkování - export vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování přes API.
+ * @summary Export seznamu objednávek (Excel)
+ */
+export function useAdminOrdersExportRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersExportRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminOrdersExportRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil `GET /admin/orders` se stejnými filtry (žádné stránkování - export vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování přes API.
+ * @summary Export seznamu objednávek (Excel)
+ */
+export function useAdminOrdersExportRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersExportRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Vrátí `.xlsx` soubor se stejnou množinou objednávek, jakou by vrátil `GET /admin/orders` se stejnými filtry (žádné stránkování - export vždy obsahuje všechny odpovídající řádky najednou, ne jen jednu stránku). Peněžní částky jsou v **Kč**, ne v haléřích jako jinde v API - tenhle soubor je pro lidi v Excelu, ne pro další zpracování přes API.
+ * @summary Export seznamu objednávek (Excel)
+ */
+export function useAdminOrdersExportRetrieve<
+  TData = Awaited<ReturnType<typeof adminOrdersExportRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminOrdersExportRetrieveParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminOrdersExportRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminOrdersExportRetrieveQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminPacketaConfigRetrieveUrl = () => {
+  return `/api/v1/admin/packeta-config`;
+};
+
+/**
+ * Přihlašovací údaje a nastavení pro napojení na Packeta (Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to citlivé údaje. `apiPasswordSet: false` znamená, že integrace ještě není nastavená - vytvoření zásilky pak selže s jasnou chybou.
+ *
+ * `eshop` (potřebné jen má-li účet víc odesílatelů) je textové **"Označení"** odesílatele z klientské zóny Packety, sekce Odesílatelé/Senders (např. `"Trikonoš"`) - NE číselné "Odesílatel ID" ze stejné tabulky. Zadání číselného ID selže s chybou `eshop_id: Není zadán odesilatel zásilky. Prosíme vyberte jej.` (ověřeno v praxi).
+ *
+ * `homeDeliveryAddressId` je ID externího dopravce pro doručení na adresu (ne ID výdejního místa) - dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro doručení na výdejní místo stačí jen `apiPassword`.
+ *
+ * Pole `pickup*` (`pickupAddressId` + adresa provozovny) se použijí při objednání svozu přes `POST /admin/courier-pickups` - nastavují se tady jednou, ne při každém svozu zvlášť.
+ * @summary Zobrazit nastavení Packety
+ */
+export const adminPacketaConfigRetrieve = async (
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminPacketaConfig> => {
+  return apiFetch<AdminPacketaConfig>(getAdminPacketaConfigRetrieveUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminPacketaConfigRetrieveQueryKey = () => {
+  return [`/api/v1/admin/packeta-config`] as const;
+};
+
+export const getAdminPacketaConfigRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminPacketaConfigRetrieveQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>> = ({
+    signal,
+  }) => adminPacketaConfigRetrieve({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminPacketaConfigRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>
+>;
+export type AdminPacketaConfigRetrieveQueryError = ErrorType<unknown>;
+
+/**
+ * Přihlašovací údaje a nastavení pro napojení na Packeta (Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to citlivé údaje. `apiPasswordSet: false` znamená, že integrace ještě není nastavená - vytvoření zásilky pak selže s jasnou chybou.
+ *
+ * `eshop` (potřebné jen má-li účet víc odesílatelů) je textové **"Označení"** odesílatele z klientské zóny Packety, sekce Odesílatelé/Senders (např. `"Trikonoš"`) - NE číselné "Odesílatel ID" ze stejné tabulky. Zadání číselného ID selže s chybou `eshop_id: Není zadán odesilatel zásilky. Prosíme vyberte jej.` (ověřeno v praxi).
+ *
+ * `homeDeliveryAddressId` je ID externího dopravce pro doručení na adresu (ne ID výdejního místa) - dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro doručení na výdejní místo stačí jen `apiPassword`.
+ *
+ * Pole `pickup*` (`pickupAddressId` + adresa provozovny) se použijí při objednání svozu přes `POST /admin/courier-pickups` - nastavují se tady jednou, ne při každém svozu zvlášť.
+ * @summary Zobrazit nastavení Packety
+ */
+export function useAdminPacketaConfigRetrieve<
+  TData = Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Přihlašovací údaje a nastavení pro napojení na Packeta (Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to citlivé údaje. `apiPasswordSet: false` znamená, že integrace ještě není nastavená - vytvoření zásilky pak selže s jasnou chybou.
+ *
+ * `eshop` (potřebné jen má-li účet víc odesílatelů) je textové **"Označení"** odesílatele z klientské zóny Packety, sekce Odesílatelé/Senders (např. `"Trikonoš"`) - NE číselné "Odesílatel ID" ze stejné tabulky. Zadání číselného ID selže s chybou `eshop_id: Není zadán odesilatel zásilky. Prosíme vyberte jej.` (ověřeno v praxi).
+ *
+ * `homeDeliveryAddressId` je ID externího dopravce pro doručení na adresu (ne ID výdejního místa) - dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro doručení na výdejní místo stačí jen `apiPassword`.
+ *
+ * Pole `pickup*` (`pickupAddressId` + adresa provozovny) se použijí při objednání svozu přes `POST /admin/courier-pickups` - nastavují se tady jednou, ne při každém svozu zvlášť.
+ * @summary Zobrazit nastavení Packety
+ */
+export function useAdminPacketaConfigRetrieve<
+  TData = Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Přihlašovací údaje a nastavení pro napojení na Packeta (Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to citlivé údaje. `apiPasswordSet: false` znamená, že integrace ještě není nastavená - vytvoření zásilky pak selže s jasnou chybou.
+ *
+ * `eshop` (potřebné jen má-li účet víc odesílatelů) je textové **"Označení"** odesílatele z klientské zóny Packety, sekce Odesílatelé/Senders (např. `"Trikonoš"`) - NE číselné "Odesílatel ID" ze stejné tabulky. Zadání číselného ID selže s chybou `eshop_id: Není zadán odesilatel zásilky. Prosíme vyberte jej.` (ověřeno v praxi).
+ *
+ * `homeDeliveryAddressId` je ID externího dopravce pro doručení na adresu (ne ID výdejního místa) - dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro doručení na výdejní místo stačí jen `apiPassword`.
+ *
+ * Pole `pickup*` (`pickupAddressId` + adresa provozovny) se použijí při objednání svozu přes `POST /admin/courier-pickups` - nastavují se tady jednou, ne při každém svozu zvlášť.
+ * @summary Zobrazit nastavení Packety
+ */
+export function useAdminPacketaConfigRetrieve<
+  TData = Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Přihlašovací údaje a nastavení pro napojení na Packeta (Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to citlivé údaje. `apiPasswordSet: false` znamená, že integrace ještě není nastavená - vytvoření zásilky pak selže s jasnou chybou.
+ *
+ * `eshop` (potřebné jen má-li účet víc odesílatelů) je textové **"Označení"** odesílatele z klientské zóny Packety, sekce Odesílatelé/Senders (např. `"Trikonoš"`) - NE číselné "Odesílatel ID" ze stejné tabulky. Zadání číselného ID selže s chybou `eshop_id: Není zadán odesilatel zásilky. Prosíme vyberte jej.` (ověřeno v praxi).
+ *
+ * `homeDeliveryAddressId` je ID externího dopravce pro doručení na adresu (ne ID výdejního místa) - dostanete ho z klientské zóny Packety, nejde ho uhodnout. Pro doručení na výdejní místo stačí jen `apiPassword`.
+ *
+ * Pole `pickup*` (`pickupAddressId` + adresa provozovny) se použijí při objednání svozu přes `POST /admin/courier-pickups` - nastavují se tady jednou, ne při každém svozu zvlášť.
+ * @summary Zobrazit nastavení Packety
+ */
+export function useAdminPacketaConfigRetrieve<
+  TData = Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminPacketaConfigRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminPacketaConfigRetrieveQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminPacketaConfigUpdateUrl = () => {
+  return `/api/v1/admin/packeta-config`;
+};
+
+/**
+ * Vyžaduje přihlášení do administrace.
+ * @summary Nastavit napojení na Packetu
+ */
+export const adminPacketaConfigUpdate = async (
+  adminPacketaConfig?: NonReadonly<AdminPacketaConfig>,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminPacketaConfig> => {
+  return apiFetch<AdminPacketaConfig>(getAdminPacketaConfigUpdateUrl(), {
+    ...options,
+    method: "PUT",
+    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
+    body: JSON.stringify(adminPacketaConfig),
+  });
+};
+
+export const getAdminPacketaConfigUpdateMutationKey = () => ["adminPacketaConfigUpdate"] as const;
+
+export const getAdminPacketaConfigUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminPacketaConfigUpdate>>,
+    TError,
+    AdminPacketaConfigUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminPacketaConfigUpdate>>,
+  TError,
+  AdminPacketaConfigUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminPacketaConfigUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminPacketaConfigUpdate>>,
+    AdminPacketaConfigUpdateMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminPacketaConfigUpdate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminPacketaConfigUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminPacketaConfigUpdate>>
+>;
+export type AdminPacketaConfigUpdateMutationBody = NonReadonly<AdminPacketaConfig> | undefined;
+export type AdminPacketaConfigUpdateMutationError = ErrorType<unknown>;
+export type AdminPacketaConfigUpdateMutationVariables = { data?: NonReadonly<AdminPacketaConfig> };
+
+/**
+ * Vyžaduje přihlášení do administrace.
+ * @summary Nastavit napojení na Packetu
+ */
+export const useAdminPacketaConfigUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminPacketaConfigUpdate>>,
+      TError,
+      AdminPacketaConfigUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminPacketaConfigUpdate>>,
+  TError,
+  AdminPacketaConfigUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminPacketaConfigUpdateMutationOptions(options), queryClient);
+};
+
 export const getAdminPrintAreasListUrl = (params?: AdminPrintAreasListParams) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7752,6 +8532,323 @@ export function useAdminSearchRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getAdminSearchRetrieveQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminStatsRevenueListUrl = (params?: AdminStatsRevenueListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/stats/revenue?${stringifiedParams}`
+    : `/api/v1/admin/stats/revenue`;
+};
+
+/**
+ * Tržby (součet `total`, mimo CANCELLED/REFUNDED - stejné pravidlo jako na dashboardu) seskupené po dnech/týdnech/měsících za zvolené období - rozšíření dashboardu, který umí jen "dnes vs včera". `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `interval` je `DAY` (výchozí), `WEEK` nebo `MONTH`. Vrací jen období, ve kterých aspoň jedna objednávka vznikla - žádné nulové výplně mezer, to si dořeší frontend podle potřeby grafu.
+ * @summary Statistika: tržby v čase
+ */
+export const adminStatsRevenueList = async (
+  params?: AdminStatsRevenueListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminRevenuePeriod[]> => {
+  return apiFetch<AdminRevenuePeriod[]>(getAdminStatsRevenueListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminStatsRevenueListQueryKey = (params?: AdminStatsRevenueListParams) => {
+  return [`/api/v1/admin/stats/revenue`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminStatsRevenueListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminStatsRevenueList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsRevenueListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsRevenueList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminStatsRevenueListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminStatsRevenueList>>> = ({ signal }) =>
+    adminStatsRevenueList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminStatsRevenueList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminStatsRevenueListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminStatsRevenueList>>
+>;
+export type AdminStatsRevenueListQueryError = ErrorType<unknown>;
+
+/**
+ * Tržby (součet `total`, mimo CANCELLED/REFUNDED - stejné pravidlo jako na dashboardu) seskupené po dnech/týdnech/měsících za zvolené období - rozšíření dashboardu, který umí jen "dnes vs včera". `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `interval` je `DAY` (výchozí), `WEEK` nebo `MONTH`. Vrací jen období, ve kterých aspoň jedna objednávka vznikla - žádné nulové výplně mezer, to si dořeší frontend podle potřeby grafu.
+ * @summary Statistika: tržby v čase
+ */
+export function useAdminStatsRevenueList<
+  TData = Awaited<ReturnType<typeof adminStatsRevenueList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminStatsRevenueListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsRevenueList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminStatsRevenueList>>,
+          TError,
+          Awaited<ReturnType<typeof adminStatsRevenueList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Tržby (součet `total`, mimo CANCELLED/REFUNDED - stejné pravidlo jako na dashboardu) seskupené po dnech/týdnech/měsících za zvolené období - rozšíření dashboardu, který umí jen "dnes vs včera". `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `interval` je `DAY` (výchozí), `WEEK` nebo `MONTH`. Vrací jen období, ve kterých aspoň jedna objednávka vznikla - žádné nulové výplně mezer, to si dořeší frontend podle potřeby grafu.
+ * @summary Statistika: tržby v čase
+ */
+export function useAdminStatsRevenueList<
+  TData = Awaited<ReturnType<typeof adminStatsRevenueList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsRevenueListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsRevenueList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminStatsRevenueList>>,
+          TError,
+          Awaited<ReturnType<typeof adminStatsRevenueList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Tržby (součet `total`, mimo CANCELLED/REFUNDED - stejné pravidlo jako na dashboardu) seskupené po dnech/týdnech/měsících za zvolené období - rozšíření dashboardu, který umí jen "dnes vs včera". `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `interval` je `DAY` (výchozí), `WEEK` nebo `MONTH`. Vrací jen období, ve kterých aspoň jedna objednávka vznikla - žádné nulové výplně mezer, to si dořeší frontend podle potřeby grafu.
+ * @summary Statistika: tržby v čase
+ */
+export function useAdminStatsRevenueList<
+  TData = Awaited<ReturnType<typeof adminStatsRevenueList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsRevenueListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsRevenueList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Tržby (součet `total`, mimo CANCELLED/REFUNDED - stejné pravidlo jako na dashboardu) seskupené po dnech/týdnech/měsících za zvolené období - rozšíření dashboardu, který umí jen "dnes vs včera". `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `interval` je `DAY` (výchozí), `WEEK` nebo `MONTH`. Vrací jen období, ve kterých aspoň jedna objednávka vznikla - žádné nulové výplně mezer, to si dořeší frontend podle potřeby grafu.
+ * @summary Statistika: tržby v čase
+ */
+export function useAdminStatsRevenueList<
+  TData = Awaited<ReturnType<typeof adminStatsRevenueList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsRevenueListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsRevenueList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminStatsRevenueListQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getAdminStatsTopMotifsListUrl = (params?: AdminStatsTopMotifsListParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/stats/top-motifs?${stringifiedParams}`
+    : `/api/v1/admin/stats/top-motifs`;
+};
+
+/**
+ * Žebříček motivů podle počtu prodaných kusů nebo tržby za zvolené období (objednávky mimo CANCELLED/REFUNDED, jen katalogové položky - vlastní potisk nemá `motif`). `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `metric` je `QUANTITY` (výchozí) nebo `REVENUE`, `limit` výchozí 10, max 50.
+ * @summary Statistika: nejprodávanější motivy
+ */
+export const adminStatsTopMotifsList = async (
+  params?: AdminStatsTopMotifsListParams,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<AdminTopMotif[]> => {
+  return apiFetch<AdminTopMotif[]>(getAdminStatsTopMotifsListUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminStatsTopMotifsListQueryKey = (params?: AdminStatsTopMotifsListParams) => {
+  return [`/api/v1/admin/stats/top-motifs`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminStatsTopMotifsListQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsTopMotifsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsTopMotifsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminStatsTopMotifsListQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminStatsTopMotifsList>>> = ({
+    signal,
+  }) => adminStatsTopMotifsList(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminStatsTopMotifsListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminStatsTopMotifsList>>
+>;
+export type AdminStatsTopMotifsListQueryError = ErrorType<unknown>;
+
+/**
+ * Žebříček motivů podle počtu prodaných kusů nebo tržby za zvolené období (objednávky mimo CANCELLED/REFUNDED, jen katalogové položky - vlastní potisk nemá `motif`). `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `metric` je `QUANTITY` (výchozí) nebo `REVENUE`, `limit` výchozí 10, max 50.
+ * @summary Statistika: nejprodávanější motivy
+ */
+export function useAdminStatsTopMotifsList<
+  TData = Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params: undefined | AdminStatsTopMotifsListParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsTopMotifsList>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminStatsTopMotifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Žebříček motivů podle počtu prodaných kusů nebo tržby za zvolené období (objednávky mimo CANCELLED/REFUNDED, jen katalogové položky - vlastní potisk nemá `motif`). `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `metric` je `QUANTITY` (výchozí) nebo `REVENUE`, `limit` výchozí 10, max 50.
+ * @summary Statistika: nejprodávanější motivy
+ */
+export function useAdminStatsTopMotifsList<
+  TData = Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsTopMotifsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsTopMotifsList>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+          TError,
+          Awaited<ReturnType<typeof adminStatsTopMotifsList>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Žebříček motivů podle počtu prodaných kusů nebo tržby za zvolené období (objednávky mimo CANCELLED/REFUNDED, jen katalogové položky - vlastní potisk nemá `motif`). `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `metric` je `QUANTITY` (výchozí) nebo `REVENUE`, `limit` výchozí 10, max 50.
+ * @summary Statistika: nejprodávanější motivy
+ */
+export function useAdminStatsTopMotifsList<
+  TData = Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsTopMotifsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsTopMotifsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * Žebříček motivů podle počtu prodaných kusů nebo tržby za zvolené období (objednávky mimo CANCELLED/REFUNDED, jen katalogové položky - vlastní potisk nemá `motif`). `createdFrom`/`createdTo` (ISO datum) výchozí na posledních 30 dní, `metric` je `QUANTITY` (výchozí) nebo `REVENUE`, `limit` výchozí 10, max 50.
+ * @summary Statistika: nejprodávanější motivy
+ */
+export function useAdminStatsTopMotifsList<
+  TData = Awaited<ReturnType<typeof adminStatsTopMotifsList>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: AdminStatsTopMotifsListParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof adminStatsTopMotifsList>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAdminStatsTopMotifsListQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

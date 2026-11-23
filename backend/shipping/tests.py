@@ -464,6 +464,13 @@ def packeta_pickup_config(db):
     return PacketaConfig.get_solo()
 
 
+@pytest.fixture
+def packeta_pickup_carrier(carrier):
+    carrier.code = 'PACKETA'
+    carrier.save(update_fields=['code'])
+    return carrier
+
+
 def test_courier_pickup_requires_pickup_address_configured(carrier):
     order = _bare_order(carrier=carrier, carrier_shipment_id='111')
 
@@ -491,12 +498,12 @@ def test_courier_pickup_order_without_shipment_raises(packeta_pickup_config, car
     assert exc_info.value.code == 'SHIPMENT_NOT_CREATED'
 
 
-def test_courier_pickup_success_calls_client_with_batched_packet_ids(packeta_pickup_config, carrier):
+def test_courier_pickup_success_calls_client_with_batched_packet_ids(packeta_pickup_config, packeta_pickup_carrier):
     order_a = _bare_order(
-        carrier=carrier, carrier_shipment_id='111', order_number='TRK-2026-0001', email='a@example.cz',
+        carrier=packeta_pickup_carrier, carrier_shipment_id='111', order_number='TRK-2026-0001', email='a@example.cz',
     )
     order_b = _bare_order(
-        carrier=carrier, carrier_shipment_id='222', order_number='TRK-2026-0002', email='b@example.cz',
+        carrier=packeta_pickup_carrier, carrier_shipment_id='222', order_number='TRK-2026-0002', email='b@example.cz',
     )
     created = packeta_client.CreatedCourierPickup(pickup_id='999', external_id='EXT-999')
 
@@ -515,35 +522,61 @@ def test_courier_pickup_success_calls_client_with_batched_packet_ids(packeta_pic
     assert kwargs['note'] == 'Zadní vchod'
 
 
-def test_admin_courier_pickup_endpoint_success(admin_client, packeta_pickup_config, carrier):
-    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+def test_admin_courier_pickup_endpoint_success(admin_client, packeta_pickup_config, packeta_pickup_carrier):
+    order = _bare_order(carrier=packeta_pickup_carrier, carrier_shipment_id='111')
     created = packeta_client.CreatedCourierPickup(pickup_id='999', external_id='EXT-999')
 
-    with patch('shipping.packeta_client.create_courier_pickup', return_value=created):
-        response = admin_client.post('/api/v1/admin/courier-pickups', {
+    with patch('shipping.packeta_client.create_courier_pickup', return_value=created) as send:
+        body = {
             'orderIds': [str(order.id)],
             'pickupFrom': '2026-11-20T08:00:00Z',
             'pickupTo': '2026-11-20T12:00:00Z',
-        }, format='json')
+        }
+        response = admin_client.post('/api/v1/admin/courier-pickups', body, format='json')
+        replay = admin_client.post('/api/v1/admin/courier-pickups', body, format='json')
+        assert replay.data == response.data
+        send.assert_called_once()
 
     assert response.status_code == 200
     assert response.data['pickup_id'] == '999'
     assert response.data['external_id'] == 'EXT-999'
     assert response.data['order_ids'] == [str(order.id)]
+    assert admin_client.get('/api/v1/admin/courier-pickups').data[0]['pickup_id'] == '999'
+    assert admin_client.get('/api/v1/admin/orders', {'pickupEligible': 'true'}).data['count'] == 0
 
 
-def test_admin_courier_pickup_endpoint_carrier_api_error_returns_502(admin_client, packeta_pickup_config, carrier):
-    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+def test_admin_courier_pickup_endpoint_carrier_api_error_returns_502(admin_client, packeta_pickup_config, packeta_pickup_carrier):
+    order = _bare_order(carrier=packeta_pickup_carrier, carrier_shipment_id='111')
 
-    with patch('shipping.packeta_client.create_courier_pickup', side_effect=PacketaApiError('Neplatné apiPassword.')):
-        response = admin_client.post('/api/v1/admin/courier-pickups', {
+    with patch('shipping.packeta_client.create_courier_pickup', side_effect=PacketaApiError('Neplatné apiPassword.')) as send:
+        body = {
             'orderIds': [str(order.id)],
             'pickupFrom': '2026-11-20T08:00:00Z',
             'pickupTo': '2026-11-20T12:00:00Z',
-        }, format='json')
+        }
+        response = admin_client.post('/api/v1/admin/courier-pickups', body, format='json')
+        retry = admin_client.post('/api/v1/admin/courier-pickups', body, format='json')
+        send.assert_called_once()
 
     assert response.status_code == 502
     assert response.data['error']['code'] == 'CARRIER_API_ERROR'
+    assert retry.status_code == 409
+    assert admin_client.get('/api/v1/admin/courier-pickups').data[0]['pickup_id'] == ''
+
+
+def test_admin_courier_pickup_rejects_reversed_window_and_wrong_carrier(admin_client, packeta_pickup_config, carrier):
+    carrier.code = 'OTHER'
+    carrier.save(update_fields=['code'])
+    order = _bare_order(carrier=carrier, carrier_shipment_id='111')
+    url = '/api/v1/admin/courier-pickups'
+    data = {'orderIds': [str(order.id)], 'pickupFrom': '2026-11-20T12:00:00Z', 'pickupTo': '2026-11-20T08:00:00Z'}
+    with patch('shipping.packeta_client.create_courier_pickup') as send:
+        assert admin_client.post(url, data, format='json').status_code == 400
+        data['pickupTo'] = '2026-11-20T15:00:00Z'
+        response = admin_client.post(url, data, format='json')
+        assert response.status_code == 422
+        assert response.data['error']['code'] == 'COURIER_PICKUP_WRONG_CARRIER'
+        send.assert_not_called()
 
 
 def test_admin_courier_pickup_endpoint_missing_order_returns_422(admin_client, packeta_pickup_config):

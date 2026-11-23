@@ -15,6 +15,7 @@ export type AdminOrdersListParams = {
   pageSize?: number;
   paymentMethod?: string;
   paymentStatus?: string;
+  pickupEligible?: string;
   q?: string;
   shipmentStatus?: string;
   status?: string;

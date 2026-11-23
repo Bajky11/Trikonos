@@ -1,3 +1,5 @@
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -9,12 +11,13 @@ from .admin_serializers import (
     AdminCarrierSerializer,
     AdminCodSurchargeSerializer,
     AdminCourierPickupResultSerializer,
+    AdminCourierPickupHistorySerializer,
     AdminCourierPickupSerializer,
     AdminPacketaConfigSerializer,
     AdminShippingPriceSerializer,
     AdminShippingQuantityDiscountSerializer,
 )
-from .models import Carrier, CodSurcharge, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
+from .models import Carrier, CodSurcharge, CourierPickup, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
 from .services import order_courier_pickup
 
 
@@ -102,13 +105,13 @@ class AdminCodSurchargeView(viewsets.ViewSet):
 
 
 @extend_schema_view(
-    list=extend_schema(
+    retrieve=extend_schema(
         tags=['Admin - doprava'],
         summary='Zobrazit nastavení Packety',
         description=(
             'Přihlašovací údaje a nastavení pro napojení na Packeta '
             '(Zásilkovna) API (viz `shipping/packeta_client.py`) - jsou to '
-            'citlivé údaje. `apiPassword: ""` znamená, že '
+            'citlivé údaje. `apiPasswordSet: false` znamená, že '
             'integrace ještě není nastavená - vytvoření zásilky pak selže '
             's jasnou chybou.\n\n'
             '`eshop` (potřebné jen má-li účet víc odesílatelů) je textové '
@@ -125,7 +128,7 @@ class AdminCodSurchargeView(viewsets.ViewSet):
             'použijí při objednání svozu přes `POST /admin/courier-pickups` '
             '- nastavují se tady jednou, ne při každém svozu zvlášť.'
         ),
-        responses={200: AdminPacketaConfigSerializer},
+        responses={200: AdminPacketaConfigSerializer(many=False)},
     ),
     update=extend_schema(
         tags=['Admin - doprava'],
@@ -135,11 +138,12 @@ class AdminCodSurchargeView(viewsets.ViewSet):
         responses={200: AdminPacketaConfigSerializer},
     ),
 )
+@method_decorator(never_cache, name='dispatch')
 class AdminPacketaConfigView(viewsets.ViewSet):
     """GET/PUT /admin/packeta-config - singleton nastavení napojení na Packetu."""
     permission_classes = [IsAdmin]
 
-    def list(self, request):
+    def retrieve(self, request):
         serializer = AdminPacketaConfigSerializer(PacketaConfig.get_solo())
         return Response(serializer.data)
 
@@ -189,6 +193,7 @@ class AdminShippingQuantityDiscountViewSet(LookupAdminViewSet):
 
 
 @extend_schema_view(
+    list=extend_schema(tags=['Admin - doprava'], responses=AdminCourierPickupHistorySerializer(many=True)),
     create=extend_schema(
         tags=['Admin - doprava'],
         summary='Objednat svoz zásilek u Packety',
@@ -213,12 +218,26 @@ class AdminShippingQuantityDiscountViewSet(LookupAdminViewSet):
                 description='ORDER_NOT_FOUND / SHIPMENT_NOT_CREATED - viz chybová zpráva, které objednávky.',
             ),
             502: OpenApiResponse(description='CARRIER_API_ERROR - Packeta vrátila chybu.'),
+            409: OpenApiResponse(description='COURIER_PICKUP_RESERVED - zásilka už má záznam o svozu.'),
         },
     ),
 )
+@method_decorator(never_cache, name='dispatch')
 class AdminCourierPickupView(viewsets.ViewSet):
     """POST /admin/courier-pickups - objednání svozu zásilek u Packety pro víc objednávek najednou."""
     permission_classes = [IsAdmin]
+
+    def list(self, request):
+        pickups = CourierPickup.objects.prefetch_related('packets').order_by('-created_at')[:50]
+        return Response(AdminCourierPickupHistorySerializer([
+            {
+                'id': pickup.id, 'created_at': pickup.created_at,
+                'pickup_from': pickup.pickup_from, 'pickup_to': pickup.pickup_to,
+                'pickup_id': pickup.pickup_id, 'external_id': pickup.external_id,
+                'order_ids': [packet.order_id for packet in pickup.packets.all()],
+            }
+            for pickup in pickups
+        ], many=True).data)
 
     def create(self, request):
         serializer = AdminCourierPickupSerializer(data=request.data)

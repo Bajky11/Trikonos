@@ -56,21 +56,40 @@ class AdminPacketaConfigSerializer(serializers.ModelSerializer):
         read_only_fields = ['updated_at']
         extra_kwargs = {'api_password': {'write_only': True}}
 
-    def get_api_password_set(self, obj):
+    def get_api_password_set(self, obj) -> bool:
         return bool(obj.api_password)
+
+    def validate_pickup_address_id(self, value):
+        if value and (not value.isascii() or not value.isdecimal() or not 0 < int(value) <= 2**31 - 1):
+            raise serializers.ValidationError('Zadejte platné číselné ID místa svozu.')
+        return value
 
 
 class AdminCourierPickupSerializer(serializers.Serializer):
-    order_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    order_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False, max_length=100)
     pickup_from = serializers.DateTimeField()
     pickup_to = serializers.DateTimeField()
-    note = serializers.CharField(required=False, allow_blank=True, default='')
+    note = serializers.CharField(required=False, allow_blank=True, default='', max_length=500)
+
+    def validate(self, attrs):
+        if attrs['pickup_from'] >= attrs['pickup_to']:
+            raise serializers.ValidationError({'pickup_to': 'Konec svozu musí být po začátku.'})
+        if len(set(attrs['order_ids'])) != len(attrs['order_ids']):
+            raise serializers.ValidationError({'order_ids': 'Objednávky se nesmí opakovat.'})
+        return attrs
 
 
 class AdminCourierPickupResultSerializer(serializers.Serializer):
     pickup_id = serializers.CharField()
     external_id = serializers.CharField()
     order_ids = serializers.ListField(child=serializers.UUIDField())
+
+
+class AdminCourierPickupHistorySerializer(AdminCourierPickupResultSerializer):
+    id = serializers.UUIDField()
+    pickup_from = serializers.DateTimeField()
+    pickup_to = serializers.DateTimeField()
+    created_at = serializers.DateTimeField()
 
 
 class AdminShippingQuantityDiscountSerializer(serializers.ModelSerializer):

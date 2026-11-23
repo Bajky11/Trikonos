@@ -12,11 +12,14 @@ import { CustomersPanel } from "../admin/customers/CustomersPanel";
 import { UsersPanel } from "../admin/accounts/UsersPanel";
 import { PasswordPage } from "../auth/PasswordPage";
 import { GlobalSearch } from "../admin/GlobalSearch";
+import { Dashboard } from "../admin/Dashboard";
+import { PacketaPage } from "../admin/shipping/PacketaPage";
 
 const sections = [
   ["prehled", "Přehled"],
   ["objednavky", "Objednávky"],
   ["vyroba", "Výroba"],
+  ["svoz", "Svoz Packety"],
   ["produkty", "Produkty"],
   ["sezony", "Sezóny"],
   ["klienti", "Klienti"],
@@ -64,7 +67,7 @@ export function AdminLayout() {
               className="admin-search"
               placeholder={section === "vyroba" ? "Použijte filtry výroby" : "Hledat…"}
               disabled={
-                ["vyroba", "uzivatele", "heslo"].includes(section) ||
+                ["prehled", "vyroba", "svoz", "uzivatele", "heslo"].includes(section) ||
                 !!orderId ||
                 !!customerId ||
                 manual
@@ -109,31 +112,9 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
   const { search } = useOutletContext<{ search: string }>();
   return (
     <>
-      {section === "prehled" && (
-        <section className="admin-stats" aria-label="Souhrn obchodu">
-          {[
-            ["Objednávky dnes", "12", "+3 oproti včerejšku"],
-            ["Tržby dnes", "18 940 Kč", "+9 %"],
-            ["Noví klienti", "5", "tento týden"],
-            ["Docházejí skladem", "3 produkty", "zkontrolovat"],
-          ].map(([label, value, hint], index) => (
-            <Paper component="article" className="stat-card" key={label} variant="outlined">
-              <h2>{label}</h2>
-              <strong>{value}</strong>
-              {index === 3 ? (
-                <Link to="/admin/produkty" className="warning">
-                  {hint}
-                </Link>
-              ) : (
-                <p className={index < 2 ? "positive" : ""}>{hint}</p>
-              )}
-            </Paper>
-          ))}
-        </section>
-      )}
-      {(section === "prehled" || section === "objednavky") && (
-        <OrdersPanel search={search} overview={section === "prehled"} />
-      )}
+      {section === "prehled" && <Dashboard />}
+      {section === "objednavky" && <OrdersPanel search={search} />}
+      {section === "svoz" && <PacketaPage />}
       {section === "ciselniky" && <DictionariesPanel search={search} />}
       {section === "vyroba" && <ProductionPanel />}
       {section === "sezony" && (

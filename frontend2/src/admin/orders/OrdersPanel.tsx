@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Button,
@@ -13,7 +13,8 @@ import {
   TableRow,
   TextField,
 } from "@mui/material";
-import { useAdminOrdersList } from "../../api/generated/api";
+import { adminOrdersExportRetrieve, useAdminOrdersList } from "../../api/generated/api";
+import { catalogError } from "../catalog/forms";
 import { CatalogFeedback } from "../../components/Products";
 import { money } from "../../data/catalog";
 import {
@@ -45,6 +46,8 @@ const filters: [string, string, Record<string, string>][] = [
 
 export function OrdersPanel({ search, overview = false }: { search: string; overview?: boolean }) {
   const [params, setParams] = useSearchParams();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const previousSearch = useRef(search);
   useEffect(() => {
     if (previousSearch.current === search) return;
@@ -73,30 +76,68 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
     });
   const page = Math.max(1, Number(params.get("page")) || 1);
   const pageSize = overview ? 5 : 20;
+  const filtersForRequest = {
+    q: params.get("q") || undefined,
+    customer: params.get("customer") || undefined,
+    status: params.get("status") || undefined,
+    paymentStatus: params.get("paymentStatus") || undefined,
+    paymentMethod: params.get("paymentMethod") || undefined,
+    shipmentStatus: params.get("shipmentStatus") || undefined,
+    hasCustom: params.get("hasCustom") || undefined,
+    createdFrom: params.get("createdFrom") || undefined,
+    createdTo: params.get("createdTo") || undefined,
+    carrier: params.get("carrier") || undefined,
+    ordering: params.get("ordering") || "-createdAt",
+  };
   const orders = useAdminOrdersList(
-    {
-      page,
-      pageSize,
-      q: params.get("q") || undefined,
-      customer: params.get("customer") || undefined,
-      status: params.get("status") || undefined,
-      paymentStatus: params.get("paymentStatus") || undefined,
-      paymentMethod: params.get("paymentMethod") || undefined,
-      shipmentStatus: params.get("shipmentStatus") || undefined,
-      hasCustom: params.get("hasCustom") || undefined,
-      createdFrom: params.get("createdFrom") || undefined,
-      createdTo: params.get("createdTo") || undefined,
-      ordering: params.get("ordering") || "-createdAt",
-    },
+    { ...filtersForRequest, page, pageSize },
     { query: { retry: false, refetchOnWindowFocus: false }, request: { cache: "no-store" } },
   );
   return (
     <Paper className="admin-panel" variant="outlined">
       <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
       {!overview && (
-        <Button component={Link} to="/admin/objednavky/nova">
-          Ručně založit objednávku
-        </Button>
+        <>
+          <Button component={Link} to="/admin/objednavky/nova">
+            Ručně založit objednávku
+          </Button>
+          <Button
+            disabled={exporting || !orders.isSuccess}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Stáhnout všechny objednávky odpovídající filtrům? Soubor obsahuje osobní údaje.",
+                )
+              )
+                return;
+              setExporting(true);
+              setExportError("");
+              void adminOrdersExportRetrieve(filtersForRequest, {
+                cache: "no-store",
+                headers: { Accept: "*/*" },
+              })
+                .then((blob) => {
+                  if (
+                    !(blob instanceof Blob) ||
+                    blob.type !==
+                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  )
+                    throw new Error("Server nevrátil soubor Excel.");
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = "objednavky.xlsx";
+                  link.click();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                })
+                .catch((error: unknown) => setExportError(catalogError(error)))
+                .finally(() => setExporting(false));
+            }}
+          >
+            Exportovat do Excelu
+          </Button>
+          {exportError && <p role="alert">{exportError}</p>}
+        </>
       )}
       {params.get("customer") && (
         <p>

@@ -54,6 +54,8 @@ test("creates a separate mixed manual order and recovers the same id/body after 
       };
       return route.fulfill({ status: 503, json: {} });
     }
+    if (posts.length === 2)
+      return route.fulfill({ status: 403, json: { error: { message: "Přihlášení vypršelo." } } });
     return route.fulfill({ status: 201, json: saved });
   });
   await page.route(/\/api\/v1\/admin\/orders\/[0-9a-f-]{36}$/, (route) =>
@@ -107,10 +109,15 @@ test("creates a separate mixed manual order and recovers the same id/body after 
   expect(posts[0]!.termsAccepted).toBeUndefined();
   await page.reload();
   await page.getByRole("button", { name: "Dokončit stejné založení", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Přihlášení vypršelo.");
+  await expect(page.getByRole("heading", { name: "Dokončit ruční založení" })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Dokončit stejné založení", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Objednávka TRK-MANUAL-1", exact: true }),
   ).toBeVisible();
   expect(posts[1]).toEqual(posts[0]);
+  expect(posts[2]).toEqual(posts[0]);
   expect(saved?.confirmedAt).toBeNull();
   const record = await page.evaluate(() =>
     sessionStorage.getItem("trikonos-admin-order-attempt-v1"),

@@ -1,6 +1,16 @@
-from core.exceptions import BusinessError
+from django.db import IntegrityError, transaction
+from requests.exceptions import RequestException
+from zeep.exceptions import TransportError
 
-from .models import CodSurcharge, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
+from core.exceptions import BusinessError, PacketaApiError
+
+from .models import CodSurcharge, CourierPickup, CourierPickupPacket, PacketaConfig, ShippingPrice, ShippingQuantityDiscount
+
+
+class CourierPickupConflict(BusinessError):
+    status_code = 409
+    default_code = 'COURIER_PICKUP_RESERVED'
+    default_detail = 'Alespoň jedna zásilka už má záznam o svozu. Ověřte historii a stav u Packety; svoz neopakujte naslepo.'
 
 
 def calculate_shipping_cost(*, carrier, delivery_type, payment_method, total_quantity):
@@ -127,7 +137,7 @@ def order_courier_pickup(order_ids, *, pickup_from, pickup_to, note=''):
     (CreatedCourierPickup, [Order, ...]) - the caller decides what to do
     with the matched orders (e.g. report which ones were included).
     """
-    from orders.models import Order
+    from orders.models import Order, OrderStatus, ShipmentStatus
 
     config = PacketaConfig.get_solo()
     if not config.pickup_address_id:
@@ -136,7 +146,7 @@ def order_courier_pickup(order_ids, *, pickup_from, pickup_to, note=''):
             'ostatní pickup* údaje v /admin/packeta-config.',
         )
 
-    orders = list(Order.objects.filter(id__in=order_ids))
+    orders = list(Order.objects.select_related('carrier').filter(id__in=order_ids))
     found_ids = {str(order.id) for order in orders}
     missing_ids = [str(order_id) for order_id in order_ids if str(order_id) not in found_ids]
     if missing_ids:
@@ -148,6 +158,15 @@ def order_courier_pickup(order_ids, *, pickup_from, pickup_to, note=''):
             f'Objednávky bez založené zásilky u Packety: {", ".join(without_shipment)}.',
             code='SHIPMENT_NOT_CREATED',
         )
+
+    if any(order.carrier is None or order.carrier.code != 'PACKETA' for order in orders):
+        raise BusinessError('Svoz je pouze pro zásilky Packety.', code='COURIER_PICKUP_WRONG_CARRIER')
+    if any(not order.carrier_shipment_id.isascii() or not order.carrier_shipment_id.isdecimal()
+           or not 0 < int(order.carrier_shipment_id) <= 2**63 - 1 for order in orders):
+        raise BusinessError('Některá zásilka nemá platné ID Packety.', code='COURIER_PICKUP_INVALID_PACKET')
+    packet_ids = [int(order.carrier_shipment_id) for order in orders]
+    if len(set(packet_ids)) != len(packet_ids):
+        raise BusinessError('Několik objednávek sdílí stejné ID zásilky.', code='COURIER_PICKUP_INVALID_PACKET')
 
     pickup_address = {
         'companyName': config.pickup_company_name,
@@ -163,11 +182,49 @@ def order_courier_pickup(order_ids, *, pickup_from, pickup_to, note=''):
 
     from .packeta_client import create_courier_pickup
 
-    result = create_courier_pickup(
-        address_id=int(config.pickup_address_id),
-        pickup_address=pickup_address,
-        pickup_date={'from': pickup_from, 'to': pickup_to},
-        packet_ids=[int(order.carrier_shipment_id) for order in orders],
-        note=note,
-    )
+    existing = CourierPickupPacket.objects.filter(packet_id__in=packet_ids)
+    if existing.exists():
+        ids = set(existing.values_list('pickup_id', flat=True))
+        if len(ids) == 1:
+            previous = CourierPickup.objects.get(pk=ids.pop())
+            claimed = set(previous.packets.values_list('packet_id', 'order_id'))
+            if (previous.pickup_id and previous.pickup_from == pickup_from and previous.pickup_to == pickup_to
+                    and claimed == set(zip(packet_ids, (order.id for order in orders)))):
+                return previous, orders
+        raise CourierPickupConflict()
+
+    if any(order.shipment_status not in (ShipmentStatus.CREATED, ShipmentStatus.LABEL_PRINTED)
+           or order.status in (OrderStatus.CANCELLED, OrderStatus.REFUNDED) for order in orders):
+        raise BusinessError('Některá zásilka už není připravena ke svozu.', code='COURIER_PICKUP_INVALID_STATUS')
+
+    if (not config.api_password or not config.pickup_address_id.isascii()
+            or not config.pickup_address_id.isdecimal() or not 0 < int(config.pickup_address_id) <= 2**31 - 1
+            or not all(pickup_address[field] for field in ('personName', 'personSurname', 'email', 'phone', 'street', 'houseNumber', 'city', 'zip'))):
+        raise BusinessError('Doplňte platné údaje pro svoz a API heslo v nastavení Packety.', code='COURIER_PICKUP_NOT_CONFIGURED')
+
+    try:
+        with transaction.atomic():
+            pickup = CourierPickup.objects.create(pickup_from=pickup_from, pickup_to=pickup_to)
+            CourierPickupPacket.objects.bulk_create([
+                CourierPickupPacket(pickup=pickup, order_id=order.id, packet_id=packet_id)
+                for packet_id, order in sorted(zip(packet_ids, orders))
+            ])
+    except IntegrityError:
+        if existing.exists():
+            raise CourierPickupConflict() from None
+        raise
+
+    try:
+        result = create_courier_pickup(
+            address_id=int(config.pickup_address_id),
+            pickup_address=pickup_address,
+            pickup_date={'from': pickup_from, 'to': pickup_to},
+            packet_ids=packet_ids,
+            note=note,
+        )
+    except (RequestException, TransportError) as exc:
+        raise PacketaApiError('Výsledek svozu není potvrzený. Ověřte jej přímo u Packety.') from exc
+    pickup.pickup_id = result.pickup_id
+    pickup.external_id = result.external_id
+    pickup.save(update_fields=['pickup_id', 'external_id'])
     return result, orders

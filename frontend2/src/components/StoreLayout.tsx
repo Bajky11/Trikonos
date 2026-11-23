@@ -25,6 +25,7 @@ function Header() {
   const location = useLocation();
   const home = location.pathname === "/";
   const [position, setPosition] = useState({ solid: !home, ribbon: !home, active: "" });
+  const [menu, setMenu] = useState(false);
   const { count } = useShop();
   const navigate = useNavigate();
   useEffect(() => {
@@ -61,7 +62,7 @@ function Header() {
     };
   }, [home]);
   const notices = [
-    [LocalShippingOutlined, "Doprava od 2 kusů zdarma"],
+    [LocalShippingOutlined, "Cenu dopravy uvidíte v objednávce"],
     [Undo, "Možnost vrácení do 14 dní"],
     [VerifiedUserOutlined, "Odolný potisk"],
     [Checkroom, "Kvalitní bavlněná trička"],
@@ -85,6 +86,9 @@ function Header() {
             </Link>
           ))}
         </div>
+        <Button className="mobile-nav-button" onClick={() => setMenu(true)}>
+          Menu
+        </Button>
         <IconButton
           className="cart-button"
           aria-label={`Košík, počet položek: ${count}`}
@@ -105,6 +109,23 @@ function Header() {
           {!!count && <span className="cart-count">{count}</span>}
         </IconButton>
       </nav>
+      <Dialog open={menu} onClose={() => setMenu(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Navigace obchodu</DialogTitle>
+        <DialogContent>
+          <nav className="mobile-nav-links" aria-label="Mobilní navigace">
+            {navigation.map(([id, label]) => (
+              <Button
+                key={id}
+                component={Link}
+                onClick={() => setMenu(false)}
+                to={id === "potisky" && !home ? "/tricka" : `/#${id}`}
+              >
+                {label}
+              </Button>
+            ))}
+          </nav>
+        </DialogContent>
+      </Dialog>
       <div className="ribbon" aria-label={notices.map(([, text]) => text).join(". ")}>
         <div className="ribbon-track" aria-hidden="true">
           {[0, 1].map((group) => (

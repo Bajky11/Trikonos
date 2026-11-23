@@ -1,7 +1,7 @@
 import type { OrderCreate } from "../../api/generated/models";
 export const manualOrderKey = "trikonos-admin-order-attempt-v1";
 export type ManualRecord =
-  | { kind: "pending"; actorId: string; body: OrderCreate }
+  | { kind: "pending"; actorId: string; body: OrderCreate; uncertain?: boolean }
   | { kind: "created"; actorId: string; id: string };
 export function readManual(): ManualRecord | null {
   try {

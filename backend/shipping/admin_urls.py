@@ -20,7 +20,7 @@ router.register(
 urlpatterns = [
     path(
         'packeta-config',
-        AdminPacketaConfigView.as_view({'get': 'list', 'put': 'update'}),
+        AdminPacketaConfigView.as_view({'get': 'retrieve', 'put': 'update'}),
         name='admin-packeta-config',
     ),
     path(
@@ -30,7 +30,7 @@ urlpatterns = [
     ),
     path(
         'courier-pickups',
-        AdminCourierPickupView.as_view({'post': 'create'}),
+        AdminCourierPickupView.as_view({'get': 'list', 'post': 'create'}),
         name='admin-courier-pickup',
     ),
 ] + router.urls

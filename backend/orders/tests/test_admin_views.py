@@ -996,7 +996,7 @@ def test_export_returns_xlsx_with_matching_order_row(admin_client, motif, produc
 
     order = _order(
         motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
-        note='Prosím do pátku',
+        note='=1+1',
     )
 
     response = admin_client.get('/api/v1/admin/orders/export')
@@ -1012,6 +1012,7 @@ def test_export_returns_xlsx_with_matching_order_row(admin_client, motif, produc
     row = [cell.value for cell in sheet[2]]
     assert row[0] == order.order_number
     assert row[sheet.max_column - 1] == order.note  # poslední sloupec = poznámka
+    assert sheet[2][-1].data_type == 's'
     # Mezisoučet/doprava/celkem jsou v Kč, ne v haléřích jako jinde v API.
     money_columns = {header.index('Mezisoučet (Kč)'): 599.0, header.index('Celkem (Kč)'): 649.0}
     for index, expected in money_columns.items():

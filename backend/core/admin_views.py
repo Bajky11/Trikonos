@@ -1,4 +1,5 @@
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from django.db.models import Count, DateField, F, Q, Sum
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
@@ -92,8 +93,10 @@ class AdminSearchView(APIView):
 
 _ORDERS_TO_PROCESS_STATUSES = [OrderStatus.NEW, OrderStatus.PAID, OrderStatus.PROCESSING]
 _UNPAID_PAYMENT_METHODS = [PaymentMethod.BANK_TRANSFER, PaymentMethod.INVOICE]
+_REPORTING_TZ = ZoneInfo('Europe/Prague')
 
 
+@method_decorator(never_cache, name='dispatch')
 class AdminDashboardView(APIView):
     """Karty a poslední objednávky pro úvodní stránku administrace."""
     permission_classes = [IsAdmin]
@@ -111,8 +114,12 @@ class AdminDashboardView(APIView):
         responses={200: AdminDashboardResponseSerializer},
     )
     def get(self, request):
+        with timezone.override(_REPORTING_TZ):
+            return self.get_dashboard()
+
+    def get_dashboard(self):
         now = timezone.now()
-        today = now.date()
+        today = timezone.localdate(now)
         yesterday = today - timedelta(days=1)
         week_ago = now - timedelta(days=7)
 
@@ -166,12 +173,20 @@ def _resolve_date_range(params):
     Silently falls back to the default on an unparseable date, same as the
     rest of the admin API doesn't hard-validate ad hoc query params.
     """
-    today = timezone.now().date()
-    created_from = parse_date(params.get('createdFrom', '') or '') or today - timedelta(days=30)
-    created_to = parse_date(params.get('createdTo', '') or '') or today
+    today = timezone.localdate(timezone=_REPORTING_TZ)
+
+    def read_date(key, default):
+        try:
+            return parse_date(params.get(key, '') or '') or default
+        except ValueError:
+            return default
+
+    created_from = read_date('createdFrom', today - timedelta(days=29))
+    created_to = read_date('createdTo', today)
     return created_from, created_to
 
 
+@method_decorator(never_cache, name='dispatch')
 class AdminRevenueStatsView(APIView):
     """GET /admin/stats/revenue - tržby v čase pro graf v administraci."""
     permission_classes = [IsAdmin]
@@ -196,8 +211,12 @@ class AdminRevenueStatsView(APIView):
         responses={200: AdminRevenuePeriodSerializer(many=True)},
     )
     def get(self, request):
-        created_from, created_to = _resolve_date_range(request.query_params)
-        trunc = _TRUNC_BY_INTERVAL.get(request.query_params.get('interval', 'DAY').upper(), TruncDate)
+        with timezone.override(_REPORTING_TZ):
+            return self.get_stats(request.query_params)
+
+    def get_stats(self, params):
+        created_from, created_to = _resolve_date_range(params)
+        trunc = _TRUNC_BY_INTERVAL.get(params.get('interval', 'DAY').upper(), TruncDate)
 
         rows = (
             Order.objects.exclude(status__in=_BILLABLE_EXCLUDED_STATUSES)
@@ -214,6 +233,7 @@ class AdminRevenueStatsView(APIView):
         return Response(AdminRevenuePeriodSerializer(data, many=True).data)
 
 
+@method_decorator(never_cache, name='dispatch')
 class AdminTopMotifsStatsView(APIView):
     """GET /admin/stats/top-motifs - žebříček nejprodávanějších motivů."""
     permission_classes = [IsAdmin]
@@ -239,10 +259,14 @@ class AdminTopMotifsStatsView(APIView):
         responses={200: AdminTopMotifSerializer(many=True)},
     )
     def get(self, request):
-        created_from, created_to = _resolve_date_range(request.query_params)
-        metric = request.query_params.get('metric', 'QUANTITY').upper()
+        with timezone.override(_REPORTING_TZ):
+            return self.get_stats(request.query_params)
+
+    def get_stats(self, params):
+        created_from, created_to = _resolve_date_range(params)
+        metric = params.get('metric', 'QUANTITY').upper()
         try:
-            limit = min(int(request.query_params.get('limit', self.DEFAULT_LIMIT)), self.MAX_LIMIT)
+            limit = max(1, min(int(params.get('limit', self.DEFAULT_LIMIT)), self.MAX_LIMIT))
         except ValueError:
             limit = self.DEFAULT_LIMIT
 

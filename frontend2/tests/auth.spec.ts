@@ -93,6 +93,11 @@ test("a CSRF-rejected logout is not presented as successful", async ({ page }) =
   );
   await page.goto("/admin");
   await page.getByRole("button", { name: "Odhlásit se" }).click();
-  await expect(page.getByRole("alert")).toContainText("Odhlášení se nezdařilo.");
+  await expect(
+    page
+      .locator(".admin-content")
+      .getByRole("alert")
+      .filter({ hasText: "Odhlášení se nezdařilo." }),
+  ).toBeVisible();
   await expect(page.locator(".admin-app")).toBeVisible();
 });

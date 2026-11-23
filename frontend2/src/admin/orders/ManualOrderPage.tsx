@@ -64,8 +64,7 @@ export function ManualOrderPage() {
         await navigate(`/admin/objednavky/${result.id}`, { replace: true });
       })
       .catch((error: unknown) => {
-        const uncertain = !(error instanceof ApiError) || error.status >= 500;
-        if (uncertain) setRecord(attempt);
+        const uncertain = attempt.uncertain || !(error instanceof ApiError) || error.status >= 500;
         if (!uncertain) {
           try {
             clearManual();
@@ -73,10 +72,12 @@ export function ManualOrderPage() {
           } catch {
             /* Keep the immutable attempt on disk. */
           }
+        } else {
+          setRecord(attempt);
         }
         setError(
           uncertain
-            ? "Výsledek založení není potvrzený. Dokončete tentýž pokus se stejným orderId; nevytvářejte nový."
+            ? `Výsledek založení není potvrzený. Dokončete tentýž pokus se stejným orderId; nevytvářejte nový. ${catalogError(error)}`
             : catalogError(error),
         );
       })
@@ -127,7 +128,7 @@ export function ManualOrderPage() {
           kartu před ověřením výsledku.
         </p>
         {error && <p role="alert">{error}</p>}
-        <Button disabled={create.isPending} onClick={() => send(record)}>
+        <Button disabled={create.isPending} onClick={() => send({ ...record, uncertain: true })}>
           Dokončit stejné založení
         </Button>
       </Paper>

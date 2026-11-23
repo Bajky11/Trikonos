@@ -92,7 +92,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
         setUncertain(unknownResult);
         setError(
           unknownResult
-            ? "Výsledek změny není potvrzený. Akce už mohla proběhnout. Neopakujte ji naslepo; nejprve načtěte aktuální stav."
+            ? `Výsledek změny není potvrzený. Akce už mohla proběhnout. Neopakujte ji naslepo; nejprve načtěte aktuální stav.${error instanceof ApiError && error.code === "CARRIER_API_ERROR" ? ` ${error.message}` : ""}`
             : catalogError(error),
         );
         if (!unknownResult) void detail.refetch();

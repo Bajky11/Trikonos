@@ -116,6 +116,20 @@ class PacketaConfig(models.Model):
         return 'Packeta'
 
 
+class CourierPickup(UUIDModel):
+    created_at = models.DateTimeField(auto_now_add=True)
+    pickup_from = models.DateTimeField()
+    pickup_to = models.DateTimeField()
+    pickup_id = models.CharField(max_length=100, blank=True)
+    external_id = models.CharField(max_length=100, blank=True)
+
+
+class CourierPickupPacket(models.Model):
+    pickup = models.ForeignKey(CourierPickup, related_name='packets', on_delete=models.PROTECT)
+    order_id = models.UUIDField()
+    packet_id = models.PositiveBigIntegerField(unique=True)
+
+
 class CodSurcharge(models.Model):
     """Singleton: flat surcharge (haléře) added to shipping_cost whenever
     Order.payment_method is CASH_ON_DELIVERY - the carrier charges the shop

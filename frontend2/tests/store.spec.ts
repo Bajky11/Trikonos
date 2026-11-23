@@ -89,12 +89,14 @@ test("custom print does not invent options when no active print area exists", as
 
 test("admin search and navigation across all routes", async ({ page }) => {
   await mockAuthApi(page, true);
-  await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Přehled", exact: true })).toBeVisible();
-  await page.getByRole("searchbox").fill("Petra");
+  await page.goto("/admin/objednavky");
+  await expect(page.locator(".admin-header h1")).toHaveText("Objednávky");
+  await page.getByRole("searchbox", { name: "Hledat v objednávkách", exact: true }).fill("Petra");
   await expect(page.getByText("Žádná objednávka neodpovídá hledání.")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Jan Novák" })).toHaveCount(0);
-  await page.getByRole("searchbox").fill("nic-takoveho");
+  await page
+    .getByRole("searchbox", { name: "Hledat v objednávkách", exact: true })
+    .fill("nic-takoveho");
   await expect(page.getByRole("status")).toContainText("Žádná objednávka");
   for (const [route, heading] of [
     ["objednavky", "Objednávky"],

@@ -1,10 +1,11 @@
 # Propojení frontendu a backendu
 
-Průběžný plán a checklist kompletní integrace. Aktualizováno 16. 11. 2026.
+Průběžný plán a checklist kompletní integrace. Aktualizováno 23. 11. 2026.
 Napojené jsou veřejná nákupní cesta, zákaznické formuláře, katalogové číselníky,
 administrace objednávek, zákazníků a výroba/expedice v rozsahu existujícího API.
 Napojené jsou také účty, hesla, globální hledání a ruční objednávky.
-Zbývají odložená nastavení dopravy, kontrola úplnosti a produkční předpoklady.
+Napojen je i skutečný admin přehled, statistiky, Excel a svoz Packety. Zbývá
+odložená správa dopravců, cen a slev, kontrola úplnosti a produkční ověření.
 Úkol označit jako hotový až po
 provedení a odpovídajícím ověření; zbývající omezení zapsat u dané etapy.
 
@@ -461,17 +462,16 @@ a dohledání objednávky; opakovaný submit nevytvoří duplicitní objednávku
   nové role se nezavádějí. UI nesmí nahrazovat serverovou autorizaci.
 - [x] Napojit seznam posledních objednávek v přehledu a serverové hledání,
   filtry, řazení a stránkování objednávek.
-- [ ] Nahradit demo statistiky přehledu, pouze pokud backend dodá odpovídající data.
+- [x] Nahradit demo statistiky přehledu skutečnými daty; odstranit skladovou kartu.
 - [x] Napojit existující globální hledání objednávek, zákazníků a motivů.
 - [x] Doplnit seznam/detail objednávek, změny údajů, potvrzení a nacenění,
   platební stavy a akce podle `allowedTransitions` a uzamčení objednávky.
 - [x] Napojit existující zásilky Packety, PDF štítky, tiskové listy a přeposlání e-mailů.
 - [x] Napojit výrobu: existující tiskové podklady, souhrny a příslušné filtry.
 - [x] Napojit zákazníky, historii objednávek, aktuální souhlasy a existující CSV export.
-- [ ] **Odloženo na pokyn uživatele:** správa dopravců, cen dopravy,
-  množstevních slev a nastavení Packety. Backend podle uživatele zatím není
-  dostatečně implementovaný; tuto část nyní přeskočit, nedoplňovat backendové features.
-  Odklad se týká správy nastavení, ne již napojeného checkoutu a expedičních akcí.
+- [x] Napojit export objednávek do Excelu podle aktivních filtrů a řazení.
+- [x] Napojit svoz a potřebné nastavení Packety včetně historie dostupné po obnovení stránky.
+- [ ] **Nadále odloženo:** správa dopravců, cen dopravy a množstevních slev.
 - [x] Napojit správu uživatelů včetně vytvoření pozvánkou, změn, deaktivace a mazání.
 - [x] Doplnit ruční objednávku s katalogovými a vlastními položkami podle API.
 - [x] Doplnit opravu existujících umístění podkladů podle API.
@@ -687,7 +687,50 @@ nacenění/výrobu po odeslání; zakázané akce odmítá i backend.
 - Další krok: finální audit zbývajících demo prvků a produkčních předpokladů;
   odložené backendové funkce a nastavení dopravy zůstávají odložené.
 
+### Dokončení po merge `5b7912d` (23. 11. 2026)
+
+- `/admin` čte `/admin/dashboard` (posledních 10 objednávek) a statistiky
+  `/admin/stats/revenue` a `/admin/stats/top-motifs`. Reporty používají český
+  kalendářní den a výchozích posledních 30 kalendářních dní včetně dneška.
+  Tabulky nezobrazují umělé nuly za období bez objednávek. Hodnota objednávek
+  není skutečná úhrada; žebříček zahrnuje jen katalogové motivy.
+- `/admin/objednavky` exportuje `.xlsx` se stejnými filtry a řazením, bez
+  stránkování. Obsahuje osobní údaje, částky v Kč a uživatelský text bez
+  vyhodnocování jako vzorce. Export souhlasů CSV se nemění.
+- `/admin/svoz`: vyberte už založené zásilky Packety a potvrďte termín.
+  Svoz a přiřazená ID zásilek se rezervují v DB před voláním Packety.
+  Potvrzený stejný výběr a termín vrátí stejný výsledek; překryv nebo nejistý
+  výsledek další volání zablokuje. U nepotvrzeného svozu ověřte stav přímo
+  u Packety; historie ukazuje posledních 50 pokusů. UI rezervaci samo neruší.
+  Nastavte API heslo a adresu svozu; `eshop` je textové označení odesílatele.
+  API heslo lze zapsat, ne přečíst; prázdné pole ve formuláři jej nemění.
+- Při nasazení aplikujte migrace `shipping` 0004–0006. Neplatný PDF štítek
+  od Packety je `502 CARRIER_API_ERROR` bez přechodu na „štítek vytištěn“.
+  SVG upload se čistí podle seznamu povolených prvků a neplatné SVG vrací
+  `422`. Vývojové objednávky mají `TEST_TRK-`, produkční nadále `TRK-`.
+  Nové e-mailové šablony nemění cesty integračních odkazů.
+
 ## 6. Nasazení, testy a úplnost
+
+### Audit FE (17. 11. 2026)
+
+Audit stavu po `617193c` je v [audit-frontend.md](audit-frontend.md).
+Hlavní integrace je napojená; audit ale zjistil pět bodů k dokončení:
+
+- [x] **A1 / P1:** po nejistém založení se při následném 4xx zachová původní pokus včetně UUID.
+- [x] **A2 / P1:** veřejná navigace má mobilní menu a dostupný košík při 375/768 px.
+- [x] **A3 / P2:** admin navigace a záhlaví se na úzkém viewportu zalamují.
+- [x] **A4 / P2:** nepodložený příslib dopravy zdarma od dvou kusů je pryč.
+- [x] **A5 / P2:** statistické karty používají skutečná data, skladové demo je odstraněno.
+
+Browser reprodukce a měření používaly mock data, bez nových skutečných objednávek.
+Znovu prošly check (0 chyb, 6 známých warnings), 27 unit testů, build, 46 standardních
+E2E a oba živé API/auth testy. Backendové testy se při auditu znovu nespouštěly.
+Výsledky výše jsou z původního auditu. Opravy A1–A5 z 23. 11. neznamenají
+ověření produkčního provozu; ostrá Packeta ani SMTP se nevolaly.
+Po opravách: 381 backendových testů prošlo (1 přeskočen), 27 frontendových
+unit testů, build a 50 Playwright scénářů s mock API prošlo. Dva živé
+Playwright scénáře nebyly spuštěny.
 
 - [ ] Průběžně nahrazovat demo testy testy skutečných kontraktů a chování;
   používat izolovaná testovací data, nikoli produkční objednávky.
@@ -715,7 +758,6 @@ produkci; zbývající omezení a odložené úkoly jsou výslovně zaznamenané
 - [x] Dohodnout první checkout: převod/dobírka, osobní odběr/adresa (etapa 4).
 - [ ] Dále rozhodnout případnou bránu, výdejní místa a průběh zákaznického schválení nabídky.
 - [x] Zachovat administrátorské účty bez zavádění nových rolí.
-- [ ] Dohodnout potřebné statistiky administrace (etapa 5).
 
 ## Pravidlo pokračování
 

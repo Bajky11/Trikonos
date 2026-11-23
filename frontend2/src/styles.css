@@ -88,6 +88,27 @@
   align-items: center;
   gap: 34px;
 }
+.mobile-nav-button.MuiButton-root {
+  display: none;
+}
+.mobile-nav-links {
+  display: grid;
+}
+@media (max-width: 1020px) {
+  .nav {
+    gap: 12px;
+  }
+  .nav-links {
+    display: none;
+  }
+  .mobile-nav-button.MuiButton-root {
+    display: inline-flex;
+    margin-left: auto;
+  }
+  .cart-button.MuiIconButton-root {
+    margin-left: 0;
+  }
+}
 .nav-links a {
   position: relative;
   font-size: 14px;
@@ -1557,6 +1578,58 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 28px;
+}
+.admin-section + .admin-section {
+  margin-top: 20px;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.report-table th,
+.report-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.pickup-list {
+  padding-left: 12px;
+  list-style: none;
+}
+.pickup-selection {
+  overflow-wrap: anywhere;
+}
+@media screen and (max-width: 1020px) {
+  .admin-sidebar {
+    position: static;
+    width: auto;
+    padding: 14px;
+  }
+  .admin-sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .admin-brand,
+  .admin-back {
+    margin: 0;
+  }
+  .admin-back {
+    padding-top: 12px;
+  }
+  .admin-workspace {
+    margin-left: 0;
+  }
+  .admin-header,
+  .admin-tools {
+    flex-wrap: wrap;
+  }
+  .admin-header,
+  .admin-content {
+    padding: 16px;
+  }
+  .admin-stats {
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  }
 }
 .stat-card {
   padding: 20px;
