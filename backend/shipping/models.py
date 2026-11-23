@@ -63,7 +63,11 @@ class PacketaConfig(models.Model):
     api_password = models.CharField(max_length=100, blank=True, default='')
     eshop = models.CharField(
         max_length=100, blank=True, default='',
-        help_text='Sender label - only needed if the Packeta account has multiple senders.',
+        help_text="Sender indication - only needed if the Packeta account has multiple senders. "
+                  "This is the text value from the 'Označení' column in the client zone's "
+                  "Odesílatelé (senders) list, e.g. 'Trikonoš' - NOT the numeric 'Odesílatel ID' "
+                  "shown in the same table. Packeta's createPacket rejects the numeric ID with "
+                  "'eshop_id: Není zadán odesilatel zásilky'.",
     )
     home_delivery_address_id = models.CharField(
         max_length=50, blank=True, default='',
@@ -71,6 +75,27 @@ class PacketaConfig(models.Model):
                   "from Packeta's client zone / address delivery carriers feed.",
     )
     label_format = models.CharField(max_length=50, default='A6 on A4')
+
+    # Courier pickup (svoz) - the shop's own address, used whenever admin
+    # orders a courier collection via /admin/courier-pickups (createCourierPickup).
+    # Separate from home_delivery_address_id, which is Packeta's ID for the
+    # *external carrier* used to deliver TO a customer, not the shop's own
+    # collection point.
+    pickup_address_id = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text="Packeta's addressId for this shop's registered pickup location (client "
+                  "zone) - required to order a courier pickup via POST /admin/courier-pickups.",
+    )
+    pickup_company_name = models.CharField(max_length=255, blank=True, default='')
+    pickup_contact_name = models.CharField(max_length=100, blank=True, default='')
+    pickup_contact_surname = models.CharField(max_length=100, blank=True, default='')
+    pickup_email = models.CharField(max_length=255, blank=True, default='')
+    pickup_phone = models.CharField(max_length=50, blank=True, default='')
+    pickup_street = models.CharField(max_length=255, blank=True, default='')
+    pickup_house_number = models.CharField(max_length=20, blank=True, default='')
+    pickup_city = models.CharField(max_length=255, blank=True, default='')
+    pickup_zip = models.CharField(max_length=20, blank=True, default='')
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

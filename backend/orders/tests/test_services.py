@@ -215,6 +215,96 @@ def test_inactive_cut_is_rejected(motif, product_type, cut, color):
         _make_order(items)
 
 
+def test_quantity_above_limit_is_rejected(motif, product_type, cut, color):
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 501, 'placements': [],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'QUANTITY_OUT_OF_RANGE'
+
+
+def test_custom_item_with_motif_assigned_is_rejected(motif, product_type, cut, color, print_area):
+    items = [{
+        'is_custom': True, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{
+            'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0,
+        }],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'CUSTOM_WITH_MOTIF'
+
+
+def test_catalog_item_without_motif_is_rejected(product_type, cut, color):
+    items = [{
+        'is_custom': False, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'CATALOG_WITHOUT_MOTIF'
+
+
+def test_catalog_item_with_placements_is_rejected(motif, product_type, cut, color, print_area):
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{
+            'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0,
+        }],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'CATALOG_WITH_PLACEMENT'
+
+
+def test_placement_with_non_positive_size_is_rejected(product_type, cut, color, print_area):
+    items = [{
+        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{
+            'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 0, 'height': 10, 'rotation_deg': 0,
+        }],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'INVALID_PLACEMENT_SIZE'
+
+
+def test_placement_with_negative_position_is_rejected(product_type, cut, color, print_area):
+    items = [{
+        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
+        'placements': [{
+            'print_area': print_area, 'url': 'x', 'x': -1, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0,
+        }],
+    }]
+
+    with pytest.raises(BusinessError) as exc_info:
+        _make_order(items)
+    assert exc_info.value.code == 'INVALID_PLACEMENT_POSITION'
+
+
+def test_inactive_product_type_is_rejected(motif, product_type, cut, color):
+    product_type.is_active = False
+    product_type.save()
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+
+    with pytest.raises(BusinessError):
+        _make_order(items)
+
+
 def test_existing_email_different_case_reuses_customer_without_disabling_consent(motif, product_type, cut, color):
     items = [{
         'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
@@ -222,8 +312,10 @@ def test_existing_email_different_case_reuses_customer_without_disabling_consent
     }]
 
     order1 = _make_order(items, email='Jana@Example.cz')
+    second_order_customer_data = _customer_data(email='jana@example.cz', marketing_consent=False)
+    second_order_customer_data.update(first_name='Jana', last_name='Svobodová', phone='+420777999888', company_name='Svoboda s.r.o.')
     order2 = services.create_order(
-        customer_data=_customer_data(email='jana@example.cz', marketing_consent=False),
+        customer_data=second_order_customer_data,
         billing_data=_billing(), shipping_data=_shipping_same_as_billing(), delivery_data=_no_delivery(),
         payment_method=PaymentMethod.BANK_TRANSFER, note='', items_data=items,
     )
@@ -232,6 +324,37 @@ def test_existing_email_different_case_reuses_customer_without_disabling_consent
     assert Customer.objects.count() == 1
     order2.customer.refresh_from_db()
     assert order2.customer.marketing_consent is True  # never auto-flipped back to False
+    # Contact details refresh to match the most recent order.
+    assert order2.customer.last_name == 'Svobodová'
+    assert order2.customer.phone == '+420777999888'
+    assert order2.customer.company_name == 'Svoboda s.r.o.'
+
+
+def test_existing_customer_explicit_consent_on_repeat_order_stays_true(motif, product_type, cut, color):
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+    order1 = _make_order(items, email='jana@example.cz')
+    order1.customer.marketing_consent = False
+    order1.customer.save()
+
+    order2 = services.create_order(
+        customer_data=_customer_data(email='jana@example.cz', marketing_consent=True),
+        billing_data=_billing(), shipping_data=_shipping_same_as_billing(), delivery_data=_no_delivery(),
+        payment_method=PaymentMethod.BANK_TRANSFER, note='', items_data=items,
+    )
+
+    assert order1.customer_id == order2.customer_id
+    order2.customer.refresh_from_db()
+    assert order2.customer.marketing_consent is True
+
+
+def test_shipment_status_rank_of_unknown_value_sorts_first():
+    # Defensive fallback for a value outside _SHIPMENT_STATUS_ORDER - every
+    # real ShipmentStatus choice is listed there, so this only guards
+    # against a value that bypassed model/serializer validation entirely.
+    assert services._shipment_status_rank('NOT_A_REAL_STATUS') == -1
 
 
 def test_pricing_and_shipping_completes_total_and_confirm_advances_status(product_type, cut, color, print_area):
@@ -275,6 +398,54 @@ def test_invalid_status_transition_is_rejected(motif, product_type, cut, color):
 
     with pytest.raises(InvalidStatusTransitionError):
         services.transition_order_status(order, OrderStatus.DELIVERED)
+
+
+def test_new_to_paid_without_total_is_rejected(motif, product_type, cut, color):
+    """Unlike the unlisted-pair case above, NEW -> PAID *is* a mapped
+    transition - it just has a condition (total must be set) that this
+    order doesn't meet, since shipping was never priced.
+    """
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+    order = _make_order(items)
+    assert order.status == OrderStatus.NEW
+    assert order.total is None
+
+    with pytest.raises(InvalidStatusTransitionError):
+        services.transition_order_status(order, OrderStatus.PAID)
+
+
+def test_processing_to_shipped_without_carrier_is_rejected(motif, product_type, cut, color):
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+    order = _make_order(items)
+    services.set_shipping_cost(order, 0)
+    order.refresh_from_db()
+    services.transition_order_status(order, OrderStatus.PAID)
+    order.refresh_from_db()
+    services.transition_order_status(order, OrderStatus.PROCESSING)
+    order.refresh_from_db()
+    assert order.carrier_id is None
+
+    with pytest.raises(InvalidStatusTransitionError):
+        services.transition_order_status(order, OrderStatus.SHIPPED)
+
+
+def test_update_item_pricing_quantity_above_limit_is_rejected(motif, product_type, cut, color):
+    items = [{
+        'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],
+    }]
+    order = _make_order(items)
+    item = order.items.get()
+
+    with pytest.raises(BusinessError) as exc_info:
+        services.update_item_pricing(order, item, quantity=501)
+    assert exc_info.value.code == 'QUANTITY_OUT_OF_RANGE'
 
 
 def test_refund_transitions_order_to_refunded(motif, product_type, cut, color):

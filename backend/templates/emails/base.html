@@ -3,17 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
 <title>{{ shop_name }}</title>
+<style>
+  @media (max-width: 480px) {
+    .email-card { width:100% !important; }
+    .email-padding { padding:28px 24px !important; }
+  }
+</style>
 </head>
-<body style="font-family: Arial, Helvetica, sans-serif; background:#f5f5f5; margin:0; padding:24px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; margin:0 auto; background:#ffffff; border-radius:8px;">
+<body style="margin:0; padding:0; background:#f6f3ea; font-family:'DM Sans', Helvetica, Arial, sans-serif; color:#252b28;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; font-size:1px; line-height:1px; color:#f6f3ea;">{% block preheader %}{% endblock %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3ea;">
     <tr>
-      <td style="padding:32px;">
-        <h1 style="font-size:20px; color:#111111; margin:0 0 20px;">{{ shop_name }}</h1>
-        {% block content %}{% endblock %}
-        <p style="color:#888888; font-size:12px; margin-top:32px; border-top:1px solid #eeeeee; padding-top:16px;">
-          {{ shop_name }}{% if contact_email %} &middot; {{ contact_email }}{% endif %}
-        </p>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" class="email-card" style="width:560px; max-width:560px; background:#fbfaf6; border:1px solid rgba(14,88,77,0.16);">
+          <tr>
+            <td style="background:#0e584d; padding:26px 32px; border-bottom:3px solid #c98a3a;">
+              <span style="font-family:'Manrope', Helvetica, Arial, sans-serif; font-weight:800; font-size:19px; letter-spacing:-0.02em; color:#f6f3ea;">{{ shop_name }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-padding" style="padding:40px 32px; font-size:15px; line-height:1.6;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px; border-top:1px solid #e8eee6;">
+              <p style="margin:0; font-size:12px; color:#626e67;">
+                {{ shop_name }}{% if contact_email %} &middot; <a href="mailto:{{ contact_email }}" style="color:#626e67; text-decoration:underline;">{{ contact_email }}</a>{% endif %}
+              </p>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
   </table>

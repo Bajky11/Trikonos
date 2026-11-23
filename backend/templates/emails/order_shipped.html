@@ -1,9 +1,23 @@
 {% extends "emails/base.html" %}
+{% block preheader %}Objednávka {{ order_number }} byla odeslána.{% endblock %}
 {% block content %}
-<p>Dobrý den,</p>
-<p>objednávka <strong>{{ order_number }}</strong> byla odeslána.</p>
-<p>Dopravce: {{ carrier_name|default:"-" }}<br>Sledovací číslo: {{ tracking_number|default:"-" }}</p>
-<p style="margin:24px 0;">
-  <a href="{{ url }}" style="background:#111111; color:#ffffff; padding:12px 20px; border-radius:6px; text-decoration:none;">Zobrazit detail objednávky</a>
+<p style="margin:0 0 16px;">Dobrý den,</p>
+<p style="margin:0 0 16px;">objednávka
+  <span style="background:#e8eee6; color:#0e584d; font-weight:700; padding:2px 8px;">{{ order_number }}</span>
+  byla odeslána.
 </p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0; background:#f6f3ea; border-left:3px solid #0e584d;">
+  <tr>
+    <td style="padding:16px 20px;">
+      <p style="margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#626e67;">Doprava</p>
+      <p style="margin:0; font-size:14px;">
+        Dopravce: <strong>{{ carrier_name|default:"-" }}</strong><br>
+        Sledovací číslo: <strong>{{ tracking_number|default:"-" }}</strong>
+      </p>
+    </td>
+  </tr>
+</table>
+
+{% include "emails/_button.html" with button_url=url button_label="Zobrazit detail objednávky" %}
 {% endblock %}

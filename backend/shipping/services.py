@@ -110,3 +110,64 @@ def build_packet_attributes(order, *, weight, value=None):
         })
 
     return attributes
+
+
+# ---------------------------------------------------------------------------
+# Packeta courier pickup (svoz) - orders a collection for a batch of orders
+# at once, unlike createPacket/label/status which act on one order's
+# shipment at a time (see orders.services.create_shipment and friends).
+# ---------------------------------------------------------------------------
+
+def order_courier_pickup(order_ids, *, pickup_from, pickup_to, note=''):
+    """POST /admin/courier-pickups. Looks up the given orders' Packeta
+    packet ids and asks Packeta to schedule a courier collection for all of
+    them in one call. Raises BusinessError if any order_id doesn't exist,
+    any matched order has no Packeta shipment yet, or the shop's pickup
+    address isn't configured (PacketaConfig.pickup_*). Returns
+    (CreatedCourierPickup, [Order, ...]) - the caller decides what to do
+    with the matched orders (e.g. report which ones were included).
+    """
+    from orders.models import Order
+
+    config = PacketaConfig.get_solo()
+    if not config.pickup_address_id:
+        raise BusinessError(
+            'Adresa pro svoz u Packety není nakonfigurovaná - nastav pickupAddressId a '
+            'ostatní pickup* údaje v /admin/packeta-config.',
+        )
+
+    orders = list(Order.objects.filter(id__in=order_ids))
+    found_ids = {str(order.id) for order in orders}
+    missing_ids = [str(order_id) for order_id in order_ids if str(order_id) not in found_ids]
+    if missing_ids:
+        raise BusinessError(f'Objednávky nenalezeny: {", ".join(missing_ids)}.', code='ORDER_NOT_FOUND')
+
+    without_shipment = [order.order_number for order in orders if not order.carrier_shipment_id]
+    if without_shipment:
+        raise BusinessError(
+            f'Objednávky bez založené zásilky u Packety: {", ".join(without_shipment)}.',
+            code='SHIPMENT_NOT_CREATED',
+        )
+
+    pickup_address = {
+        'companyName': config.pickup_company_name,
+        'personName': config.pickup_contact_name,
+        'personSurname': config.pickup_contact_surname,
+        'email': config.pickup_email,
+        'phone': config.pickup_phone,
+        'street': config.pickup_street,
+        'houseNumber': config.pickup_house_number,
+        'city': config.pickup_city,
+        'zip': config.pickup_zip,
+    }
+
+    from .packeta_client import create_courier_pickup
+
+    result = create_courier_pickup(
+        address_id=int(config.pickup_address_id),
+        pickup_address=pickup_address,
+        pickup_date={'from': pickup_from, 'to': pickup_to},
+        packet_ids=[int(order.carrier_shipment_id) for order in orders],
+        note=note,
+    )
+    return result, orders

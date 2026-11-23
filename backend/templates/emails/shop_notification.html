@@ -1,8 +1,11 @@
 {% extends "emails/base.html" %}
+{% block preheader %}Nová objednávka {{ order_number }}.{% endblock %}
 {% block content %}
-<p>Nová objednávka <strong>{{ order_number }}</strong>{% if has_custom %} (obsahuje vlastní potisk){% endif %}.</p>
-<p>Zákazník: {{ customer_email }}</p>
-<p style="margin:24px 0;">
-  <a href="{{ admin_url }}" style="background:#111111; color:#ffffff; padding:12px 20px; border-radius:6px; text-decoration:none;">Otevřít v administraci</a>
+<p style="margin:0 0 16px;">Nová objednávka
+  <span style="background:#e8eee6; color:#0e584d; font-weight:700; padding:2px 8px;">{{ order_number }}</span>
+  {% if has_custom %}<span style="background:#fff1dc; color:#c98a3a; font-weight:700; padding:2px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.04em;">Vlastní potisk</span>{% endif %}
 </p>
+<p style="margin:0 0 16px; color:#626e67;">Zákazník: <strong style="color:#252b28;">{{ customer_email }}</strong></p>
+
+{% include "emails/_button.html" with button_url=admin_url button_label="Otevřít v administraci" %}
 {% endblock %}

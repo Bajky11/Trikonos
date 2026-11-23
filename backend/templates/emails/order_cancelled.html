@@ -1,6 +1,10 @@
 {% extends "emails/base.html" %}
+{% block preheader %}Objednávka {{ order_number }} byla zrušena.{% endblock %}
 {% block content %}
-<p>Dobrý den,</p>
-<p>objednávka <strong>{{ order_number }}</strong> byla zrušena.</p>
-<p>Pokud máte dotaz, napište nám na {{ contact_email }}.</p>
+<p style="margin:0 0 16px;">Dobrý den,</p>
+<p style="margin:0 0 16px;">objednávka
+  <span style="background:#e8eee6; color:#943e39; font-weight:700; padding:2px 8px;">{{ order_number }}</span>
+  byla zrušena.
+</p>
+<p style="margin:0; color:#626e67;">Pokud máte dotaz, napište nám na <a href="mailto:{{ contact_email }}" style="color:#0e584d; text-decoration:underline;">{{ contact_email }}</a>.</p>
 {% endblock %}

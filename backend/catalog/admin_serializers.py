@@ -66,6 +66,12 @@ class AdminPrintAreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrintArea
         fields = ['id', 'name', 'product_type', 'width_mm', 'height_mm', 'position', 'is_active']
+        # Disables DRF's auto-generated validator for the model's
+        # UniqueConstraint(product_type, name) - it would otherwise fire
+        # before validate() below with a generic message, making the
+        # friendlier duplicate-name error here unreachable dead code. Same
+        # recipe as AdminMotifVariantSerializer/AdminShippingQuantityDiscountSerializer.
+        validators = []
 
     def validate(self, attrs):
         width = attrs.get('width_mm', getattr(self.instance, 'width_mm', None))

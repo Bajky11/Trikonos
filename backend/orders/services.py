@@ -6,6 +6,11 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+import openpyxl
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
+
+from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -16,6 +21,7 @@ from core.exceptions import (
     BusinessError,
     InvalidStatusTransitionError,
     OrderLockedError,
+    PacketaApiError,
     ShipmentAlreadyCreatedError,
     ShippingPriceNotConfigured,
 )
@@ -50,7 +56,12 @@ def generate_order_number():
     with connection.cursor() as cursor:
         cursor.execute("SELECT nextval('order_number_seq')")
         value = cursor.fetchone()[0]
-    return f'TRK-{timezone.now().year}-{value:04d}'
+    # DEBUG only runs in local/dev environments (settings.DEBUG is False in
+    # production - see docker-compose.yaml vs docker-compose.dev.yaml), so
+    # prefixing here keeps test orders visibly distinct everywhere the
+    # number is used, including the Packeta "number" sent in build_packet_attributes.
+    prefix = 'TEST_TRK' if settings.DEBUG else 'TRK'
+    return f'{prefix}-{timezone.now().year}-{value:04d}'
 
 
 # ---------------------------------------------------------------------------
@@ -673,11 +684,32 @@ def get_shipment_label_pdf(order):
         raise BusinessError(_('No shipment has been created for this order yet.'), code='SHIPMENT_NOT_CREATED')
 
     from shipping.models import PacketaConfig
-    from shipping.packeta_client import get_label_pdf
+    from shipping.packeta_client import get_label_pdf, get_packet_status
 
     pdf_bytes = get_label_pdf(
         packet_id=order.carrier_shipment_id, label_format=PacketaConfig.get_solo().label_format,
     )
+
+    # Packeta's packetLabelPdf can return a "successful" base64 blob that
+    # isn't actually a PDF (e.g. the packet was cancelled after creation,
+    # such as for an invalid pickup point) - without this check that garbage
+    # would go straight to the frontend labelled application/pdf, and
+    # shipment_status would silently advance below as if printing had worked.
+    if not pdf_bytes.startswith(b'%PDF'):
+        status = get_packet_status(packet_id=order.carrier_shipment_id)
+        raise PacketaApiError(
+            _('Packeta did not return a valid label (packet status: %(status)s).')
+            % {'status': status.status_text},
+        )
+
+    # DEBUG-only (local/dev, see generate_order_number above) - persists the
+    # label to disk so it can be opened/inspected while developing/testing
+    # the Packeta integration, without re-hitting their API each time.
+    if settings.DEBUG:
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        default_storage.save(f'labels/{order.order_number}.pdf', ContentFile(pdf_bytes))
 
     if order.shipment_status == ShipmentStatus.CREATED:
         order.shipment_status = ShipmentStatus.LABEL_PRINTED
@@ -727,3 +759,61 @@ def sync_shipment_status(order):
         order.save(update_fields=['shipment_status', 'updated_at'])
 
     return order
+
+
+# ---------------------------------------------------------------------------
+# Order list export (Excel) - GET /admin/orders/export. Money columns are
+# converted from haléře to Kč here, unlike everywhere else in the API -
+# this file is opened by a person in Excel, not consumed by code.
+# ---------------------------------------------------------------------------
+
+def _money_to_czk(value):
+    return value / 100 if value is not None else None
+
+
+_EXPORT_COLUMNS = [
+    ('Číslo objednávky', 22, lambda o: o.order_number),
+    ('Vytvořeno', 18, lambda o: timezone.localtime(o.created_at).replace(tzinfo=None)),
+    ('Zákazník', 25, lambda o: f'{o.customer.first_name} {o.customer.last_name}'.strip()),
+    ('E-mail', 28, lambda o: o.customer.email),
+    ('Telefon', 16, lambda o: o.customer.phone),
+    ('Firma', 25, lambda o: o.customer.company_name),
+    ('Stav objednávky', 20, lambda o: o.get_status_display()),
+    ('Stav platby', 16, lambda o: o.get_payment_status_display()),
+    ('Způsob platby', 16, lambda o: o.get_payment_method_display() if o.payment_method else ''),
+    ('Stav zásilky', 16, lambda o: o.get_shipment_status_display()),
+    ('Dopravce', 18, lambda o: o.carrier.name if o.carrier_id else ''),
+    ('Sledovací číslo', 20, lambda o: o.tracking_number),
+    ('Počet kusů', 10, lambda o: o.item_count),
+    ('Vlastní potisk', 12, lambda o: 'Ano' if o.has_custom else 'Ne'),
+    ('Mezisoučet (Kč)', 14, lambda o: _money_to_czk(o.subtotal)),
+    ('Doprava (Kč)', 12, lambda o: _money_to_czk(o.shipping_cost)),
+    ('Celkem (Kč)', 14, lambda o: _money_to_czk(o.total)),
+    ('Poznámka', 30, lambda o: o.note),
+]
+
+
+def build_orders_export_workbook(orders):
+    """GET /admin/orders/export. Builds an .xlsx workbook from the given
+    orders - the caller passes AdminOrderViewSet.get_queryset() so the
+    export always matches whatever filters/ordering produced the on-screen
+    list, with no separate filtering logic to keep in sync. Expects the
+    queryset's select_related/annotate (customer, carrier, item_count,
+    has_custom) already applied by the caller - this function only reads
+    attributes, it never queries.
+    """
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = 'Objednávky'
+
+    sheet.append([label for label, _width, _getter in _EXPORT_COLUMNS])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+
+    for order in orders:
+        sheet.append([getter(order) for _label, _width, getter in _EXPORT_COLUMNS])
+
+    for index, (_label, width, _getter) in enumerate(_EXPORT_COLUMNS, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+
+    return workbook

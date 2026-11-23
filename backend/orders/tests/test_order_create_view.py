@@ -7,11 +7,14 @@ is the amount that will eventually be handed to the payment gateway, so it
 must never be influenceable by request data.
 """
 import uuid
+from unittest.mock import patch
 
 import pytest
+from django.db import IntegrityError
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from customers.models import Customer
 from orders.models import DeliveryType, Order, OrderStatus
 from shipping.models import ShippingPrice
 
@@ -159,6 +162,51 @@ def test_duplicate_order_id_returns_the_same_order_not_a_second_one(motif, produ
     assert first.data['access_token'] == second.data['access_token']
     assert Order.objects.filter(id=order_id).count() == 1
     assert Order.objects.count() == 1
+
+
+def test_order_id_race_where_another_request_wins_returns_its_order(motif, product_type, cut, color):
+    """OrderCreateSerializer.create() pre-checks for an existing order with
+    the same orderId before calling services.create_order() - the only way
+    to reach its except-IntegrityError fallback is a genuine race (two
+    concurrent requests both pass the pre-check before either commits),
+    which a sequential test can't reproduce naturally. Simulated here by
+    having the mocked services.create_order itself insert the "other
+    request"'s row and then raise, exactly like a real race would leave
+    the DB by the time our own INSERT fails.
+    """
+    order_id = str(uuid.uuid4())
+    # Must match _order_body()'s default customer email - existing_for_retry()
+    # rejects a retry whose customer doesn't match the request (ORDER_ID_CONFLICT),
+    # and that guard would otherwise fire here for an unrelated reason.
+    customer = Customer.objects.create(email='jana@example.cz', first_name='Jana', last_name='Nováková')
+
+    def _simulate_concurrent_winner(**kwargs):
+        Order.objects.create(
+            id=order_id, order_number='TRK-2026-RACE', customer=customer, status=OrderStatus.NEW,
+            billing_full_name='Jana', billing_street='Horní 12', billing_city='Vrchlabí', billing_zip='54301',
+            shipping_full_name='Jana', shipping_street='Horní 12', shipping_city='Vrchlabí', shipping_zip='54301',
+        )
+        raise IntegrityError('duplicate key value violates unique constraint')
+
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+    body['orderId'] = order_id
+
+    with patch('orders.services.create_order', side_effect=_simulate_concurrent_winner):
+        response = APIClient().post('/api/v1/orders', body, format='json')
+
+    assert response.status_code == 201
+    assert response.data['order_number'] == 'TRK-2026-RACE'
+    assert Order.objects.filter(id=order_id).count() == 1
+
+
+def test_integrity_error_without_a_winning_order_propagates(motif, product_type, cut, color):
+    body = _order_body(motif, product_type, cut, color, delivery={'deliveryType': DeliveryType.PERSONAL_PICKUP})
+    body['orderId'] = str(uuid.uuid4())
+
+    with patch('orders.services.create_order', side_effect=IntegrityError('unexpected')):
+        response = APIClient().post('/api/v1/orders', body, format='json')
+
+    assert response.status_code == 500
 
 
 def test_different_order_id_creates_separate_orders(motif, product_type, cut, color):

@@ -259,7 +259,7 @@ class DesignUploadView(APIView):
         width_px, height_px = get_image_dimensions(data, kind)
         if kind in (PNG, JPG) and (width_px is None or height_px is None):
             raise UnsupportedFileTypeError(_('The image is damaged or could not be decoded.'))
-        _stored_path, url = save_random_file(data, design_upload_directory(), kind)
+        _saved_path, url = save_random_file(data, design_upload_directory(), kind)
         payload = {
             'url': url,
             'mime_type': MIME_BY_KIND[kind],

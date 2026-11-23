@@ -1,11 +1,34 @@
 {% extends "emails/base.html" %}
+{% block preheader %}Nová zpráva z kontaktního formuláře od {{ name }}.{% endblock %}
 {% block content %}
-<p>Nová zpráva z kontaktního formuláře.</p>
-<p>
-  Jméno: {{ name }}<br>
-  E-mail: {{ email }}<br>
-  {% if phone %}Telefon: {{ phone }}<br>{% endif %}
-  {% if company %}Firma: {{ company }}<br>{% endif %}
-</p>
-<p>{{ message }}</p>
+<p style="margin:0 0 16px;">Nová zpráva z kontaktního formuláře.</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px; border-collapse:collapse;">
+  <tr>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:12px; color:#626e67; width:90px;">Jméno</td>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:14px;">{{ name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:12px; color:#626e67;">E-mail</td>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:14px;"><a href="mailto:{{ email }}" style="color:#0e584d;">{{ email }}</a></td>
+  </tr>
+  {% if phone %}
+  <tr>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:12px; color:#626e67;">Telefon</td>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:14px;">{{ phone }}</td>
+  </tr>
+  {% endif %}
+  {% if company %}
+  <tr>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:12px; color:#626e67;">Firma</td>
+    <td style="padding:8px 0; border-bottom:1px solid #e8eee6; font-size:14px;">{{ company }}</td>
+  </tr>
+  {% endif %}
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3ea; border-left:3px solid #0e584d;">
+  <tr>
+    <td style="padding:16px 20px; font-size:14px; line-height:1.6;">{{ message|linebreaksbr }}</td>
+  </tr>
+</table>
 {% endblock %}
