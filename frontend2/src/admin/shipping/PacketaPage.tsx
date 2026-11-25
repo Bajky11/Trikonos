@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { Link } from "react-router-dom";
 import { Button, Checkbox, FormControlLabel, Pagination, Paper, TextField } from "@mui/material";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
@@ -116,17 +117,17 @@ export function PacketaPage() {
   return (
     <>
       <Paper className="admin-panel admin-section" variant="outlined">
-        <div className="admin-catalog-toolbar dictionary-toolbar">
-          <h2>Objednat svoz Packety</h2>{" "}
-          <TextField
-            label="Vyhledat zásilky"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
+        <AdminSectionHeader
+          title="Objednat svoz Packety"
+          search={{
+            label: "Vyhledat zásilky",
+            value: q,
+            onChange: (value) => {
+              setQ(value);
               setPage(1);
-            }}
-          />
-        </div>
+            },
+          }}
+        />
         <div className="admin-panel-body">
           <p>
             Vyberte už založené zásilky. Výběr se zachová při změně stránky a hledání. Termín
@@ -273,7 +274,7 @@ export function PacketaPage() {
         </div>
       </Paper>
       <Paper className="admin-panel admin-section" variant="outlined">
-        <h2>Historie svozů</h2>
+        <AdminSectionHeader title="Historie svozů" />
         <div className="admin-panel-body">
           <CatalogFeedback query={history} label="Historie svozů" />
           {history.data?.length === 0 && <p>Zatím žádné svozy.</p>}
@@ -291,7 +292,7 @@ export function PacketaPage() {
         </div>
       </Paper>
       <Paper className="admin-panel admin-section" variant="outlined">
-        <h2>Nastavení Packety</h2>
+        <AdminSectionHeader title="Nastavení Packety" />
         <div className="admin-panel-body">
           <CatalogFeedback query={config} label="Nastavení Packety" />
           {config.data && (

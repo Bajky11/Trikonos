@@ -22,6 +22,7 @@ import { useCatalogOptionsRetrieve } from "../../api/generated/api";
 import { ApiError } from "../../api/http";
 import { CatalogFeedback } from "../../components/Products";
 import { DataTable } from "../../components/DataTable";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { money } from "../../data/catalog";
 import { allPages, catalogMutationKey, useCatalogMutation } from "../catalog/api";
 import { catalogError } from "../catalog/forms";
@@ -92,11 +93,21 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   return (
     <>
       <Paper className="admin-panel dictionary-panel" variant="outlined">
+        <AdminSectionHeader
+          title={lookupTitles[kind] + (list.data ? ` (${list.data.count})` : "")}
+          actions={
+            <Button
+              variant="contained"
+              onClick={() => {
+                setMessage("");
+                setEditing({});
+              }}
+            >
+              + Přidat
+            </Button>
+          }
+        />
         <div className="admin-catalog-toolbar dictionary-toolbar">
-          <h2>
-            {lookupTitles[kind]}
-            {list.data && ` (${list.data.count})`}
-          </h2>
           <TextField
             label="Stav"
             select
@@ -130,20 +141,15 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
               ))}
             </TextField>
           )}
-          <Button
-            variant="contained"
-            onClick={() => {
-              setMessage("");
-              setEditing({});
-            }}
-          >
-            + Přidat
-          </Button>
         </div>
         <CatalogFeedback query={list} label="Položky číselníku" />
         {kind === "print-areas" && <CatalogFeedback query={types} label="Typy oblečení" />}
-        {filtered && <p>Pro změnu pořadí zrušte hledání a filtry.</p>}
-        {error && !deleting && <p role="alert">{error}</p>}
+        {filtered && <p className="dictionary-notice">Pro změnu pořadí zrušte hledání a filtry.</p>}
+        {error && !deleting && (
+          <p className="dictionary-notice" role="alert">
+            {error}
+          </p>
+        )}
         {message && (
           <p className="dictionary-message" role="status">
             {message}
@@ -155,13 +161,19 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
             <DataTable
               label={lookupTitles[kind]}
               columns={[
-                { label: "", compact: true, minWidth: 56 },
-                { label: "Název" },
-                ...(kind === "print-areas" ? [{ label: "Typ oblečení", compact: true }] : []),
-                { label: "Údaje", compact: true },
+                {
+                  label: "#",
+                  ariaLabel: "Číslo řádku",
+                  align: "center",
+                  compact: true,
+                  minWidth: 52,
+                },
+                { label: "Název", minWidth: 120 },
+                ...(kind === "print-areas" ? [{ label: "Typ oblečení", minWidth: 112 }] : []),
+                { label: "Údaje", width: "19%", minWidth: 90 },
                 { label: "Stav", compact: true },
                 { label: "Pořadí", align: "center", compact: true },
-                { label: "Akce", align: "center", compact: true },
+                { label: "Akce", align: "right", compact: true },
               ]}
               page={page}
               pageCount={Math.ceil(list.data.count / 20)}
@@ -195,10 +207,10 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
                     if (dragged) void move(dragged, item.id);
                   }}
                 >
-                  <TableCell align="center">
+                  <TableCell align="center" className="data-table-nowrap">
                     {filtered ? "—" : (page - 1) * 20 + index + 1}
                   </TableCell>
-                  <TableCell component="th" scope="row">
+                  <TableCell component="th" scope="row" className="data-table-wrap">
                     {"hexValue" in item && (
                       <i className="dictionary-swatch" style={{ background: item.hexValue }} />
                     )}
@@ -210,7 +222,7 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
                         item.productType}
                     </TableCell>
                   )}
-                  <TableCell>
+                  <TableCell className="data-table-wrap">
                     {"hexValue" in item
                       ? item.hexValue
                       : "slug" in item
@@ -221,8 +233,14 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
                             ? `${item.widthMm} × ${item.heightMm} mm`
                             : "—"}
                   </TableCell>
-                  <TableCell>{item.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
-                  <TableCell align="right">
+                  <TableCell>
+                    <span
+                      className={`dictionary-status ${item.isActive ? "is-active" : "is-inactive"}`}
+                    >
+                      {item.isActive ? "Aktivní" : "Neaktivní"}
+                    </span>
+                  </TableCell>
+                  <TableCell align="center">
                     <div
                       className="dictionary-reorder"
                       role="group"
@@ -372,9 +390,7 @@ function Sizes() {
   const options = useCatalogOptionsRetrieve();
   return (
     <Paper className="admin-panel dictionary-panel" variant="outlined">
-      <div className="admin-catalog-toolbar dictionary-toolbar">
-        <h2>Velikosti</h2>
-      </div>
+      <AdminSectionHeader title="Velikosti" />
       <div className="admin-panel-body">
         <p>
           Velikosti jsou pevný seznam backendu, nikoli upravitelný číselník. Pro konkrétní motiv je
@@ -393,11 +409,26 @@ function Sizes() {
   );
 }
 
-export function DictionariesPanel({ search }: { search: string }) {
+export function DictionariesPanel() {
+  const [search, setSearch] = useState("");
   const [kind, setKind] = useState<LookupKind | "sizes">("colors");
   const busy = useIsMutating({ mutationKey: catalogMutationKey }) > 0;
   return (
     <>
+      <Paper className="admin-panel" variant="outlined">
+        <AdminSectionHeader
+          title="Správa číselníků"
+          search={
+            kind === "sizes"
+              ? undefined
+              : {
+                  label: "Hledat v číselníku",
+                  value: search,
+                  onChange: setSearch,
+                }
+          }
+        />
+      </Paper>
       <Tabs
         value={kind}
         onChange={(_, value: LookupKind | "sizes") => setKind(value)}

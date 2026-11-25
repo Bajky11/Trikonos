@@ -131,8 +131,13 @@ test("production uses explicit shared filters, links to orders and renders the e
   await expect(page.getByText("Týmový potisk")).toBeHidden();
   await expect(
     page.getByRole("button", { name: "Vyberte datum", exact: true }).first(),
-  ).toBeHidden();
-  await page.getByRole("button", { name: "Materiál", exact: true }).click();
+  ).toBeVisible();
+  const filterHeights = await page.locator(".production-filters > .MuiFormControl-root").evaluateAll(
+    (fields) => fields.map((field) => field.getBoundingClientRect().height),
+  );
+  expect(filterHeights).toHaveLength(3);
+  expect(new Set(filterHeights).size).toBe(1);
+  await expect(page.getByRole("button", { name: "Obnovit data" })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Souhrn výroby");
   await expect(page.getByRole("button", { name: "Tisk přehledu", exact: true })).toBeDisabled();
   summaryFailed = false;
@@ -151,7 +156,6 @@ test("production uses explicit shared filters, links to orders and renders the e
   await page.setViewportSize({ width: 1440, height: 900 });
   expect(new Set(calls.map((call) => call.kind))).toEqual(new Set(["summary", "orders"]));
   expect(calls.every((call) => call.query.get("status") === "PAID,PROCESSING")).toBe(true);
-  await page.getByRole("button", { name: "Filtry", exact: true }).click();
   await page.getByRole("button", { name: "Vyberte datum", exact: true }).first().click();
   await page.getByRole("gridcell", { name: "1", exact: true }).click();
   await expect
@@ -170,8 +174,10 @@ test("production uses explicit shared filters, links to orders and renders the e
   await expect(page).toHaveURL(/\/admin\/vyroba$/);
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(page.getByText("Týmový potisk")).toBeVisible();
-  console.log(await page.evaluate(() => Array.from(document.querySelectorAll('body *')).map(el => [el.className, el.getBoundingClientRect().right, el.getBoundingClientRect().width]).filter(([,r,w]) => Number(r)>376 && Number(w)>0).slice(0,60)));
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  const mobileStatus = itemRow.locator('[data-label="Stav výroby"]');
+  await expect(mobileStatus).toHaveCSS("grid-column", "1 / -1");
+  await expect(itemRow.locator('[data-label="Kusů"]')).toHaveCSS("text-align", "left");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "Skrýt položky" }).click();
   await page.getByRole("button", { name: "Vyrobeno 0", exact: true }).click();

@@ -1,7 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Button, Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import Close from "@mui/icons-material/Close";
 import { uploadsDesignsCreate, useCatalogOptionsRetrieve } from "../api/generated/api";
 import type { CatalogOptionsResponse } from "../api/generated/models";
@@ -11,7 +23,14 @@ import { designs } from "../data/catalog";
 import type { CustomCartItem } from "../cart/storage";
 import { useShop } from "./ShopContext";
 import { CatalogFeedback } from "./Products";
-import { fitDesign, moveDesign, placementInMm, previewArea, resizeDesign } from "./designGeometry";
+import {
+  fitDesign,
+  moveDesign,
+  placementInMm,
+  previewArea,
+  previewScale,
+  resizeDesign,
+} from "./designGeometry";
 import type { DesignBox } from "./designGeometry";
 
 const initialHint =
@@ -20,15 +39,18 @@ type Asset = CustomCartItem["upload"];
 
 function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
   const { add } = useShop();
-  const types = options.productTypes.filter((type) =>
-    type.printAreas.some((area) => area.widthMm > 0 && area.heightMm > 0),
-  );
+  const types = options.productTypes
+    .map((type) => ({
+      ...type,
+      printAreas: type.printAreas.filter((area) => area.widthMm > 0 && area.heightMm > 0),
+    }))
+    .filter((type) => type.printAreas.length);
   const [typeId, setTypeId] = useState("");
   const [cutId, setCutId] = useState("");
   const [colorId, setColorId] = useState("");
   const [sizeValue, setSizeValue] = useState("");
   const [areaId, setAreaId] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState("1");
   const [asset, setAsset] = useState<Asset | null>(null);
   const [position, setPosition] = useState<{ areaKey: string; box: DesignBox } | null>(null);
   const [controls, setControls] = useState(true);
@@ -50,17 +72,25 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
   const color = options.colors.find((color) => color.id === colorId) ?? options.colors[0];
   const size =
     options.sizes.find((size) => size.value === sizeValue)?.value ?? options.sizes[0]?.value;
-  const areas = type?.printAreas.filter((area) => area.widthMm > 0 && area.heightMm > 0) ?? [];
+  const areas = type?.printAreas ?? [];
   const area = areas.find((area) => area.id === areaId) ?? areas[0];
-  const bounds = previewArea(area?.widthMm ?? 300, area?.heightMm ?? 400);
-  const areaKey = `${type?.id}:${area?.id}:${area?.widthMm}:${area?.heightMm}`;
-  const box = asset
-    ? position?.areaKey === areaKey
-      ? position.box
-      : fitDesign(asset.widthPx, asset.heightPx, bounds)
-    : null;
+  const scale = previewScale(types.flatMap((type) => type.printAreas));
+  const bounds = previewArea(area?.widthMm ?? 300, area?.heightMm ?? 400, scale);
+  const areaKey = `${type?.id}:${area?.id}:${area?.widthMm}:${area?.heightMm}:${scale}`;
+  const box =
+    asset && area
+      ? position?.areaKey === areaKey
+        ? position.box
+        : fitDesign(asset.widthPx, asset.heightPx, bounds)
+      : null;
   const mm = box && area ? placementInMm(box, bounds, area.widthMm, area.heightMm) : null;
   const ready = !!(type && cut && color && size && area);
+  const count = Number(quantity);
+  const validQuantity = Number.isInteger(count) && count >= 1 && count <= 99;
+  const resetPosition = () => {
+    drag.current = null;
+    setPosition(null);
+  };
   const upload = useMutation({
     gcTime: 0,
     mutationFn: ({ file, signal }: { file: File; signal: AbortSignal }) =>
@@ -107,7 +137,7 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
         heightPx: result.heightPx,
         uploadedAt: Date.now(),
       });
-      setPosition(null);
+      resetPosition();
       setStatus(
         "Podklad je nahraný. Umístěte jej do zvolené tiskové plochy; po změně plochy se umístění nastaví znovu.",
       );
@@ -134,7 +164,7 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
       : { x: 0, y: 0 };
   };
   const startDrag = (event: PointerEvent<SVGRectElement>, mode: "move" | "resize") => {
-    if (!box) return;
+    if (!box || !event.isPrimary || event.button !== 0) return;
     event.preventDefault();
     const p = point(event);
     drag.current = { mode, x: p.x, y: p.y, box };
@@ -142,14 +172,17 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
   };
   const moveDrag = (event: PointerEvent<SVGRectElement>) => {
     const start = drag.current;
-    if (!start) return;
+    if (!start || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
     const p = point(event);
+    const dx = p.x - start.x;
+    const dy = p.y - start.y;
+    const ratio = start.box.height / start.box.width;
     setPosition({
       areaKey,
       box:
         start.mode === "move"
-          ? moveDesign(start.box, p.x - start.x, p.y - start.y, snap, bounds)
-          : resizeDesign(start.box, p.x - start.x, bounds),
+          ? moveDesign(start.box, dx, dy, snap, bounds)
+          : resizeDesign(start.box, (dx + dy * ratio) / (1 + ratio ** 2), bounds),
     });
   };
   const keyMove = (event: KeyboardEvent<SVGRectElement>, mode: "move" | "resize") => {
@@ -162,21 +195,21 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
       areaKey,
       box:
         mode === "move"
-          ? moveDesign(box, dx, dy, snap, bounds)
-          : resizeDesign(box, dx || dy, bounds),
+          ? moveDesign(box, dx, dy, false, bounds)
+          : resizeDesign(box, dx || -dy, bounds),
     });
   };
   return (
     <>
       {!ready && (
-        <p role="status">
+        <Alert severity="warning" sx={{ mb: 2 }}>
           Vlastní potisk zatím není dostupný. Chybí aktivní typ oblečení s tiskovou plochou, střih,
           barva nebo velikost.
-        </p>
+        </Alert>
       )}
       <div className="custom-body">
         <div
-          className={`shirt-preview ${controls ? "" : "controls-hidden"}`}
+          className="shirt-preview"
           role="group"
           aria-label={`Schematický náhled tiskové plochy – ${color?.name ?? "bez barvy"}`}
         >
@@ -198,9 +231,6 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
               </Button>
             )}
           </div>
-          <p>
-            Náhled oděvu je pouze ilustrační. Přesné umístění se vztahuje ke zvolené tiskové ploše.
-          </p>
           <svg
             ref={svg}
             className="shirt-art"
@@ -261,15 +291,15 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
                       onPointerUp={() => {
                         drag.current = null;
                       }}
-                      onPointerCancel={() => {
+                      onLostPointerCapture={() => {
                         drag.current = null;
                       }}
                       onKeyDown={(event) => keyMove(event, "move")}
                     />
                     <rect
                       className="design-resize"
-                      x={box.x + box.width - 22}
-                      y={box.y + box.height - 22}
+                      x={box.x + box.width - Math.min(22, box.width / 4)}
+                      y={box.y + box.height - Math.min(22, box.height / 4)}
                       width="44"
                       height="44"
                       tabIndex={0}
@@ -280,7 +310,7 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
                       onPointerUp={() => {
                         drag.current = null;
                       }}
-                      onPointerCancel={() => {
+                      onLostPointerCapture={() => {
                         drag.current = null;
                       }}
                       onKeyDown={(event) => keyMove(event, "resize")}
@@ -290,140 +320,157 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
               </g>
             )}
           </svg>
+          <Typography className="preview-note" variant="caption" color="text.secondary">
+            Oděv je ilustrační. Rozměry a pozice motivu se měří od zvolené tiskové plochy.
+          </Typography>
         </div>
-        <div className="custom-panel">
-          <form
-            className="dialog-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!ready || !asset || !mm || busy) {
-                setError("Nejprve vyberte variantu, tiskovou plochu a nahrajte podklad.");
-                return;
-              }
-              if (Date.now() - asset.uploadedAt >= 7 * 86400000) {
-                setError("Platnost podkladu vypršela. Nahrajte jej znovu.");
-                return;
-              }
-              add({
-                kind: "custom",
-                name: `Vlastní potisk – ${asset.fileName}`,
-                productTypeId: type.id,
-                cutId: cut.id,
-                colorId: color.id,
-                size,
-                quantity,
-                upload: asset,
-                placement: { printAreaId: area.id, ...mm },
-                areaWidthMm: area.widthMm,
-                areaHeightMm: area.heightMm,
-              });
+        <Stack
+          component="form"
+          className="custom-panel"
+          spacing={2}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!validQuantity) return;
+            if (!ready || !asset || !mm || busy) {
+              setError("Nejprve vyberte variantu, tiskovou plochu a nahrajte podklad.");
+              return;
+            }
+            if (Date.now() - asset.uploadedAt >= 7 * 86400000) {
+              setError("Platnost podkladu vypršela. Nahrajte jej znovu.");
+              return;
+            }
+            add({
+              kind: "custom",
+              name: `Vlastní potisk – ${asset.fileName}`,
+              productTypeId: type.id,
+              cutId: cut.id,
+              colorId: color.id,
+              size,
+              quantity: count,
+              upload: asset,
+              placement: { printAreaId: area.id, ...mm },
+              areaWidthMm: area.widthMm,
+              areaHeightMm: area.heightMm,
+            });
+          }}
+        >
+          <Typography component="h3" variant="h6">
+            Nastavení potisku
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            id={`${filterId}-type`}
+            label="Typ oblečení"
+            value={type?.id ?? ""}
+            onChange={(event) => {
+              setTypeId(event.target.value);
+              setAreaId("");
+              resetPosition();
             }}
+            disabled={!types.length}
           >
-            <label>
-              Typ oblečení
-              <select
-                value={type?.id ?? ""}
-                aria-label="Typ oblečení"
-                onChange={(event) => {
-                  drag.current = null;
-                  setTypeId(event.target.value);
-                  setAreaId("");
-                }}
-                required
-                disabled={!types.length}
-              >
-                {types.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Střih
-              <select
-                value={cut?.id ?? ""}
-                aria-label="Střih"
-                onChange={(event) => setCutId(event.target.value)}
-                required
-                disabled={!options.cuts.length}
-              >
-                {options.cuts.map((cut) => (
-                  <option key={cut.id} value={cut.id}>
-                    {cut.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Barva
-              <select
-                value={color?.id ?? ""}
-                aria-label="Barva"
-                onChange={(event) => setColorId(event.target.value)}
-                required
-                disabled={!options.colors.length}
-              >
-                {options.colors.map((color) => (
-                  <option key={color.id} value={color.id}>
-                    {color.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Tisková plocha
-              <select
-                value={area?.id ?? ""}
-                aria-label="Tisková plocha"
-                onChange={(event) => {
-                  drag.current = null;
-                  setAreaId(event.target.value);
-                }}
-                required
-                disabled={!areas.length}
-              >
-                {areas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name} ({area.widthMm} × {area.heightMm} mm)
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="custom-design-actions">
-              <Button onClick={() => setGallery(true)} disabled={!ready || busy}>
-                Naše potisky
-              </Button>
-              <Button onClick={() => fileInput.current?.click()} disabled={!ready || busy}>
-                Vlastní potisk
-              </Button>
-            </div>
-            <input
-              ref={fileInput}
-              type="file"
-              aria-label="Nahrát vlastní potisk"
-              accept="image/png,image/jpeg"
-              hidden
+            {types.map((type) => (
+              <MenuItem key={type.id} value={type.id}>
+                {type.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          <Box className="custom-fields-pair">
+            <TextField
+              select
+              fullWidth
+              id={`${filterId}-cut`}
+              label="Střih"
+              value={cut?.id ?? ""}
+              onChange={(event) => setCutId(event.target.value)}
+              disabled={!options.cuts.length}
+            >
+              {options.cuts.map((cut) => (
+                <MenuItem key={cut.id} value={cut.id}>
+                  {cut.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              fullWidth
+              id={`${filterId}-color`}
+              label="Barva"
+              value={color?.id ?? ""}
+              onChange={(event) => setColorId(event.target.value)}
+              disabled={!options.colors.length}
+            >
+              {options.colors.map((color) => (
+                <MenuItem key={color.id} value={color.id}>
+                  {color.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Box>
+          <TextField
+            select
+            fullWidth
+            id={`${filterId}-area`}
+            label="Tisková plocha"
+            value={area?.id ?? ""}
+            onChange={(event) => {
+              setAreaId(event.target.value);
+              resetPosition();
+            }}
+            disabled={!areas.length}
+          >
+            {areas.map((area) => (
+              <MenuItem key={area.id} value={area.id} sx={{ whiteSpace: "normal" }}>
+                {area.name} ({area.widthMm} × {area.heightMm} mm)
+              </MenuItem>
+            ))}
+          </TextField>
+          <Box className="custom-fields-pair">
+            <Button variant="outlined" onClick={() => setGallery(true)} disabled={!ready || busy}>
+              Naše potisky
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => fileInput.current?.click()}
               disabled={!ready || busy}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void selectFile(file);
-              }}
-            />
-            {asset && mm && (
-              <>
-                <div className="design-dimensions">
-                  <span>
-                    Vybraný potisk: <b>{asset.fileName}</b>
-                  </span>
-                  <strong>
-                    {mm.width} × {mm.height} mm
-                  </strong>
-                  <span>
-                    Pozice: {mm.x} × {mm.y} mm od levého horního rohu plochy.
-                  </span>
-                </div>
+            >
+              Vlastní potisk
+            </Button>
+          </Box>
+          <input
+            ref={fileInput}
+            type="file"
+            aria-label="Nahrát vlastní potisk"
+            accept="image/png,image/jpeg"
+            hidden
+            disabled={!ready || busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void selectFile(file);
+            }}
+          />
+          {asset && mm && (
+            <>
+              <div className="design-dimensions">
+                <span>
+                  Vybraný potisk: <b>{asset.fileName}</b>
+                </span>
+                <strong>
+                  {mm.width} × {mm.height} mm
+                </strong>
+                <span>
+                  Pozice: {mm.x} × {mm.y} mm od levého horního rohu plochy.
+                </span>
+              </div>
+              <Box className="custom-fields-pair">
+                <Button
+                  onClick={resetPosition}
+                  disabled={!position || position.areaKey !== areaKey}
+                >
+                  Obnovit umístění
+                </Button>
                 <Button
                   color="error"
                   onClick={() => {
@@ -432,59 +479,60 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
                     upload.reset();
                     setLoadingGallery(false);
                     setAsset(null);
-                    setPosition(null);
+                    resetPosition();
                     setError("");
                     setStatus(initialHint);
                   }}
                 >
                   Odebrat potisk
                 </Button>
-              </>
-            )}
-            <p role="status">{status}</p>
-            {error && <p role="alert">{error}</p>}
-            <label>
-              Velikost
-              <select
-                value={size ?? ""}
-                aria-label="Velikost"
-                onChange={(event) => setSizeValue(event.target.value)}
-                required
-                disabled={!options.sizes.length}
-              >
-                {options.sizes.map((size) => (
-                  <option key={size.value} value={size.value}>
-                    {size.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Počet kusů
-              <input
-                aria-label="Počet kusů vlastního potisku"
-                type="number"
-                min="1"
-                max="99"
-                required
-                value={quantity}
-                onChange={(event) => setQuantity(Number(event.target.value))}
-              />
-            </label>
-            <p>
-              Cena vlastního potisku bude k nacenění. U smíšeného košíku se potvrdí konečná cena
-              celé objednávky.
-            </p>
-            <Button
-              className="custom-add"
-              type="submit"
-              variant="contained"
-              disabled={!ready || !asset || busy}
+              </Box>
+            </>
+          )}
+          <Typography variant="body2" color="text.secondary" role="status">
+            {status}
+          </Typography>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Box className="custom-fields-pair">
+            <TextField
+              select
+              fullWidth
+              id={`${filterId}-size`}
+              label="Velikost"
+              value={size ?? ""}
+              onChange={(event) => setSizeValue(event.target.value)}
+              disabled={!options.sizes.length}
             >
-              Přidat návrh do košíku k nacenění
-            </Button>
-          </form>
-        </div>
+              {options.sizes.map((size) => (
+                <MenuItem key={size.value} value={size.value}>
+                  {size.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              fullWidth
+              id={`${filterId}-quantity`}
+              label="Počet kusů"
+              type="number"
+              slotProps={{ htmlInput: { min: 1, max: 99, step: 1 } }}
+              required
+              error={!validQuantity}
+              helperText={!validQuantity ? "Zadejte 1 až 99 kusů." : undefined}
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+            />
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Potisk naceníme individuálně. U smíšeného košíku vám potvrdíme cenu celé objednávky.
+          </Typography>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!ready || !asset || !mm || busy || !validQuantity}
+          >
+            Přidat návrh do košíku k nacenění
+          </Button>
+        </Stack>
       </div>
       <Dialog open={gallery} onClose={() => setGallery(false)} maxWidth="md" fullWidth>
         <DialogTitle>

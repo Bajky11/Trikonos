@@ -1,0 +1,39 @@
+.admin-section-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  padding: var(--admin-inset, 16px);
+}
+
+.admin-section-header > :is(h1, h2) {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.admin-section-header > h2 {
+  font:
+    700 17px/1.3 Manrope,
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.admin-section-search {
+  flex: 0 1 280px;
+  min-width: min(220px, 100%);
+}
+
+.admin-section-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media screen and (max-width: 600px) {
+  .admin-section-search {
+    flex-basis: 100%;
+  }
+}

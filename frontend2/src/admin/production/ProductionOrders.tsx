@@ -284,30 +284,34 @@ export function ProductionOrders({ query }: { query: ReturnType<typeof useProduc
                 <DataTable
                   label={`Položky objednávky ${order.orderNumber}`}
                   columns={[
-                    { label: "Motiv / potisk" },
-                    { label: "Oděv" },
-                    { label: "Střih" },
-                    { label: "Barva" },
-                    { label: "Velikost" },
+                    { label: "Motiv / potisk", minWidth: 128 },
+                    { label: "Oděv", width: "16%", minWidth: 88 },
+                    { label: "Střih", width: "14%", minWidth: 78 },
+                    { label: "Barva", width: "14%", minWidth: 78 },
+                    { label: "Velikost", align: "center", compact: true },
                     { label: "Kusů", align: "right", compact: true },
-                    { label: "Stav výroby" },
+                    { label: "Stav výroby", width: 184 },
                   ]}
                 >
                   {order.items.map((item) => (
                     <Fragment key={item.id}>
                       <TableRow className="production-item-row">
-                        <TableCell data-label="Motiv / potisk">
-                          <strong>
-                            {item.isCustom ? "Vlastní potisk" : item.motif || "Motiv není dostupný"}
-                          </strong>
+                        <TableCell component="th" scope="row" data-label="Motiv / potisk">
+                          {item.isCustom ? "Vlastní potisk" : item.motif || "Motiv není dostupný"}
                         </TableCell>
                         <TableCell data-label="Oděv">
                           <strong>{item.productType || "—"}</strong>
                         </TableCell>
                         <TableCell data-label="Střih">{item.cut || "—"}</TableCell>
                         <TableCell data-label="Barva">{item.color || "—"}</TableCell>
-                        <TableCell data-label="Velikost">{item.size || "—"}</TableCell>
-                        <TableCell data-label="Kusů" align="right">
+                        <TableCell
+                          data-label="Velikost"
+                          align="center"
+                          className="data-table-nowrap"
+                        >
+                          {item.size || "—"}
+                        </TableCell>
+                        <TableCell data-label="Kusů" align="right" className="data-table-nowrap">
                           <strong>{item.quantity} ks</strong>
                         </TableCell>
                         <TableCell data-label="Stav výroby">

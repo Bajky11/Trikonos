@@ -41,11 +41,10 @@ test("opens the cart, accepts server prices, edits quantity, persists and remove
   await expect(page.getByRole("region", { name: "Souhrn košíku" })).toContainText("799 Kč");
   await page.getByRole("button", { name: "Přijmout aktuální cenu" }).click();
   await expect(page.getByRole("button", { name: "Přijmout aktuální cenu" })).toHaveCount(0);
-  await page.getByRole("spinbutton", { name: "Počet kusů" }).fill("3");
-  await page.getByRole("button", { name: "Uložit počet" }).click();
+  await page.getByRole("button", { name: "Zvýšit počet kusů" }).click({ clickCount: 2, delay: 80 });
   await expect(page.getByRole("region", { name: "Souhrn košíku" })).toContainText("2 397 Kč");
   await page.reload();
-  await expect(page.getByRole("spinbutton", { name: "Počet kusů" })).toHaveValue("3");
+  await expect(page.getByRole("status", { name: "Počet kusů" })).toHaveText("3");
   await expect(page.getByRole("region", { name: "Souhrn košíku" })).toContainText("2 397 Kč");
   expect(requests.length).toBeGreaterThanOrEqual(3);
   for (const body of requests) expect(body.items[0]).not.toHaveProperty("unitPrice");

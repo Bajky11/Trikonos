@@ -17,6 +17,8 @@ export type DataTableColumn = {
   ariaLabel?: string;
   align?: "left" | "center" | "right";
   compact?: boolean;
+  /** Preferred column width in the automatic table layout. */
+  width?: string | number;
   minWidth?: number;
 };
 
@@ -29,6 +31,7 @@ type DataTableProps = {
   onPageChange?: (page: number) => void;
   paginationDisabled?: boolean;
   paginationLabel?: string;
+  alwaysShowPagination?: boolean;
   /** Pass only when there are no rows to display. */
   empty?: ReactNode;
   density?: "comfortable" | "compact";
@@ -46,6 +49,7 @@ export function DataTable({
   onPageChange,
   paginationDisabled,
   paginationLabel,
+  alwaysShowPagination = false,
   empty,
   density = "comfortable",
   maxHeight,
@@ -66,7 +70,10 @@ export function DataTable({
         <Table aria-label={label} className="data-table" stickyHeader={maxHeight !== undefined}>
           <colgroup>
             {columns.map((column, index) => (
-              <col key={index} style={{ width: column.compact ? "1%" : undefined }} />
+              <col
+                key={index}
+                style={{ width: column.width ?? (column.compact ? "1%" : undefined) }}
+              />
             ))}
           </colgroup>
           <TableHead>
@@ -105,30 +112,39 @@ export function DataTable({
           </TableBody>
         </Table>
       </TableContainer>
-      {page !== undefined && pageCount !== undefined && pageCount > 1 && onPageChange && (
-        <div className="data-table-pagination">
-          <span className="data-table-page-status" aria-live="polite">
-            Strana <strong>{page}</strong> z {pageCount}
-          </span>
-          <Pagination
-            shape="rounded"
-            disabled={paginationDisabled}
-            aria-label={paginationLabel ?? `Stránkování: ${label}`}
-            page={page}
-            count={pageCount}
-            getItemAriaLabel={(type, number, selected) => {
-              if (type === "page")
-                return selected ? `Strana ${number}` : `Přejít na stranu ${number}`;
-              if (type === "previous") return "Předchozí strana";
-              if (type === "next") return "Další strana";
-              if (type === "first") return "První strana";
-              if (type === "last") return "Poslední strana";
-              return "Vynechané strany";
-            }}
-            onChange={(_, value) => onPageChange(value)}
-          />
-        </div>
-      )}
+      {page !== undefined &&
+        pageCount !== undefined &&
+        (pageCount > 1 || alwaysShowPagination) &&
+        onPageChange && (
+          <div className="data-table-pagination">
+            <span className="data-table-page-status" aria-live="polite">
+              {pageCount > 0 ? (
+                <>
+                  Strana <strong>{page}</strong> z {pageCount}
+                </>
+              ) : (
+                "Žádné stránky"
+              )}
+            </span>
+            <Pagination
+              shape="rounded"
+              disabled={paginationDisabled || pageCount <= 1}
+              aria-label={paginationLabel ?? `Stránkování: ${label}`}
+              page={page}
+              count={Math.max(1, pageCount)}
+              getItemAriaLabel={(type, number, selected) => {
+                if (type === "page")
+                  return selected ? `Strana ${number}` : `Přejít na stranu ${number}`;
+                if (type === "previous") return "Předchozí strana";
+                if (type === "next") return "Další strana";
+                if (type === "first") return "První strana";
+                if (type === "last") return "Poslední strana";
+                return "Vynechané strany";
+              }}
+              onChange={(_, value) => onPageChange(value)}
+            />
+          </div>
+        )}
     </div>
   );
 }

@@ -45,6 +45,14 @@ test("uses real dashboard data and downloads Excel with the current filters", as
   });
   await page.goto("/admin");
   await expect(page.getByRole("link", { name: "TEST_TRK-2026-0042" })).toBeVisible();
+  const recentOrders = page.getByRole("table", { name: "Poslední objednávky" });
+  await expect(recentOrders.getByRole("columnheader", { name: "Částka" })).toHaveCSS(
+    "text-align",
+    "right",
+  );
+  const amount = recentOrders.getByRole("cell", { name: "K nacenění" });
+  await expect(amount).toHaveCSS("text-align", "right");
+  await expect(amount).toHaveCSS("vertical-align", "middle");
   await expect(page.getByRole("heading", { name: "Docházejí skladem" })).toHaveCount(0);
   await page.goto("/admin/objednavky?status=NEW&page=2");
   page.once("dialog", (dialog) => void dialog.accept());

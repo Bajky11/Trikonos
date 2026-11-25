@@ -5,6 +5,7 @@ import { mockStoreApi, options, motifs } from "./api-fixtures";
 
 const areaId = "40000000-0000-0000-0000-000000000001";
 const squareId = "40000000-0000-0000-0000-000000000002";
+const backId = "40000000-0000-0000-0000-000000000003";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1ioAAAAASUVORK5CYII=",
   "base64",
@@ -22,6 +23,12 @@ async function mockCustomOptions(page: Page) {
               { id: areaId, name: "Přední strana", widthMm: 300, heightMm: 400 },
               { id: squareId, name: "Kapsa", widthMm: 100, heightMm: 100 },
             ],
+          },
+          {
+            ...options.productTypes[0],
+            id: "50000000-0000-0000-0000-000000000002",
+            name: "Mikina",
+            printAreas: [{ id: backId, name: "Záda", widthMm: 250, heightMm: 350 }],
           },
         ],
       },
@@ -93,14 +100,19 @@ test("uploads a selected design, edits backend-sized placement and validates a p
   });
   await page.goto("/#vlastni-potisk");
   const section = page.locator("#vlastni-potisk");
+  const printArea = section.locator(".print-area");
+  const fullWidth = Number(await printArea.getAttribute("width"));
   await section.getByRole("button", { name: "Naše potisky", exact: true }).click();
   await page.getByRole("button", { name: "Motiv 1", exact: true }).click();
   await expect(section.locator(".design-dimensions")).toContainText("Motiv 1.png");
   const move = section.getByRole("button", { name: "Posunout potisk." });
   const before = await move.getAttribute("y");
+  const centeredX = await move.getAttribute("x");
   await move.focus();
   await page.keyboard.press("ArrowDown");
   await expect(move).not.toHaveAttribute("y", before!);
+  await page.keyboard.press("ArrowRight");
+  await expect(move).not.toHaveAttribute("x", centeredX!);
   const bounds = await move.boundingBox();
   if (!bounds) throw new Error("Missing design move handle");
   const beforeX = await move.getAttribute("x");
@@ -113,11 +125,24 @@ test("uploads a selected design, edits backend-sized placement and validates a p
   await section.getByRole("button", { name: "Změnit velikost potisku." }).focus();
   await page.keyboard.press("ArrowLeft");
   await expect(move).not.toHaveAttribute("width", width!);
-  await section.getByLabel("Tisková plocha", { exact: true }).selectOption(squareId);
-  await section.getByLabel("Barva", { exact: true }).selectOption(options.colors[1]!.id);
-  await section.getByLabel("Velikost", { exact: true }).selectOption("L");
-  await section.getByRole("spinbutton", { name: "Počet kusů vlastního potisku" }).fill("2");
-  await section.getByRole("button", { name: "Přidat návrh do košíku k nacenění" }).click();
+  await section.getByRole("button", { name: "Obnovit umístění" }).click();
+  await expect(move).toHaveAttribute("y", before!);
+  await expect(move).toHaveAttribute("x", centeredX!);
+  await section.getByRole("combobox", { name: "Tisková plocha" }).click();
+  await page.getByRole("option", { name: "Kapsa (100 × 100 mm)" }).click();
+  expect(Number(await printArea.getAttribute("width"))).toBeCloseTo(fullWidth / 3);
+  expect(await printArea.getAttribute("width")).toBe(await printArea.getAttribute("height"));
+  await expect(section.getByRole("button", { name: "Obnovit umístění" })).toBeDisabled();
+  await section.getByRole("combobox", { name: "Barva" }).click();
+  await page.getByRole("option", { name: options.colors[1]!.name, exact: true }).click();
+  await section.getByRole("combobox", { name: "Velikost" }).click();
+  await page.getByRole("option", { name: "L", exact: true }).click();
+  const quantity = section.getByRole("spinbutton", { name: "Počet kusů" });
+  const addToCart = section.getByRole("button", { name: "Přidat návrh do košíku k nacenění" });
+  await quantity.fill("100");
+  await expect(addToCart).toBeDisabled();
+  await quantity.fill("2");
+  await addToCart.click();
   await page.getByRole("button", { name: "Košík, počet položek: 3" }).click();
   await expect(page.getByText("Košík je ověřený a bude vyžadovat nacenění.")).toBeVisible();
   const custom = page.getByRole("region", { name: "Vlastní potisk – Motiv 1.png" });
@@ -137,6 +162,31 @@ test("uploads a selected design, edits backend-sized placement and validates a p
   expect(saved).not.toContain("base64");
   await page.reload();
   await expect(page.getByText("Košík je ověřený a bude vyžadovat nacenění.")).toBeVisible();
+});
+
+test("stacks the editor on mobile and switches print areas with the garment type", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockCustomOptions(page);
+  await page.goto("/#vlastni-potisk");
+  const section = page.locator("#vlastni-potisk");
+  const preview = await section.locator(".shirt-preview").boundingBox();
+  const panel = await section.locator(".custom-panel").boundingBox();
+  expect(panel!.y).toBeGreaterThanOrEqual(preview!.y + preview!.height);
+  expect(panel!.x + panel!.width).toBeLessThanOrEqual(375);
+  const area = section.getByRole("combobox", { name: "Tisková plocha" });
+  await area.click();
+  await page.getByRole("option", { name: "Kapsa (100 × 100 mm)" }).click();
+  await section.getByRole("combobox", { name: "Typ oblečení" }).click();
+  await page.getByRole("option", { name: "Mikina" }).click();
+  await expect(area).toHaveText("Záda (250 × 350 mm)");
+  await area.click();
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await section.getByRole("combobox", { name: "Typ oblečení" }).click();
+  await page.getByRole("option", { name: options.productTypes[0]!.name }).click();
+  await expect(area).toHaveText("Přední strana (300 × 400 mm)");
 });
 
 test("handles upload rejection and expired file tokens without losing the saved custom draft", async ({

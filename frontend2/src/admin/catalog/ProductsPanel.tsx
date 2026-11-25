@@ -23,6 +23,7 @@ import {
 import type { AdminMotifList } from "../../api/generated/models";
 import { CatalogFeedback } from "../../components/Products";
 import { money } from "../../data/catalog";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { catalogMutationKey, useAdminCategories, useCatalogMutation } from "./api";
 import { catalogError } from "./forms";
 import { MotifForm } from "./MotifForm";
@@ -50,11 +51,12 @@ function EditMotif({ id, onSaved }: { id?: string; onSaved: () => void }) {
   );
 }
 
-export function ProductsPanel({ search }: { search: string }) {
+export function ProductsPanel() {
   const [routeParams, setRouteParams] = useSearchParams();
   const motifId = routeParams.get("motiv");
   const client = useQueryClient();
-  const [q, setQ] = useState(search.trim());
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [category, setCategory] = useState("");
   const [active, setActive] = useState("");
@@ -104,8 +106,20 @@ export function ProductsPanel({ search }: { search: string }) {
   return (
     <>
       <Paper className="admin-panel" variant="outlined">
+        <AdminSectionHeader
+          title="Motivy"
+          search={{ label: "Hledat v motivech", value: search, onChange: setSearch }}
+          actions={
+            <Button
+              variant="contained"
+              disabled={!categories.isSuccess || !categories.data.length}
+              onClick={() => edit()}
+            >
+              Přidat motiv
+            </Button>
+          }
+        />
         <div className="admin-catalog-toolbar dictionary-toolbar">
-          <h2>Motivy</h2>
           <TextField
             select
             label="Kategorie"
@@ -137,13 +151,6 @@ export function ProductsPanel({ search }: { search: string }) {
             <MenuItem value="true">Zveřejněné</MenuItem>
             <MenuItem value="false">Koncepty</MenuItem>
           </TextField>
-          <Button
-            variant="contained"
-            disabled={!categories.isSuccess || !categories.data.length}
-            onClick={() => edit()}
-          >
-            Přidat motiv
-          </Button>
         </div>
         <CatalogFeedback query={categories} label="Kategorie" />
         {categories.isSuccess && !categories.data.length && (
@@ -163,11 +170,11 @@ export function ProductsPanel({ search }: { search: string }) {
             <DataTable
               label="Motivy"
               columns={[
-                { label: "Název" },
-                { label: "Kategorie" },
-                { label: "Cena motivu" },
-                { label: "Stav" },
-                { label: "Akce", compact: true, align: "center" },
+                { label: "Název", minWidth: 142 },
+                { label: "Kategorie", width: "18%", minWidth: 108 },
+                { label: "Cena motivu", align: "right", compact: true },
+                { label: "Stav", compact: true },
+                { label: "Akce", align: "right", compact: true },
               ]}
               page={page}
               pageCount={Math.ceil(products.data.count / 20)}
@@ -176,50 +183,54 @@ export function ProductsPanel({ search }: { search: string }) {
             >
               {products.data.results.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell component="th" scope="row">
+                  <TableCell component="th" scope="row" className="data-table-wrap">
                     {product.name}
                   </TableCell>
-                  <TableCell>{product.category.name}</TableCell>
-                  <TableCell>{money(product.price / 100)}</TableCell>
+                  <TableCell className="data-table-wrap">{product.category.name}</TableCell>
+                  <TableCell align="right" className="data-table-nowrap">
+                    {money(product.price / 100)}
+                  </TableCell>
                   <TableCell>{product.isActive ? "Zveřejněný" : "Koncept"}</TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                    <Button
-                      variant="text"
-                      disabled={!categories.isSuccess}
-                      onClick={() => edit(product.id)}
-                    >
-                      Upravit
-                    </Button>
-                    <Button
-                      variant="text"
-                      onClick={() =>
-                        setEditor({ mode: "variants", id: product.id, name: product.name })
-                      }
-                    >
-                      Varianty
-                    </Button>
-                    <Button
-                      variant="text"
-                      onClick={() => {
-                        client.removeQueries({
-                          queryKey: getAdminMotifsRetrieveQueryKey(product.id),
-                          exact: true,
-                        });
-                        setEditor({ mode: "images", id: product.id, name: product.name });
-                      }}
-                    >
-                      Fotografie
-                    </Button>
-                    <Button
-                      variant="text"
-                      color="error"
-                      onClick={() => {
-                        setError("");
-                        setDeleting(product);
-                      }}
-                    >
-                      Smazat
-                    </Button>
+                  <TableCell align="right">
+                    <div className="data-table-actions data-table-actions-nowrap">
+                      <Button
+                        variant="text"
+                        disabled={!categories.isSuccess}
+                        onClick={() => edit(product.id)}
+                      >
+                        Upravit
+                      </Button>
+                      <Button
+                        variant="text"
+                        onClick={() =>
+                          setEditor({ mode: "variants", id: product.id, name: product.name })
+                        }
+                      >
+                        Varianty
+                      </Button>
+                      <Button
+                        variant="text"
+                        onClick={() => {
+                          client.removeQueries({
+                            queryKey: getAdminMotifsRetrieveQueryKey(product.id),
+                            exact: true,
+                          });
+                          setEditor({ mode: "images", id: product.id, name: product.name });
+                        }}
+                      >
+                        Fotografie
+                      </Button>
+                      <Button
+                        variant="text"
+                        color="error"
+                        onClick={() => {
+                          setError("");
+                          setDeleting(product);
+                        }}
+                      >
+                        Smazat
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

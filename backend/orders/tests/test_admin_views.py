@@ -57,6 +57,9 @@ def _order(*, motif, product_type, cut, color, packeta_carrier, delivery_type=De
 
 def test_mixed_order_list_is_unique_and_filters_preserve_total_item_count(admin_client, motif, product_type, cut, color, packeta_carrier):
     order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+    order.customer.first_name = 'Jana Marie'
+    order.customer.last_name = 'Nováková Svobodová'
+    order.customer.save(update_fields=['first_name', 'last_name'])
     item = order.items.first()
     item.pk = None
     item.is_custom = True
@@ -68,6 +71,8 @@ def test_mixed_order_list_is_unique_and_filters_preserve_total_item_count(admin_
         assert response.data['count'] == 1
         assert response.data['results'][0]['item_count'] == 2
         assert response.data['results'][0]['has_custom'] is True
+        assert response.data['results'][0]['customer_first_name'] == 'Jana Marie'
+        assert response.data['results'][0]['customer_last_name'] == 'Nováková Svobodová'
         assert 'no-store' in response['Cache-Control']
     assert admin_client.get('/api/v1/admin/orders', {'hasCustom': 'false'}).data['count'] == 0
 

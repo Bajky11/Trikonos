@@ -11,7 +11,7 @@ import type { NullEnum } from "./nullEnum.ts";
 import type { PaymentMethodEnum } from "./paymentMethodEnum.ts";
 import type { PaymentStatusEnum } from "./paymentStatusEnum.ts";
 import type { ShipmentStatusEnum } from "./shipmentStatusEnum.ts";
-import type { StatusEnum } from "./statusEnum.ts";
+import type { Status4f9Enum } from "./status4f9Enum.ts";
 
 export interface AdminOrderDetail {
   readonly id: string;
@@ -21,7 +21,7 @@ export interface AdminOrderDetail {
    */
   orderNumber: string;
   readonly customer: CustomerRef;
-  status?: StatusEnum;
+  status?: Status4f9Enum;
   readonly statusLabel: string;
   /**
    * In haléře

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Paper, Typography } from "@mui/material";
+import { Alert, Button, Divider, Paper, Stack, Typography } from "@mui/material";
+import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
 import { ordersAccessRetrieve } from "../api/generated/api";
 import { readAccessToken, readCheckout, rememberAccessToken } from "../checkout/session";
+import { PurchaseSteps } from "../checkout/PurchaseSteps";
 import { useShop } from "../components/ShopContext";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
@@ -55,17 +57,20 @@ export function OrderReceiptPage() {
   if (!token)
     return (
       <main className="shell page-main">
-        <Typography variant="h1">Potvrzení objednávky</Typography>
-        <p>
-          V této kartě není uložené potvrzení. Zkontrolujte potvrzovací e-mail; při nejistém
-          odeslání dokončete původní pokus.
-        </p>
-        <Button component={Link} to="/pokladna">
-          Zpět do pokladny
-        </Button>
-        <Button component={Link} to="/stav-objednavky">
-          Dohledat objednávku
-        </Button>
+        <Paper variant="orderReceipt">
+          <Typography variant="h1">Přijetí objednávky není ověřené</Typography>
+          <Alert severity="info">
+            V této kartě není uložené potvrzení. Stav ověřte v e-mailu nebo objednávku dohledejte.
+          </Alert>
+          {record?.kind === "pending" && (
+            <Button component={Link} to="/pokladna">
+              Dokončit původní odeslání
+            </Button>
+          )}
+          <Button component={Link} to="/stav-objednavky" variant="contained">
+            Dohledat objednávku
+          </Button>
+        </Paper>
       </main>
     );
   const current =
@@ -73,33 +78,58 @@ export function OrderReceiptPage() {
   if (!current)
     return (
       <main className="shell page-main">
-        <Typography variant="h1">Detail objednávky</Typography>
-        {detail.isError ? (
-          <div role="alert">
-            <p>Odkaz je neplatný, prošlý, nebo se detail nepodařilo načíst.</p>
-            <Button onClick={() => void detail.refetch()}>Zkusit znovu</Button>
-            <Button component={Link} to="/stav-objednavky">
-              Dohledat podle čísla a e-mailu
-            </Button>
-          </div>
-        ) : (
-          <p role="status">Načítání objednávky…</p>
-        )}
+        <Paper variant="orderReceipt">
+          <Typography variant="h1">
+            {detail.isError ? "Přijetí objednávky se nepodařilo ověřit" : "Ověřujeme objednávku"}
+          </Typography>
+          {detail.isError ? (
+            <>
+              <Alert severity="warning">
+                Odkaz je neplatný, vypršel nebo se objednávku nepodařilo načíst. Než ji odešlete
+                znovu, ověřte její stav.
+              </Alert>
+              <Button onClick={() => void detail.refetch()}>Zkusit znovu</Button>
+              <Button component={Link} to="/stav-objednavky">
+                Dohledat podle čísla a e-mailu
+              </Button>
+            </>
+          ) : (
+            <p role="status">Načítání objednávky…</p>
+          )}
+        </Paper>
       </main>
     );
   const quoted = current.status === "QUOTE_REQUESTED";
   const instructions = detail.data?.paymentInstructions;
+  const inactive = ["CANCELLED", "REFUNDED"].includes(current.status);
   return (
-    <main className="shell page-main">
-      <Typography variant="h1">Objednávka byla přijata</Typography>
-      <Paper className="cart-line" variant="outlined">
-        <h2>{current.orderNumber}</h2>
-        <p>Stav: {statuses[current.status] ?? current.status}</p>
+    <main className="shell page-main purchase-page">
+      <PurchaseSteps current={3} linkBack={false} />
+      <Paper variant="orderReceipt" component="section" aria-label="Detail objednávky">
+        {!inactive && <CheckCircleOutlineRounded aria-hidden="true" />}
+        <Typography variant="h1">
+          {current.status === "CANCELLED"
+            ? "Objednávka byla zrušena"
+            : current.status === "REFUNDED"
+              ? "Platba byla vrácena"
+              : "Objednávka byla přijata"}
+        </Typography>
+        <Divider />
+        <Stack>
+          <Typography variant="overline" color="text.secondary">
+            Číslo objednávky
+          </Typography>
+          <Typography variant="h3" component="h2">
+            {current.orderNumber}
+          </Typography>
+        </Stack>
+        {!["NEW", "QUOTE_REQUESTED", "CANCELLED", "REFUNDED"].includes(current.status) && (
+          <Typography>Stav: {statuses[current.status] ?? current.status}</Typography>
+        )}
         {quoted && (
-          <p>
-            Celá objednávka čeká na nacenění administrátorem. Konečnou cenu obdržíte následně; nyní
-            nic neplaťte.
-          </p>
+          <Alert severity="info" role="status">
+            Celá objednávka čeká na nacenění. Zatím nic neplaťte.
+          </Alert>
         )}
         {detail.isPending && <p role="status">Načítání aktuálního detailu…</p>}
         {detail.isError && (
@@ -111,48 +141,19 @@ export function OrderReceiptPage() {
             <Button onClick={() => void detail.refetch()}>Znovu načíst detail</Button>
           </div>
         )}
-        {current.items.map((item, index) => (
-          <p key={index}>
-            {item.itemLabel} · {item.quantity} ks ·{" "}
-            {item.unitPrice === null ? "k nacenění" : money(item.unitPrice / 100) + " / kus"}
-          </p>
-        ))}
-        <p>
-          Doprava:{" "}
-          {current.shippingCost === null ? "není stanovena" : money(current.shippingCost / 100)}
-        </p>
-        <p>
-          Celkem:{" "}
-          <strong>
-            {current.total === null ? "bude stanoveno po nacenění" : money(current.total / 100)}
-          </strong>
-        </p>
+        {current.total !== null && (
+          <Typography>
+            Celkem: <strong>{money(current.total / 100)}</strong>
+          </Typography>
+        )}
         {detail.data && (
           <>
-            <p>
+            <Typography>
               Doručení:{" "}
               {detail.data.deliveryType === "PERSONAL_PICKUP"
                 ? "Osobní odběr"
-                : (detail.data.carrierName ?? "Dopravce není uveden")}
-            </p>
-            <h3>Fakturační adresa</h3>
-            <p>
-              {detail.data.billing.fullName}
-              <br />
-              {detail.data.billing.companyName}
-              <br />
-              {detail.data.billing.street}
-              <br />
-              {detail.data.billing.zip} {detail.data.billing.city}
-            </p>
-            <h3>Doručovací adresa</h3>
-            <p>
-              {detail.data.shipping.fullName}
-              <br />
-              {detail.data.shipping.street}
-              <br />
-              {detail.data.shipping.zip} {detail.data.shipping.city}
-            </p>
+                : `${detail.data.carrierName ?? "Na adresu"} · ${detail.data.shipping.street}, ${detail.data.shipping.city}`}
+            </Typography>
             {detail.data.paymentStatus === "PAID" && <p>Platba je evidovaná jako uhrazená.</p>}
             {!quoted &&
               detail.data.paymentStatus === "PENDING" &&
@@ -160,20 +161,22 @@ export function OrderReceiptPage() {
                 <>
                   {detail.data.paymentMethod === "BANK_TRANSFER" ? (
                     instructions?.bankAccount.trim() ? (
-                      <section aria-label="Platební instrukce">
-                        <h3>Platba převodem</h3>
-                        <p>Účet: {instructions.bankAccount}</p>
-                        <p>Částka: {money(instructions.amount / 100)}</p>
-                        <p>Variabilní symbol: {instructions.variableSymbol}</p>
-                      </section>
+                      <Stack component="section" aria-label="Platební instrukce">
+                        <Typography variant="h4" component="h2">
+                          Platba převodem
+                        </Typography>
+                        <Typography>Účet: {instructions.bankAccount}</Typography>
+                        <Typography>Částka: {money(instructions.amount / 100)}</Typography>
+                        <Typography>Variabilní symbol: {instructions.variableSymbol}</Typography>
+                      </Stack>
                     ) : (
                       <p>
-                        Platební instrukce zatím nejsou k dispozici. Nevymýšlejte číslo účtu;
-                        vyčkejte na informace od obchodu.
+                        Platební instrukce zatím nejsou k dispozici. S platbou vyčkejte, než vám
+                        pošleme údaje.
                       </p>
                     )
                   ) : (
-                    <p>Platba proběhne při převzetí. Žádná online platba nebyla provedena.</p>
+                    <Typography>Zaplatíte při převzetí.</Typography>
                   )}
                 </>
               )}
@@ -190,11 +193,7 @@ export function OrderReceiptPage() {
             Dokončit původní odeslání košíku
           </Button>
         )}
-        <p>
-          Podrobnosti vám obchod posílá e-mailem. Přístupový token není součástí adresy této
-          stránky.
-        </p>
-        <Button component={Link} to="/tricka">
+        <Button component={Link} to="/tricka" variant="contained">
           Zpět do katalogu
         </Button>
       </Paper>

@@ -12,9 +12,9 @@
  * * `CANCELLED` - Cancelled
  * * `REFUNDED` - Refunded
  */
-export type StatusEnum = (typeof StatusEnum)[keyof typeof StatusEnum];
+export type Status4f9Enum = (typeof Status4f9Enum)[keyof typeof Status4f9Enum];
 
-export const StatusEnum = {
+export const Status4f9Enum = {
   QUOTE_REQUESTED: "QUOTE_REQUESTED",
   NEW: "NEW",
   PAID: "PAID",

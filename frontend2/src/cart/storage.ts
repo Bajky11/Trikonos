@@ -13,6 +13,7 @@ export interface Design {
 export interface CatalogCartItem {
   kind: "catalog";
   motifId: string;
+  previewUrl?: string;
   productTypeId: string;
   cutId: string;
   colorId: string;

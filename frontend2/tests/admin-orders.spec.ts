@@ -82,6 +82,61 @@ test("filters and paginates server orders, prices a quote, reconfirms changed pr
     "Čeká na nacenění",
   );
   await expect(page.getByText("Žádná objednávka neodpovídá hledání.")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Stránkování objednávek" })).toBeVisible();
+  await expect(page.getByText("Žádné stránky")).toBeVisible();
+});
+
+test("shows active advanced filters even when collapsed and clears them without changing the sort", async ({
+  page,
+}) => {
+  const state = await mockAdminOrders(page);
+  await page.goto(
+    "/admin/objednavky?status=QUOTE_REQUESTED&hasCustom=true&createdFrom=2026-11-01&ordering=-total&page=2",
+  );
+  const toggle = page.getByRole("button", { name: "Další filtry (2)" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText(/Zobrazeno/)).toHaveCount(0);
+  const filters = page.getByRole("region", { name: "Filtry objednávek" });
+  await expect(filters.getByRole("combobox", { name: "Řazení" })).toHaveText("Částka sestupně");
+  await expect(page.getByRole("columnheader", { name: "Zásilka" })).toBeVisible();
+  await toggle.click();
+  await expect(page.getByRole("combobox", { name: "Vlastní potisk", exact: true })).toHaveText(
+    "S vlastním potiskem",
+  );
+  await toggle.click();
+  const dateChip = page.getByRole("button", { name: "Odebrat filtr Od data: 2026-11-01" });
+  await dateChip.press("Delete");
+  await expect.poll(() => state.lists.at(-1)?.get("createdFrom")).toBeNull();
+  expect(state.lists.at(-1)?.get("hasCustom")).toBe("true");
+  expect(state.lists.at(-1)?.get("page")).toBe("1");
+  await page
+    .getByRole("group", { name: "Aktivní filtry" })
+    .getByRole("button", { name: "Vymazat filtry" })
+    .click();
+  await expect(page).toHaveURL(/\?ordering=-total$/);
+  await expect(page.getByRole("combobox", { name: "Řazení" })).toHaveText("Částka sestupně");
+});
+
+test("shows separate customer columns and keeps pagination visible for one page", async ({
+  page,
+}) => {
+  const state = await mockAdminOrders(page, 1);
+  state.order.customer.firstName = "Jana Marie";
+  state.order.customer.lastName = "Nováková Svobodová";
+  await page.goto("/admin/objednavky");
+  const table = page.getByRole("table", { name: "Objednávky" });
+  const row = table.getByRole("row").nth(1);
+  await expect(row.getByRole("cell").first()).toHaveText("Jana Marie");
+  await expect(row.getByRole("cell").nth(1)).toHaveText("Nováková Svobodová");
+  await expect(row.getByRole("cell").nth(2)).toHaveText("jana@example.cz");
+  expect((await table.getByRole("columnheader").allTextContents()).slice(1, 4)).toEqual([
+    "Jméno",
+    "Příjmení",
+    "E-mail",
+  ]);
+  const pagination = page.getByRole("navigation", { name: "Stránkování objednávek" });
+  await expect(pagination).toBeVisible();
+  await expect(pagination.getByRole("button", { name: "Další strana" })).toBeDisabled();
 });
 
 test("recovers list errors and handles a concurrent lock without pretending a price was saved", async ({

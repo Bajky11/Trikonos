@@ -1,4 +1,5 @@
 import { DataTable } from "../components/DataTable";
+import { AdminSectionHeader } from "./AdminSectionHeader";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, MenuItem, Paper, TableCell, TableRow, TextField } from "@mui/material";
@@ -57,45 +58,45 @@ export function Dashboard() {
             ))}
           </section>
           <Paper className="admin-panel admin-section" variant="outlined">
-            <div className="admin-catalog-toolbar dictionary-toolbar">
-              <h2>Poslední objednávky</h2>
-              <Button variant="outlined" component={Link} to="/admin/objednavky">
-                Všechny objednávky
-              </Button>
-            </div>
+            <AdminSectionHeader
+              title="Poslední objednávky"
+              actions={
+                <Button variant="outlined" component={Link} to="/admin/objednavky">
+                  Všechny objednávky
+                </Button>
+              }
+            />
             <DataTable
               label="Poslední objednávky"
               columns={[
-                { label: "Číslo" },
-                { label: "Zákazník" },
-                { label: "Datum" },
-                { label: "Částka" },
-                { label: "Stav" },
+                { label: "Číslo", compact: true },
+                { label: "Zákazník", minWidth: 128 },
+                { label: "Datum", compact: true },
+                { label: "Částka", align: "right", compact: true },
+                { label: "Stav", compact: true },
               ]}
+              empty={!data.recentOrders.length ? "Zatím žádné objednávky." : undefined}
             >
               {data.recentOrders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell>
+                  <TableCell component="th" scope="row" className="data-table-nowrap">
                     <Link to={`/admin/objednavky/${order.id}`}>{order.orderNumber}</Link>
                   </TableCell>
-                  <TableCell>{order.customerName || "—"}</TableCell>
-                  <TableCell>{dateTime(order.createdAt)}</TableCell>
-                  <TableCell>
+                  <TableCell className="data-table-wrap">{order.customerName || "—"}</TableCell>
+                  <TableCell className="data-table-nowrap">{dateTime(order.createdAt)}</TableCell>
+                  <TableCell align="right" className="data-table-nowrap">
                     {order.total === null ? "K nacenění" : money(order.total / 100)}
                   </TableCell>
                   <TableCell>{orderStatuses[order.status] ?? order.status}</TableCell>
                 </TableRow>
               ))}
             </DataTable>
-            <div className="admin-panel-body">
-              {!data.recentOrders.length && <p>Zatím žádné objednávky.</p>}
-            </div>
           </Paper>
         </>
       )}
       <Paper className="admin-panel admin-section" variant="outlined">
+        <AdminSectionHeader title="Statistiky objednávek" />
         <div className="admin-catalog-toolbar dictionary-toolbar">
-          <h2>Statistiky objednávek</h2>{" "}
           <AdminDateFilter label="Statistiky od" value={createdFrom} onChange={setFrom} />
           <AdminDateFilter label="Statistiky do" value={createdTo} onChange={setTo} />
           <TextField
@@ -135,15 +136,19 @@ export function Dashboard() {
                   label="Hodnota objednávek v čase"
                   columns={[
                     { label: "Začátek období" },
-                    { label: "Hodnota" },
-                    { label: "Objednávky" },
+                    { label: "Hodnota", align: "right", width: "30%" },
+                    { label: "Objednávky", align: "right", width: "25%" },
                   ]}
                 >
                   {revenue.data.map((row) => (
                     <TableRow key={row.period}>
-                      <TableCell>{row.period}</TableCell>
-                      <TableCell>{money(row.revenue / 100)}</TableCell>
-                      <TableCell>{row.ordersCount}</TableCell>
+                      <TableCell component="th" scope="row" className="data-table-nowrap">
+                        {row.period}
+                      </TableCell>
+                      <TableCell align="right" className="data-table-nowrap">
+                        {money(row.revenue / 100)}
+                      </TableCell>
+                      <TableCell align="right">{row.ordersCount}</TableCell>
                     </TableRow>
                   ))}
                 </DataTable>
@@ -154,13 +159,21 @@ export function Dashboard() {
               {motifs.data?.length ? (
                 <DataTable
                   label="Nejprodávanější katalogové motivy"
-                  columns={[{ label: "Motiv" }, { label: "Kusy" }, { label: "Hodnota položek" }]}
+                  columns={[
+                    { label: "Motiv", minWidth: 108 },
+                    { label: "Kusy", align: "right", width: "25%" },
+                    { label: "Hodnota položek", align: "right", width: "30%" },
+                  ]}
                 >
                   {motifs.data.map((row) => (
                     <TableRow key={row.motifId}>
-                      <TableCell>{row.motifName}</TableCell>
-                      <TableCell>{row.quantity}</TableCell>
-                      <TableCell>{money(row.revenue / 100)}</TableCell>
+                      <TableCell component="th" scope="row" className="data-table-wrap">
+                        {row.motifName}
+                      </TableCell>
+                      <TableCell align="right">{row.quantity}</TableCell>
+                      <TableCell align="right" className="data-table-nowrap">
+                        {money(row.revenue / 100)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </DataTable>

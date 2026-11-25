@@ -181,12 +181,12 @@ export function VariantsPanel({ motifId }: { motifId: string }) {
               <DataTable
                 label="Povolené kombinace"
                 columns={[
-                  { label: "Typ oblečení" },
-                  { label: "Střih" },
-                  { label: "Barva" },
-                  { label: "Velikost" },
-                  { label: "Povolena" },
-                  { label: "Akce", compact: true, align: "center" },
+                  { label: "Typ oblečení", minWidth: 114 },
+                  { label: "Střih", width: "16%", minWidth: 80 },
+                  { label: "Barva", width: "16%", minWidth: 80 },
+                  { label: "Velikost", align: "center", compact: true },
+                  { label: "Povolena", align: "center", compact: true },
+                  { label: "Akce", align: "right", width: 214, minWidth: 112 },
                 ]}
                 page={page}
                 pageCount={Math.ceil(variants.data.count / 20)}
@@ -201,27 +201,31 @@ export function VariantsPanel({ motifId }: { motifId: string }) {
                     </TableCell>
                     <TableCell>{lookupName(lookups.data.cuts, variant.cutId)}</TableCell>
                     <TableCell>{lookupName(lookups.data.colors, variant.colorId)}</TableCell>
-                    <TableCell>{variant.size}</TableCell>
-                    <TableCell>{variant.isActive ? "Ano" : "Ne"}</TableCell>
-                    <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                      <Button
-                        variant="outlined"
-                        disabled={busy}
-                        onClick={() => setEditing(variant)}
-                      >
-                        Upravit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        disabled={busy}
-                        onClick={() => {
-                          setError("");
-                          setDeleting(variant.id);
-                        }}
-                      >
-                        Smazat
-                      </Button>
+                    <TableCell align="center" className="data-table-nowrap">
+                      {variant.size}
+                    </TableCell>
+                    <TableCell align="center">{variant.isActive ? "Ano" : "Ne"}</TableCell>
+                    <TableCell align="right">
+                      <div className="data-table-actions">
+                        <Button
+                          variant="outlined"
+                          disabled={busy}
+                          onClick={() => setEditing(variant)}
+                        >
+                          Upravit
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          disabled={busy}
+                          onClick={() => {
+                            setError("");
+                            setDeleting(variant.id);
+                          }}
+                        >
+                          Smazat
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

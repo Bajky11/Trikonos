@@ -3,7 +3,7 @@
  */
 import type { PaymentStatusEnum } from "./paymentStatusEnum.ts";
 import type { ShipmentStatusEnum } from "./shipmentStatusEnum.ts";
-import type { StatusEnum } from "./statusEnum.ts";
+import type { Status4f9Enum } from "./status4f9Enum.ts";
 
 export interface AdminOrderList {
   readonly id: string;
@@ -13,6 +13,8 @@ export interface AdminOrderList {
    */
   orderNumber: string;
   readonly customerEmail: string;
+  readonly customerFirstName: string;
+  readonly customerLastName: string;
   readonly customerName: string;
   readonly createdAt: string;
   readonly itemCount: number;
@@ -24,7 +26,7 @@ export interface AdminOrderList {
   total?: number | null;
   /** @maxLength 3 */
   currency?: string;
-  status?: StatusEnum;
+  status?: Status4f9Enum;
   paymentStatus?: PaymentStatusEnum;
   shipmentStatus?: ShipmentStatusEnum;
   readonly hasCustom: boolean;

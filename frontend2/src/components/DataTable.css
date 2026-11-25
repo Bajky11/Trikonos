@@ -1,6 +1,6 @@
 .data-table-root {
   --table-inset: clamp(12px, 1.5vw, 20px);
-  --table-row-padding: 12px;
+  --table-row-padding: 10px;
   --table-rule: color-mix(in srgb, var(--fir) 13%, transparent);
   --table-hover: color-mix(in srgb, var(--fir) 7%, var(--surface));
   min-inline-size: 0;
@@ -29,12 +29,13 @@
   padding: var(--table-row-padding) var(--table-inset);
   border-bottom-color: var(--table-rule);
   overflow-wrap: break-word;
+  vertical-align: middle;
 }
 
 .data-table .MuiTableCell-head {
-  background: color-mix(in srgb, var(--sage) 72%, var(--surface));
+  background: color-mix(in srgb, var(--sage) 35%, var(--surface));
   border-bottom-color: var(--border);
-  color: var(--fir);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.015em;
@@ -46,8 +47,41 @@
   font-weight: 700;
 }
 
-.data-table .MuiTableCell-alignRight {
+.data-table .MuiTableCell-alignRight,
+.data-table .data-table-nowrap {
   font-variant-numeric: tabular-nums;
+}
+
+.data-table .data-table-nowrap {
+  white-space: nowrap;
+}
+
+.data-table .data-table-wrap {
+  overflow-wrap: anywhere;
+}
+
+.data-table .data-table-secondary {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.data-table .data-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+}
+
+.data-table-actions > .MuiButton-root {
+  white-space: nowrap;
+}
+
+.data-table .data-table-actions-nowrap {
+  flex-wrap: nowrap;
 }
 
 .data-table-root .data-table tbody tr:last-child > * {

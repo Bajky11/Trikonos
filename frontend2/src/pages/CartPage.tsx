@@ -1,44 +1,50 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Paper, TextField, Typography } from "@mui/material";
+import { Alert, Button, ButtonGroup, Paper, Typography } from "@mui/material";
+import Add from "@mui/icons-material/Add";
+import Remove from "@mui/icons-material/Remove";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import ShoppingBagOutlined from "@mui/icons-material/ShoppingBagOutlined";
+import CheckroomRounded from "@mui/icons-material/CheckroomRounded";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import { cartValidateCreate, useCatalogOptionsRetrieve } from "../api/generated/api";
 import { withCsrf } from "../auth/csrf";
 import { validationLines, cartError } from "../cart/validation";
 import { useShop } from "../components/ShopContext";
 import { CatalogFeedback, ProductArt } from "../components/Products";
+import { PurchaseSteps } from "../checkout/PurchaseSteps";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
 
-function Quantity({ quantity, onSave }: { quantity: number; onSave: (value: number) => boolean }) {
-  const [value, setValue] = useState(String(quantity));
-  const [error, setError] = useState("");
+function Quantity({
+  quantity,
+  onSave,
+  disabled,
+}: {
+  quantity: number;
+  onSave: (value: number) => boolean;
+  disabled: boolean;
+}) {
   return (
-    <form
-      className="cart-quantity"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const next = Number(value);
-        if (!Number.isInteger(next) || next < 1 || next > 99) {
-          setError("Zadejte počet 1–99.");
-          return;
-        }
-        if (onSave(next)) setError("");
-      }}
-    >
-      <TextField
-        label="Počet kusů"
-        type="number"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        required
-        slotProps={{ htmlInput: { min: 1, max: 99, step: 1 } }}
-      />
-      <Button type="submit" disabled={value === String(quantity)}>
-        Uložit počet
+    <ButtonGroup variant="outlined" className="cart-stepper" aria-label="Počet kusů">
+      <Button
+        aria-label="Snížit počet kusů"
+        disabled={disabled || quantity <= 1}
+        onClick={() => onSave(quantity - 1)}
+      >
+        <Remove fontSize="small" />
       </Button>
-      {error && <p role="alert">{error}</p>}
-    </form>
+      <Typography component="output" aria-label="Počet kusů" className="cart-stepper-value">
+        {quantity}
+      </Typography>
+      <Button
+        aria-label="Zvýšit počet kusů"
+        disabled={disabled || quantity >= 99}
+        onClick={() => onSave(quantity + 1)}
+      >
+        <Add fontSize="small" />
+      </Button>
+    </ButtonGroup>
   );
 }
 
@@ -64,6 +70,10 @@ export function CartPage() {
     refetchOnWindowFocus: false,
   });
   const verified = validation.isSuccess && !validation.isFetching;
+  const canContinue =
+    verified &&
+    inputs.length === shop.items.length &&
+    validation.data.items.every((item) => item.valid);
   const hasCustom = shop.items.some((item) => item.kind !== "catalog");
   const catalogResults = lines
     .filter((line) => line.item.kind === "catalog")
@@ -80,207 +90,258 @@ export function CartPage() {
       ? catalogResults.reduce((sum, result) => sum + (result?.lineTotal ?? 0), 0)
       : null;
   return (
-    <main className="shell page-main cart-page">
-      <Typography variant="h1">Košík</Typography>
-      <p>
-        Uložené položky zůstávají v tomto prohlížeči. Před objednáním ověřte jejich dostupnost a
-        aktuální cenu.
-      </p>
+    <main className="shell page-main purchase-page cart-page">
+      <PurchaseSteps current={1} />
+      <header className="purchase-heading">
+        <Typography variant="h1">Košík</Typography>
+        {!!shop.items.length && (
+          <p>Zkontrolujte svůj výběr. Dopravu a platbu zvolíte v dalším kroku.</p>
+        )}
+      </header>
       {shop.items.length > 0 && <CatalogFeedback query={options} label="Popisky variant" />}
       {!shop.items.length ? (
-        <>
-          <p role="status">Košík je prázdný.</p>
+        <Paper variant="outlined" className="purchase-empty">
+          <ShoppingBagOutlined aria-hidden="true" />
+          <h2 role="status">Košík je prázdný.</h2>
+          <p>Vyberte si motiv nebo si vytvořte vlastní potisk.</p>
           <Button component={Link} to="/tricka" variant="contained">
-            Vybrat motiv
+            Prohlédnout motivy
           </Button>
-        </>
+          <Button component={Link} to="/#vlastni-potisk">
+            Vytvořit vlastní potisk
+          </Button>
+        </Paper>
       ) : (
-        <>
-          {inputs.length > 0 && (
-            <>
-              {validation.isFetching && (
-                <p role="status">Ověřování dostupnosti a aktuálních cen…</p>
-              )}
-              {validation.fetchStatus === "paused" && (
-                <p role="status">Ověření čeká na připojení k internetu.</p>
-              )}
-              {validation.isError && <p role="alert">{cartError(validation.error)}</p>}
-              <Button disabled={validation.isFetching} onClick={() => void validation.refetch()}>
-                {shop.items.some((item) => item.kind === "custom")
-                  ? "Znovu ověřit košík"
-                  : "Znovu ověřit katalogové položky"}
-              </Button>
-            </>
-          )}
-          <div className="cart-lines">
-            {shop.items.map((item, index) => {
-              const lineIndex = submitted.findIndex((line) => line.index === index);
-              const result =
-                verified && lineIndex >= 0 ? validation.data.items[lineIndex] : undefined;
-              const catalog = item.kind === "catalog";
-              const known = item.kind === "catalog" || item.kind === "custom";
-              const type = known
-                ? options.data?.productTypes.find((type) => type.id === item.productTypeId)?.name
-                : item.type;
-              const color = known
-                ? options.data?.colors.find((color) => color.id === item.colorId)?.name
-                : item.color;
-              const cut = known
-                ? options.data?.cuts.find((cut) => cut.id === item.cutId)?.name
-                : undefined;
-              return (
-                <Paper
-                  component="section"
-                  variant="outlined"
-                  className="cart-line"
-                  aria-label={item.name}
-                  key={`${index}-${catalog ? item.motifId : "custom"}-${item.quantity}`}
-                >
-                  <h2>{item.name}</h2>
-                  {catalog ? (
-                    <>
-                      <p>
-                        {type ??
-                          (options.isSuccess
-                            ? "Typ není v aktuálním číselníku"
-                            : "Typ se nepodařilo načíst")}{" "}
-                        ·{" "}
-                        {cut ??
-                          (options.isSuccess
-                            ? "Střih není v aktuálním číselníku"
-                            : "Střih se nepodařilo načíst")}{" "}
-                        ·{" "}
-                        {color ??
-                          (options.isSuccess
-                            ? "Barva není v aktuálním číselníku"
-                            : "Barva se nepodařila načíst")}{" "}
-                        · {item.size}
-                      </p>
-                      <p>Uložená cena: {money(item.unitPrice / 100)} / kus (pouze snapshot).</p>
-                      {!lines.find((line) => line.index === index)?.input && (
-                        <p role="alert">
-                          Tato velikost už není podporovaná. Odeberte položku a vyberte variantu
-                          znovu.
-                        </p>
+        <div className="purchase-layout">
+          <div className="cart-list-panel">
+            {shop.locked && (
+              <Alert severity="info" role="status">
+                Nejdřív dokončete původní odeslání. Položky zatím nelze měnit.
+              </Alert>
+            )}
+            {inputs.length > 0 && !canContinue && (
+              <div className="cart-verification">
+                {validation.isFetching && (
+                  <p role="status">Ověřování dostupnosti a aktuálních cen…</p>
+                )}
+                {validation.fetchStatus === "paused" && (
+                  <p role="status">Ověření čeká na připojení k internetu.</p>
+                )}
+                {validation.isError && <p role="alert">{cartError(validation.error)}</p>}
+                {!validation.isFetching && validation.fetchStatus !== "paused" && (
+                  <Button onClick={() => void validation.refetch()}>
+                    {shop.items.some((item) => item.kind === "custom")
+                      ? "Znovu ověřit košík"
+                      : "Znovu ověřit katalogové položky"}
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="cart-lines">
+              {shop.items.map((item, index) => {
+                const lineIndex = submitted.findIndex((line) => line.index === index);
+                const result =
+                  verified && lineIndex >= 0 ? validation.data.items[lineIndex] : undefined;
+                const catalog = item.kind === "catalog";
+                const known = item.kind === "catalog" || item.kind === "custom";
+                const type = known
+                  ? options.data?.productTypes.find((type) => type.id === item.productTypeId)?.name
+                  : item.type;
+                const color = known
+                  ? options.data?.colors.find((color) => color.id === item.colorId)?.name
+                  : item.color;
+                const cut = known
+                  ? options.data?.cuts.find((cut) => cut.id === item.cutId)?.name
+                  : undefined;
+                return (
+                  <Paper
+                    component="section"
+                    variant="outlined"
+                    className="cart-line purchase-item"
+                    aria-label={item.name}
+                    key={`${index}-${catalog ? item.motifId : "custom"}`}
+                  >
+                    <div className="purchase-item-art">
+                      {item.kind === "custom" ? (
+                        <ProductArt
+                          src={item.upload.url}
+                          name={item.upload.fileName}
+                          className="cart-design"
+                        />
+                      ) : catalog &&
+                        typeof item.previewUrl === "string" &&
+                        /^(https?:\/\/|\/(?!\/))/i.test(item.previewUrl) ? (
+                        <ProductArt src={item.previewUrl} className="cart-design" />
+                      ) : (
+                        <CheckroomRounded aria-hidden="true" />
                       )}
-                      {result?.valid && result.unitPrice !== null ? (
+                    </div>
+                    <div className="purchase-item-content">
+                      <span className="section-label">
+                        {catalog ? "Katalogový motiv" : "Vlastní potisk"}
+                      </span>
+                      <div className="cart-line-title">
+                        <h2>{item.name}</h2>
+                        {catalog && result?.valid && result.lineTotal !== null && (
+                          <strong>{money(result.lineTotal / 100)}</strong>
+                        )}
+                      </div>
+                      {catalog ? (
                         <>
                           <p>
-                            Aktuální cena: <strong>{money(result.unitPrice / 100)} / kus</strong>
-                            {result.lineTotal !== null &&
-                              ` · ${money(result.lineTotal / 100)} za položku`}
+                            {type ??
+                              (options.isSuccess
+                                ? "Typ není v aktuálním číselníku"
+                                : "Typ se nepodařilo načíst")}{" "}
+                            ·{" "}
+                            {cut ??
+                              (options.isSuccess
+                                ? "Střih není v aktuálním číselníku"
+                                : "Střih se nepodařilo načíst")}{" "}
+                            ·{" "}
+                            {color ??
+                              (options.isSuccess
+                                ? "Barva není v aktuálním číselníku"
+                                : "Barva se nepodařila načíst")}{" "}
+                            · {item.size}
                           </p>
-                          {result.itemLabel && <p>{result.itemLabel}</p>}
-                          {result.unitPrice !== item.unitPrice && (
-                            <div role="status">
-                              <p>
-                                Cena se změnila z {money(item.unitPrice / 100)} na{" "}
-                                {money(result.unitPrice / 100)} za kus.
-                              </p>
-                              <Button
-                                onClick={() => {
-                                  if (result.unitPrice !== null)
-                                    shop.acceptPrice(index, result.unitPrice);
-                                }}
-                              >
-                                Přijmout aktuální cenu
-                              </Button>
+                          {!lines.find((line) => line.index === index)?.input && (
+                            <p role="alert">
+                              Tato velikost už není podporovaná. Odeberte položku a vyberte variantu
+                              znovu.
+                            </p>
+                          )}
+                          {result?.valid && result.unitPrice !== null ? (
+                            <>
+                              <p>{money(result.unitPrice / 100)} za kus</p>
+                              {result.unitPrice !== item.unitPrice && (
+                                <div role="status">
+                                  <p>
+                                    Cena se změnila z {money(item.unitPrice / 100)} na{" "}
+                                    {money(result.unitPrice / 100)} za kus.
+                                  </p>
+                                  <Button
+                                    onClick={() => {
+                                      if (result.unitPrice !== null)
+                                        shop.acceptPrice(index, result.unitPrice);
+                                    }}
+                                    disabled={shop.locked}
+                                  >
+                                    Přijmout aktuální cenu
+                                  </Button>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            result && (
+                              <div role="alert">
+                                <p>Položka není dostupná nebo ji nelze ocenit.</p>
+                                {result.errors.map((error, i) => (
+                                  <p key={i}>{error}</p>
+                                ))}
+                              </div>
+                            )
+                          )}
+                          {!result && (
+                            <p>Uložená cena: {money(item.unitPrice / 100)} / kus (neověřená).</p>
+                          )}
+                        </>
+                      ) : item.kind === "custom" ? (
+                        <>
+                          <p>
+                            {type ?? "Typ není v aktuální nabídce"} ·{" "}
+                            {cut ?? "Střih není v aktuální nabídce"} ·{" "}
+                            {color ?? "Barva není v aktuální nabídce"} · {item.size}
+                          </p>
+                          <details className="print-details">
+                            <summary>Parametry potisku</summary>
+                            <p>
+                              Umístění: {item.placement.width} × {item.placement.height} mm, pozice{" "}
+                              {item.placement.x} × {item.placement.y} mm.
+                            </p>
+                          </details>
+                          {lines.find((line) => line.index === index)?.localError && (
+                            <p role="alert">
+                              {lines.find((line) => line.index === index)?.localError}
+                            </p>
+                          )}
+                          {result?.valid && <p role="status">Podklad a varianta byly ověřené.</p>}
+                          {result && !result.valid && (
+                            <div role="alert">
+                              {result.errors.map((error, i) => (
+                                <p key={i}>{error}</p>
+                              ))}
                             </div>
+                          )}
+                          {!result && <p>Podklad a varianta zatím nejsou ověřené.</p>}
+                          {(validation.isError ||
+                            (result && !result.valid) ||
+                            lines[index]?.localError) && (
+                            <Button component={Link} to="/#vlastni-potisk">
+                              Nahrát podklad znovu v editoru
+                            </Button>
                           )}
                         </>
                       ) : (
-                        result && (
-                          <div role="alert">
-                            <p>Položka není dostupná nebo ji nelze ocenit.</p>
-                            {result.errors.map((error, i) => (
-                              <p key={i}>{error}</p>
-                            ))}
-                          </div>
-                        )
+                        <>
+                          <p>
+                            Návrh vlastního potisku · {color} · {item.size}
+                          </p>
+                          <p>
+                            Cena není potvrzená. Pro objednání vytvořte návrh znovu v editoru a tuto
+                            položku odeberte.
+                          </p>
+                          <Button component={Link} to="/#vlastni-potisk">
+                            Otevřít editor
+                          </Button>
+                        </>
                       )}
-                      {!result && <p>Cena a dostupnost zatím nejsou ověřené.</p>}
-                    </>
-                  ) : item.kind === "custom" ? (
-                    <>
-                      <p>
-                        {type ?? "Typ není v aktuální nabídce"} ·{" "}
-                        {cut ?? "Střih není v aktuální nabídce"} ·{" "}
-                        {color ?? "Barva není v aktuální nabídce"} · {item.size}
-                      </p>
-                      <ProductArt
-                        src={item.upload.url}
-                        name={item.upload.fileName}
-                        className="cart-design"
-                      />
-                      <p>
-                        Umístění: {item.placement.width} × {item.placement.height} mm, pozice{" "}
-                        {item.placement.x} × {item.placement.y} mm.
-                      </p>
-                      <p>Cena vlastního potisku bude k nacenění; není nulová.</p>
-                      {lines.find((line) => line.index === index)?.localError && (
-                        <p role="alert">{lines.find((line) => line.index === index)?.localError}</p>
-                      )}
-                      {result?.valid && (
-                        <p role="status">
-                          Podklad a varianta byly ověřené. Cenu potvrdí administrátor.
-                        </p>
-                      )}
-                      {result && !result.valid && (
-                        <div role="alert">
-                          {result.errors.map((error, i) => (
-                            <p key={i}>{error}</p>
-                          ))}
-                        </div>
-                      )}
-                      {!result && <p>Podklad a varianta zatím nejsou ověřené.</p>}
-                      <Button component={Link} to="/#vlastni-potisk">
-                        Nahrát podklad znovu v editoru
-                      </Button>
-                      <p>
-                        Odkaz na podklad platí 7 dní od nahrání. Při neplatném podkladu vytvořte
-                        návrh znovu a tuto položku odeberte.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p>
-                        Návrh vlastního potisku · {color} · {item.size}
-                      </p>
-                      <p>
-                        Dosud nenapojený návrh: soubor ani varianty nebyly ověřené backendem. Cena
-                        není potvrzená a do ověřeného mezisoučtu se nezapočítává.
-                      </p>
-                    </>
-                  )}
-                  <Quantity
-                    quantity={item.quantity}
-                    onSave={(value) => shop.setQuantity(index, value)}
-                  />
-                  <Button color="error" onClick={() => shop.remove(index)}>
-                    Odebrat položku
-                  </Button>
-                </Paper>
-              );
-            })}
+                      <div className="purchase-item-actions">
+                        <Quantity
+                          quantity={item.quantity}
+                          onSave={(value) => shop.setQuantity(index, value)}
+                          disabled={shop.locked}
+                        />
+                        <Button
+                          color="inherit"
+                          startIcon={<DeleteOutlineRounded />}
+                          disabled={shop.locked}
+                          onClick={() => shop.remove(index)}
+                        >
+                          Odebrat položku
+                        </Button>
+                      </div>
+                    </div>
+                  </Paper>
+                );
+              })}
+            </div>
           </div>
           <Paper
             component="section"
             aria-label="Souhrn košíku"
             variant="outlined"
-            className="cart-line"
+            className="cart-line purchase-summary"
           >
-            <h2>Souhrn</h2>
-            <p>Počet kusů: {shop.count}</p>
-            <p>
-              Ověřený mezisoučet katalogových položek:{" "}
+            <h2>Souhrn košíku</h2>
+            <p className="purchase-summary-row">
+              <span>Počet kusů</span>
+              <strong>{shop.count}</strong>
+            </p>
+            <p className="purchase-summary-row">
+              <span>Doprava</span>
+              <span>V dalším kroku</span>
+            </p>
+            <p className="purchase-summary-row purchase-total">
+              <span>{hasCustom ? "Katalogové položky" : "Cena zboží"}</span>
               <strong>
                 {lines.length && subtotal !== null ? money(subtotal / 100) : "není stanoven"}
               </strong>
             </p>
             {hasCustom && (
               <p>
-                Celý košík s vlastním potiskem půjde k nacenění. Konečnou cenu potvrdí
-                administrátor; katalogové ceny jsou uvedené zvlášť.
+                Celková cena objednávky zatím není stanovena. Vlastní potisk vám naceníme
+                individuálně.
               </p>
             )}
             {verified &&
@@ -290,25 +351,25 @@ export function CartPage() {
               !shop.items.some((item) => item.kind === undefined) && (
                 <p role="status">Košík je ověřený a bude vyžadovat nacenění.</p>
               )}
-            <p>Doprava není zvolená. Celková cena objednávky zatím není stanovena.</p>
-            <Button component={Link} to="/tricka">
-              Pokračovat ve výběru
-            </Button>
+            {!canContinue && !shop.locked && (
+              <p className="muted">
+                Pokračovat můžete, až budou všechny položky ověřené a dostupné.
+              </p>
+            )}
             <Button
               component={Link}
               to="/pokladna"
               variant="contained"
-              disabled={
-                !shop.locked &&
-                (!verified ||
-                  inputs.length !== shop.items.length ||
-                  !validation.data.items.every((item) => item.valid))
-              }
+              endIcon={<ArrowForwardRounded />}
+              disabled={!shop.locked && !canContinue}
             >
               {shop.locked ? "Dokončit původní odeslání" : "Pokračovat k objednání"}
             </Button>
+            <Button component={Link} to="/tricka">
+              Pokračovat ve výběru
+            </Button>
           </Paper>
-        </>
+        </div>
       )}
     </main>
   );

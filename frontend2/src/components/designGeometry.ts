@@ -38,8 +38,16 @@ export function resizeDesign(box: DesignBox, delta: number, area = printArea): D
   return { ...box, width, height: width * ratio };
 }
 
-export function previewArea(widthMm: number, heightMm: number): DesignBox {
-  const scale = Math.min(printArea.width / widthMm, printArea.height / heightMm);
+export function previewScale(areas: { widthMm: number; heightMm: number }[]): number {
+  // Start with a standard full-front print. Larger areas reduce the scale for all previews.
+  return areas.reduce(
+    (scale, area) =>
+      Math.min(scale, printArea.width / area.widthMm, printArea.height / area.heightMm),
+    Math.min(printArea.width / 300, printArea.height / 400),
+  );
+}
+
+export function previewArea(widthMm: number, heightMm: number, scale: number): DesignBox {
   const width = widthMm * scale,
     height = heightMm * scale;
   return {

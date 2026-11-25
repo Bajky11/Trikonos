@@ -1,33 +1,48 @@
 import { TextField } from "@mui/material";
 import { ApiError } from "../api/http";
 
-export function AddressFields({ prefix, company = false }: { prefix: string; company?: boolean }) {
+export function AddressFields({
+  prefix,
+  company = false,
+  hideOptional = false,
+}: {
+  prefix: "billing" | "shipping";
+  company?: boolean;
+  hideOptional?: boolean;
+}) {
   return (
     <>
-      <TextField
-        label={
-          prefix === "billing" ? "Jméno pro fakturaci (pokud se liší)" : "Jméno a příjmení příjemce"
-        }
-        name={`${prefix}.fullName`}
-        required={prefix !== "billing"}
-        slotProps={{
-          htmlInput: {
-            maxLength: 255,
-            autoComplete: `${prefix === "billing" ? "billing" : "shipping"} name`,
-          },
-        }}
-      />
-      <TextField
-        label="Firma (nepovinné)"
-        name={`${prefix}.companyName`}
-        slotProps={{ htmlInput: { maxLength: 255 } }}
-      />
-      {company && (
+      {(!hideOptional || prefix !== "billing") && (
+        <TextField
+          label={
+            prefix === "billing"
+              ? "Jméno pro fakturaci (pokud se liší)"
+              : "Jméno a příjmení příjemce"
+          }
+          name={`${prefix}.fullName`}
+          required={prefix !== "billing"}
+          slotProps={{
+            htmlInput: {
+              maxLength: 255,
+              autoComplete: `${prefix} name`,
+            },
+          }}
+        />
+      )}
+      {!hideOptional && (
+        <TextField
+          label="Firma (nepovinné)"
+          name={`${prefix}.companyName`}
+          slotProps={{ htmlInput: { maxLength: 255, autoComplete: `${prefix} organization` } }}
+        />
+      )}
+      {company && !hideOptional && (
         <>
           <TextField
             label="IČO (nepovinné)"
             name="billing.ico"
-            slotProps={{ htmlInput: { pattern: "[0-9]{8}", maxLength: 8 } }}
+            helperText="8 číslic"
+            slotProps={{ htmlInput: { pattern: "[0-9]{8}", maxLength: 8, inputMode: "numeric" } }}
           />
           <TextField
             label="DIČ (nepovinné)"
@@ -55,12 +70,13 @@ export function AddressFields({ prefix, company = false }: { prefix: string; com
         slotProps={{
           htmlInput: {
             pattern: "[0-9]{3} ?[0-9]{2}",
+            inputMode: "numeric",
             maxLength: 6,
             autoComplete: `${prefix} postal-code`,
           },
         }}
       />
-      <p>Země: Česká republika. Tento formulář zatím podporuje adresy v ČR.</p>
+      <p>Země: Česká republika</p>
     </>
   );
 }

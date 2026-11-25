@@ -27,6 +27,7 @@ import { withCsrf } from "../../auth/csrf";
 import { replaceSession, useSession } from "../../auth/session";
 import { CatalogFeedback } from "../../components/Products";
 import { DataTable } from "../../components/DataTable";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { PasswordPage } from "../../auth/PasswordPage";
 import { catalogError, formText } from "../catalog/forms";
 import { dateTime } from "../orders/labels";
@@ -98,30 +99,33 @@ export function UsersPanel() {
         component="section"
         aria-labelledby="current-account-heading"
       >
-        <div className="admin-catalog-toolbar dictionary-toolbar">
-          <h2 id="current-account-heading">Váš účet</h2>
-          {session.data && (
-            <div className="account-actions">
-              <Button
-                variant="contained"
-                disabled={busy}
-                onClick={() => {
-                  setError("");
-                  setEditing({ user: { ...session.data!, isActive: true, createdAt: "" } });
-                }}
-              >
-                Upravit účet
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => setShowPassword((shown) => !shown)}
-                aria-expanded={showPassword}
-              >
-                Změnit heslo
-              </Button>
-            </div>
-          )}
-        </div>
+        <AdminSectionHeader
+          title="Váš účet"
+          titleId="current-account-heading"
+          actions={
+            session.data && (
+              <>
+                <Button
+                  variant="contained"
+                  disabled={busy}
+                  onClick={() => {
+                    setError("");
+                    setEditing({ user: { ...session.data!, isActive: true, createdAt: "" } });
+                  }}
+                >
+                  Upravit účet
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowPassword((shown) => !shown)}
+                  aria-expanded={showPassword}
+                >
+                  Změnit heslo
+                </Button>
+              </>
+            )
+          }
+        />
         <div className="admin-panel-body">
           {session.data && (
             <p>
@@ -134,45 +138,45 @@ export function UsersPanel() {
         </div>
       </Paper>
       <Paper className="admin-panel dictionary-panel" variant="outlined">
-        <div className="admin-catalog-toolbar dictionary-toolbar">
-          <div className="account-heading">
-            <h2>Ostatní účty</h2>
-            <p>
-              Všechny účty mají stejná administrátorská oprávnění. Nejde o zákaznické záznamy.
-              Seznam je stránkovaný, API nemá filtr hledání.
-            </p>
-          </div>
-          <div className="account-actions">
-            <Button
-              variant="outlined"
-              disabled={write.isPending}
-              onClick={() => {
-                void list.refetch().then((result) => {
-                  if (result.isSuccess) {
-                    setUncertain(false);
-                    setError("");
-                  }
-                });
-              }}
-            >
-              Obnovit účty
-            </Button>
-            <Button variant="outlined" component={Link} to="/zapomenute-heslo">
-              Vyžádat odkaz pro nastavení hesla
-            </Button>
-            <Button
-              variant="contained"
-              disabled={busy}
-              onClick={() => {
-                setError("");
-                setEditing({});
-              }}
-            >
-              Vytvořit účet
-            </Button>
-          </div>
-        </div>
+        <AdminSectionHeader
+          title="Ostatní účty"
+          actions={
+            <>
+              <Button
+                variant="outlined"
+                disabled={write.isPending}
+                onClick={() => {
+                  void list.refetch().then((result) => {
+                    if (result.isSuccess) {
+                      setUncertain(false);
+                      setError("");
+                    }
+                  });
+                }}
+              >
+                Obnovit účty
+              </Button>
+              <Button variant="outlined" component={Link} to="/zapomenute-heslo">
+                Vyžádat odkaz pro nastavení hesla
+              </Button>
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => {
+                  setError("");
+                  setEditing({});
+                }}
+              >
+                Vytvořit účet
+              </Button>
+            </>
+          }
+        />
         <div className="admin-panel-body">
+          <p>
+            Všechny účty mají stejná administrátorská oprávnění. Nejde o zákaznické záznamy. Seznam
+            je stránkovaný, API nemá filtr hledání.
+          </p>
           {error && <p role="alert">{error}</p>}
           {message && <p role="status">{message}</p>}
           <CatalogFeedback query={list} label="Administrátorské účty" />
@@ -182,10 +186,10 @@ export function UsersPanel() {
             <DataTable
               label="Administrátorské účty"
               columns={[
-                { label: "E-mail" },
-                { label: "Jméno", compact: true },
+                { label: "E-mail", width: "35%", minWidth: 160 },
+                { label: "Jméno", minWidth: 124 },
                 { label: "Stav", compact: true },
-                { label: "Akce", align: "center", compact: true },
+                { label: "Akce", align: "right", width: 260, minWidth: 144 },
               ]}
               page={page}
               pageCount={Math.ceil(list.data.count / 20)}
@@ -200,18 +204,17 @@ export function UsersPanel() {
                 .filter((user) => user.id !== session.data?.id)
                 .map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell>
+                    <TableCell className="data-table-wrap">
                       {user.email}
                       {user.id === session.data?.id && " (váš účet)"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="data-table-wrap">
                       {user.name}
-                      <br />
-                      {dateTime(user.createdAt)}
+                      <span className="data-table-secondary">{dateTime(user.createdAt)}</span>
                     </TableCell>
                     <TableCell>{user.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
                     <TableCell align="right">
-                      <div className="account-actions">
+                      <div className="data-table-actions">
                         <Button
                           variant="outlined"
                           disabled={busy}

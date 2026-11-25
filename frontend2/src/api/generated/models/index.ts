@@ -149,5 +149,5 @@ export * from "./reorder.ts";
 export * from "./shipmentStatusEnum.ts";
 export * from "./shippingInput.ts";
 export * from "./sizeEnum.ts";
-export * from "./statusEnum.ts";
+export * from "./status4f9Enum.ts";
 export * from "./typeEnum.ts";

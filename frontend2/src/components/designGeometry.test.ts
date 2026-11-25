@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { fitDesign, moveDesign, resizeDesign, previewArea, placementInMm } from "./designGeometry";
+import {
+  fitDesign,
+  moveDesign,
+  resizeDesign,
+  previewArea,
+  previewScale,
+  placementInMm,
+} from "./designGeometry";
 
 describe("print editor geometry", () => {
   it("fits portrait and landscape images inside the print area", () => {
@@ -30,24 +37,34 @@ describe("print editor geometry", () => {
     expect(resizeDesign(box, -1000).width).toBeGreaterThan(0);
   });
   it("preserves physical aspect ratio and rounds placements inside differently sized backend areas", () => {
-    for (const [width, height] of [
-      [300, 400],
-      [100, 100],
-      [120, 200],
-      [1, 1],
-    ]) {
-      const area = previewArea(width!, height!);
-      expect(area.width / area.height).toBeCloseTo(width! / height!);
+    const dimensions = [
+      { widthMm: 300, heightMm: 400 },
+      { widthMm: 100, heightMm: 100 },
+      { widthMm: 120, heightMm: 200 },
+      { widthMm: 1, heightMm: 1 },
+      { widthMm: 700, heightMm: 400 },
+      { widthMm: 100, heightMm: 800 },
+    ];
+    const scale = previewScale(dimensions);
+    for (const { widthMm: width, heightMm: height } of dimensions) {
+      const area = previewArea(width, height, scale);
+      expect(area.width / area.height).toBeCloseTo(width / height);
+      expect(area.width).toBeCloseTo(width * scale);
+      expect(area.height).toBeCloseTo(height * scale);
+      expect(area.x).toBeGreaterThanOrEqual(330);
+      expect(area.y).toBeGreaterThanOrEqual(330);
+      expect(area.x + area.width).toBeLessThanOrEqual(800);
+      expect(area.y + area.height).toBeLessThanOrEqual(980);
       const box = fitDesign(1200, 700, area);
       const moved = moveDesign(box, 100000, 100000, false, area);
       const scaled = resizeDesign(moved, 100000, area);
-      const mm = placementInMm(scaled, area, width!, height!);
+      const mm = placementInMm(scaled, area, width, height);
       expect(mm.x).toBeGreaterThanOrEqual(0);
       expect(mm.y).toBeGreaterThanOrEqual(0);
       expect(mm.width).toBeGreaterThan(0);
       expect(mm.height).toBeGreaterThan(0);
-      expect(mm.x + mm.width).toBeLessThanOrEqual(width!);
-      expect(mm.y + mm.height).toBeLessThanOrEqual(height!);
+      expect(mm.x + mm.width).toBeLessThanOrEqual(width);
+      expect(mm.y + mm.height).toBeLessThanOrEqual(height);
     }
   });
 });

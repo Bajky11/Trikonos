@@ -1,5 +1,5 @@
 import { DataTable } from "../../components/DataTable";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
@@ -13,35 +13,18 @@ import {
 import { CatalogFeedback } from "../../components/Products";
 import { money } from "../../data/catalog";
 import { dateTime } from "../orders/labels";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { customerError, downloadConsentCsv, sessionRequired, useCustomerReadError } from "./api";
 
-export function CustomersPanel({ search }: { search: string }) {
+export function CustomersPanel() {
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const previousSearch = useRef(search);
   const exporting = useRef(false);
   const [exportError, setExportError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
   const consent = params.get("marketingConsent") || "";
   const number = Number(params.get("page") || 1);
   const page = Number.isSafeInteger(number) && number > 0 ? number : 1;
-  useEffect(() => {
-    if (previousSearch.current === search) return;
-    const timer = window.setTimeout(() => {
-      previousSearch.current = search;
-      setParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          next.delete("page");
-          if (search.trim()) next.set("q", search.trim());
-          else next.delete("q");
-          return next;
-        },
-        { replace: true },
-      );
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search, setParams]);
   const change = (key: string, value: string) =>
     setParams((current) => {
       const next = new URLSearchParams(current);
@@ -80,17 +63,52 @@ export function CustomersPanel({ search }: { search: string }) {
   useCustomerReadError(csv.error);
   return (
     <Paper className="admin-panel" variant="outlined">
+      <AdminSectionHeader
+        title="Zákazníci"
+        search={{
+          label: "Hledání zákazníků",
+          value: params.get("q") || "",
+          onChange: (value) => change("q", value),
+        }}
+        actions={
+          <Button
+            variant="outlined"
+            disabled={csv.isPending}
+            onClick={() => {
+              if (
+                exporting.current ||
+                !window.confirm(
+                  "Exportovat e-maily VŠECH zákazníků s aktuálním marketingovým souhlasem? Filtry tohoto seznamu se na export nevztahují. Soubor obsahuje osobní údaje; chraňte jej a nepovažujte jej za audit udělení souhlasu.",
+                )
+              )
+                return;
+              exporting.current = true;
+              setExportError("");
+              setExportMessage("");
+              void csv
+                .mutateAsync()
+                .then(() =>
+                  setExportMessage("CSV se souhlasícími e-maily bylo předáno ke stažení."),
+                )
+                .catch((error: unknown) => {
+                  setExportError(customerError(error));
+                  if (sessionRequired(error))
+                    void client.invalidateQueries({ queryKey: getAdminAuthMeRetrieveQueryKey() });
+                })
+                .finally(() => {
+                  exporting.current = false;
+                  csv.reset();
+                });
+            }}
+          >
+            Export e-mailů (CSV)
+          </Button>
+        }
+      />
+      <p className="admin-empty">
+        Zákazníci vznikají při objednání. Ruční založení ani smazání není dostupné.
+      </p>
       <div className="admin-catalog-toolbar dictionary-toolbar">
-        <div className="account-heading">
-          <h2>Zákazníci</h2>
-          <p>Zákazníci vznikají při objednání. Ruční založení ani smazání není dostupné.</p>
-        </div>
-        <TextField
-          label="Hledání zákazníků"
-          type="search"
-          value={params.get("q") || ""}
-          onChange={(event) => change("q", event.target.value)}
-        />
         <TextField
           label="Marketingový souhlas"
           select
@@ -120,36 +138,6 @@ export function CustomersPanel({ search }: { search: string }) {
             </MenuItem>
           ))}
         </TextField>
-        <Button
-          variant="outlined"
-          disabled={csv.isPending}
-          onClick={() => {
-            if (
-              exporting.current ||
-              !window.confirm(
-                "Exportovat e-maily VŠECH zákazníků s aktuálním marketingovým souhlasem? Filtry tohoto seznamu se na export nevztahují. Soubor obsahuje osobní údaje; chraňte jej a nepovažujte jej za audit udělení souhlasu.",
-              )
-            )
-              return;
-            exporting.current = true;
-            setExportError("");
-            setExportMessage("");
-            void csv
-              .mutateAsync()
-              .then(() => setExportMessage("CSV se souhlasícími e-maily bylo předáno ke stažení."))
-              .catch((error: unknown) => {
-                setExportError(customerError(error));
-                if (sessionRequired(error))
-                  void client.invalidateQueries({ queryKey: getAdminAuthMeRetrieveQueryKey() });
-              })
-              .finally(() => {
-                exporting.current = false;
-                csv.reset();
-              });
-          }}
-        >
-          Export e-mailů (CSV)
-        </Button>
       </div>
       {(exportError || exportMessage || customers.isPending || customers.isError) && (
         <div className="admin-panel-body customer-list-info">
@@ -163,12 +151,12 @@ export function CustomersPanel({ search }: { search: string }) {
           <DataTable
             label="Zákazníci"
             columns={[
-              { label: "Kontakt" },
-              { label: "Firma" },
-              { label: "Souhlas" },
-              { label: "Objednávky" },
-              { label: "Součet cen" },
-              { label: "Poslední objednávka" },
+              { label: "Kontakt", width: "32%", minWidth: 176 },
+              { label: "Firma", minWidth: 106 },
+              { label: "Souhlas", align: "center", compact: true },
+              { label: "Objednávky", align: "right", compact: true },
+              { label: "Součet cen", align: "right", compact: true },
+              { label: "Poslední objednávka", compact: true },
             ]}
             page={page}
             pageCount={Math.ceil(customers.data.count / 20)}
@@ -186,7 +174,7 @@ export function CustomersPanel({ search }: { search: string }) {
           >
             {customers.data.results.map((customer) => (
               <TableRow key={customer.id}>
-                <TableCell>
+                <TableCell className="data-table-wrap">
                   <div className="customer-contact">
                     <strong>
                       {[customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
@@ -206,15 +194,17 @@ export function CustomersPanel({ search }: { search: string }) {
                     </span>
                   </div>
                 </TableCell>
-                <TableCell>{customer.companyName || "—"}</TableCell>
-                <TableCell>{customer.marketingConsent ? "Ano" : "Ne"}</TableCell>
-                <TableCell>{customer.ordersCount}</TableCell>
-                <TableCell>
+                <TableCell className="data-table-wrap">{customer.companyName || "—"}</TableCell>
+                <TableCell align="center">{customer.marketingConsent ? "Ano" : "Ne"}</TableCell>
+                <TableCell align="right">{customer.ordersCount}</TableCell>
+                <TableCell align="right" className="data-table-nowrap">
                   {customer.totalSpent == null
                     ? "Není stanoveno"
                     : money(customer.totalSpent / 100)}
                 </TableCell>
-                <TableCell>{customer.lastOrderAt ? dateTime(customer.lastOrderAt) : "—"}</TableCell>
+                <TableCell className="data-table-nowrap">
+                  {customer.lastOrderAt ? dateTime(customer.lastOrderAt) : "—"}
+                </TableCell>
               </TableRow>
             ))}
           </DataTable>

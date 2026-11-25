@@ -2,14 +2,16 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Button,
   Checkbox,
   FormControlLabel,
-  MenuItem,
   Paper,
   TextField,
   Typography,
 } from "@mui/material";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import LockOutlined from "@mui/icons-material/LockOutlined";
 import {
   adminAuthCsrfRetrieve,
   cartValidateCreate,
@@ -25,6 +27,8 @@ import { validationLines, cartError } from "../cart/validation";
 import { useShop } from "../components/ShopContext";
 import { CatalogFeedback } from "../components/Products";
 import { AddressFields, address, checkoutError, text } from "../checkout/forms";
+import { PurchaseSteps } from "../checkout/PurchaseSteps";
+import { OrderRadioGroup } from "../checkout/OrderRadioGroup";
 import {
   clearCheckout,
   readCheckout,
@@ -45,8 +49,17 @@ const priceKey = (result: CartValidateResponse) =>
     result.requiresQuote,
   ]);
 
+const deliveryLabels: Partial<Record<DeliveryTypeEnum, string>> = {
+  HOME_DELIVERY: "Doručení na adresu",
+  PERSONAL_PICKUP: "Osobní odběr",
+};
+const paymentLabels: Partial<Record<PaymentMethodEnum, string>> = {
+  BANK_TRANSFER: "Bankovní převod",
+  CASH_ON_DELIVERY: "Dobírkou",
+};
+
 export function CheckoutPage() {
-  useTitle("Pokladna — Trikonoš");
+  useTitle("Údaje a doprava — Trikonoš");
   const shop = useShop();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -59,8 +72,10 @@ export function CheckoutPage() {
   });
   const [delivery, setDelivery] = useState<DeliveryTypeEnum | "">("");
   const [payment, setPayment] = useState<PaymentMethodEnum | "">("");
-  const [carrierId, setCarrierId] = useState("");
-  const [sameAddress, setSameAddress] = useState(true);
+  const [selectedCarrier, setSelectedCarrier] = useState("");
+  const [differentAddress, setDifferentAddress] = useState(false);
+  const [showBillingDetails, setShowBillingDetails] = useState(false);
+  const [showNote, setShowNote] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const activeSend = useRef(false);
@@ -80,9 +95,16 @@ export function CheckoutPage() {
       (value) => value === choice.value,
     ),
   );
+  const carriers = options.data?.carriers ?? [];
+  const paymentLabel = (value: PaymentMethodEnum) =>
+    value === PaymentMethodEnum.CASH_ON_DELIVERY && delivery === DeliveryTypeEnum.PERSONAL_PICKUP
+      ? "Při převzetí na prodejně"
+      : paymentLabels[value];
+  const carrierId = carriers.length === 1 ? carriers[0]!.id : selectedCarrier;
+  const sameAddress = delivery !== DeliveryTypeEnum.HOME_DELIVERY || !differentAddress;
   const carrierValid =
     delivery === DeliveryTypeEnum.PERSONAL_PICKUP ||
-    !!options.data?.carriers.some((carrier) => carrier.id === carrierId);
+    carriers.some((carrier) => carrier.id === carrierId);
   const request = {
     items,
     ...(delivery ? { deliveryType: delivery } : {}),
@@ -154,7 +176,11 @@ export function CheckoutPage() {
           setAttempt({ ...current, uncertain: true });
         }
       }
-      setError(checkoutError(error));
+      setError(
+        posted || current.uncertain
+          ? checkoutError(error)
+          : "Nepodařilo se navázat spojení. Objednávka nebyla odeslána; zkuste to znovu.",
+      );
       if (error instanceof ApiError && error.code === "PRICE_CHANGED")
         void client.invalidateQueries({ queryKey: ["checkout-preview"] });
     } finally {
@@ -165,29 +191,35 @@ export function CheckoutPage() {
 
   if (attempt)
     return (
-      <main className="shell page-main">
-        <Typography variant="h1">Dokončení odeslání</Typography>
-        <p>
-          Výsledek původního odeslání není potvrzený. Košík je uzamčený, aby nevznikla jiná
-          objednávka omylem. Dokončení zopakuje přesně stejný požadavek se stejným orderId.
-        </p>
-        <p>
-          Nezavírejte tuto kartu, dokud výsledek neověříte. Obnova používá sessionStorage této
-          karty.
-        </p>
-        <p>Kontakt z původního pokusu: {attempt.body.customer.email}</p>
-        {error && <p role="alert">{error}</p>}
-        {!termsUrl && (
-          <p role="alert">Chybí URL schválených obchodních podmínek. Odeslání není povolené.</p>
-        )}
-        <Button variant="contained" disabled={busy || !termsUrl} onClick={() => void send(attempt)}>
-          {busy ? "Dokončování…" : "Dokončit stejné odeslání"}
-        </Button>
-        <p>
-          Pokud dokončení opakovaně selhává, kontaktujte obchod. Nevytvářejte nový pokus, dokud
-          neověříte, zda původní objednávka existuje.
-        </p>
-        <p>Identifikátor původního pokusu: {attempt.body.orderId}</p>
+      <main className="shell page-main purchase-page">
+        <PurchaseSteps current={2} linkBack={false} />
+        <header className="purchase-heading">
+          <Typography variant="h1">Dokončení odeslání</Typography>
+        </header>
+        <Paper variant="outlined" className="cart-line purchase-recovery">
+          <p>
+            Výsledek původního odeslání není potvrzený. Košík je uzamčený, aby nevznikla jiná
+            objednávka omylem. Opakováním dokončíte stejnou objednávku.
+          </p>
+          <p>Nezavírejte tuto kartu, dokud výsledek neověříte.</p>
+          <p>Kontakt z původního pokusu: {attempt.body.customer.email}</p>
+          {error && <p role="alert">{error}</p>}
+          {!termsUrl && (
+            <p role="alert">Chybí URL schválených obchodních podmínek. Odeslání není povolené.</p>
+          )}
+          <Button
+            variant="contained"
+            disabled={busy || !termsUrl}
+            onClick={() => void send(attempt)}
+          >
+            {busy ? "Dokončování…" : "Dokončit stejné odeslání"}
+          </Button>
+          <p>
+            Pokud dokončení opakovaně selhává, kontaktujte obchod. Nevytvářejte nový pokus, dokud
+            neověříte, zda původní objednávka existuje.
+          </p>
+          <p>Identifikátor původního pokusu: {attempt.body.orderId}</p>
+        </Paper>
       </main>
     );
 
@@ -224,10 +256,16 @@ export function CheckoutPage() {
     );
 
   return (
-    <main className="shell page-main checkout-page">
-      <Typography variant="h1">Pokladna</Typography>
+    <main className="shell page-main purchase-page checkout-page">
+      <PurchaseSteps current={2} linkBack={!busy} />
+      <header className="purchase-heading">
+        <Typography variant="h1">Údaje a doprava</Typography>
+        <p>Vyplňte kontaktní údaje a vyberte doručení a platbu.</p>
+      </header>
       <CatalogFeedback query={config} label="Konfigurace objednání" />
-      <CatalogFeedback query={options} label="Dopravci" />
+      {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
+        <CatalogFeedback query={options} label="Dopravci" />
+      )}
       {!eligible ? (
         <>
           <p role="alert">
@@ -240,12 +278,13 @@ export function CheckoutPage() {
         </>
       ) : (
         <>
-          {!termsUrl && (
-            <p role="alert">
+          {config.isSuccess && !termsUrl && (
+            <Alert severity="warning" className="checkout-notice">
               Objednání zatím není dostupné: chybí URL schválených obchodních podmínek.
-            </p>
+            </Alert>
           )}
           <form
+            className="purchase-layout"
             onSubmit={(event) => {
               event.preventDefault();
               if (
@@ -341,162 +380,217 @@ export function CheckoutPage() {
                 });
             }}
           >
-            <fieldset disabled={busy} className="checkout-fields">
-              <legend>Kontakt a fakturační údaje</legend>
-              <TextField
-                label="Jméno"
-                name="firstName"
-                required
-                slotProps={{ htmlInput: { maxLength: 100, autoComplete: "given-name" } }}
-              />
-              <TextField
-                label="Příjmení"
-                name="lastName"
-                required
-                slotProps={{ htmlInput: { maxLength: 100, autoComplete: "family-name" } }}
-              />
-              <TextField
-                label="E-mail"
-                type="email"
-                name="email"
-                required
-                slotProps={{ htmlInput: { maxLength: 254, autoComplete: "email" } }}
-              />
-              <TextField
-                label="Telefon"
-                type="tel"
-                name="phone"
-                required
-                slotProps={{ htmlInput: { maxLength: 30, autoComplete: "tel" } }}
-              />
-              <AddressFields prefix="billing" company />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={sameAddress}
-                    onChange={(event) => setSameAddress(event.target.checked)}
-                  />
-                }
-                label="Doručovací adresa je stejná jako fakturační"
-              />
-              <fieldset
-                hidden={sameAddress}
-                disabled={sameAddress || busy}
-                className="checkout-fields"
+            <div className="checkout-sections">
+              <Paper
+                variant="orderSection"
+                component="fieldset"
+                disabled={busy}
+                aria-labelledby="contact-title"
               >
-                <legend>Doručovací adresa</legend>
-                <AddressFields prefix="shipping" />
-              </fieldset>
-              <TextField
-                label="Způsob doručení"
-                select
-                required
-                value={delivery}
-                onChange={(event) => {
-                  setDelivery(
-                    Object.values(DeliveryTypeEnum).find((value) => value === event.target.value) ??
-                      "",
-                  );
-                  setError("");
-                }}
-              >
-                <MenuItem value="">Vyberte doručení</MenuItem>
-                {deliveryChoices.map((choice) => (
-                  <MenuItem key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
+                <Typography variant="h4" component="h2" id="contact-title">
+                  Kontaktní údaje
+                </Typography>
                 <TextField
-                  label="Dopravce"
-                  select
+                  label="Jméno"
+                  name="firstName"
                   required
-                  value={carrierId}
-                  disabled={!options.isSuccess}
-                  onChange={(event) => setCarrierId(event.target.value)}
-                >
-                  <MenuItem value="">Vyberte dopravce</MenuItem>
-                  {(options.data?.carriers ?? []).map((carrier) => (
-                    <MenuItem key={carrier.id} value={carrier.id}>
-                      {carrier.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
-              <TextField
-                label="Způsob platby"
-                select
-                required
-                value={payment}
-                onChange={(event) => {
-                  setPayment(
-                    Object.values(PaymentMethodEnum).find(
-                      (value) => value === event.target.value,
-                    ) ?? "",
-                  );
-                  setError("");
-                }}
-              >
-                <MenuItem value="">Vyberte platbu</MenuItem>
-                {paymentChoices.map((choice) => (
-                  <MenuItem key={choice.value} value={choice.value}>
-                    {choice.value === PaymentMethodEnum.CASH_ON_DELIVERY &&
-                    delivery === DeliveryTypeEnum.PERSONAL_PICKUP
-                      ? "Při převzetí na prodejně"
-                      : choice.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <p>
-                Výdejní místa, faktura se splatností a online platební brána nejsou v tomto kroku
-                dostupné.
-              </p>
-              <TextField
-                label="Poznámka (nepovinná)"
-                name="note"
-                multiline
-                minRows={2}
-                slotProps={{ htmlInput: { maxLength: 2000 } }}
-              />
-              <FormControlLabel
-                control={<Checkbox name="marketingConsent" />}
-                label="Chci dostávat novinky (nepovinné)"
-              />
-              {termsUrl && (
-                <FormControlLabel
-                  control={<Checkbox name="termsAccepted" required />}
-                  label={
-                    <span>
-                      Souhlasím s{" "}
-                      <a href={termsUrl} target="_blank" rel="noopener noreferrer">
-                        obchodními podmínkami
-                      </a>
-                    </span>
-                  }
+                  slotProps={{ htmlInput: { maxLength: 100, autoComplete: "given-name" } }}
                 />
-              )}
-            </fieldset>
+                <TextField
+                  label="Příjmení"
+                  name="lastName"
+                  required
+                  slotProps={{ htmlInput: { maxLength: 100, autoComplete: "family-name" } }}
+                />
+                <TextField
+                  label="E-mail"
+                  type="email"
+                  name="email"
+                  required
+                  slotProps={{ htmlInput: { maxLength: 254, autoComplete: "email" } }}
+                />
+                <TextField
+                  label="Telefon"
+                  type="tel"
+                  name="phone"
+                  required
+                  slotProps={{ htmlInput: { maxLength: 30, autoComplete: "tel" } }}
+                />
+              </Paper>
+              <Paper
+                variant="orderSection"
+                component="fieldset"
+                disabled={busy}
+                aria-labelledby="billing-title"
+              >
+                <Typography variant="h4" component="h2" id="billing-title">
+                  Fakturační adresa
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={showBillingDetails}
+                      onChange={(_, checked) => setShowBillingDetails(checked)}
+                    />
+                  }
+                  label="Přidat firemní nebo jiné fakturační údaje"
+                />
+                <AddressFields prefix="billing" company hideOptional={!showBillingDetails} />
+              </Paper>
+              <Paper
+                variant="orderSection"
+                component="fieldset"
+                disabled={busy}
+                aria-labelledby="delivery-title"
+              >
+                <Typography variant="h4" component="h2" id="delivery-title">
+                  Doručení a platba
+                </Typography>
+                <OrderRadioGroup
+                  label="Způsob doručení"
+                  name="delivery-choice"
+                  value={delivery}
+                  disabled={busy}
+                  onChange={(value) => {
+                    setDelivery(value as DeliveryTypeEnum);
+                    setError("");
+                  }}
+                  choices={deliveryChoices.map((choice) => ({
+                    value: choice.value,
+                    label: deliveryLabels[choice.value as DeliveryTypeEnum] ?? choice.label,
+                  }))}
+                />
+                {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
+                  <>
+                    {carriers.length > 1 ? (
+                      <OrderRadioGroup
+                        label="Dopravce"
+                        name="carrier-choice"
+                        value={carrierId}
+                        disabled={busy}
+                        onChange={setSelectedCarrier}
+                        choices={carriers.map(({ id, name }) => ({ value: id, label: name }))}
+                      />
+                    ) : carriers.length === 1 ? (
+                      <Typography variant="body2">
+                        Dopravce: <strong>{carriers[0]!.name}</strong>
+                      </Typography>
+                    ) : options.isSuccess ? (
+                      <Alert severity="warning">
+                        Doručení na adresu není dostupné. Zvolte jiný způsob.
+                      </Alert>
+                    ) : null}
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={differentAddress}
+                          onChange={(_, checked) => setDifferentAddress(checked)}
+                        />
+                      }
+                      label="Doručit na jinou adresu"
+                    />
+                    {!sameAddress && (
+                      <fieldset className="checkout-fields checkout-address">
+                        <legend>Doručovací adresa</legend>
+                        <AddressFields prefix="shipping" hideOptional />
+                      </fieldset>
+                    )}
+                  </>
+                )}
+                <OrderRadioGroup
+                  label="Způsob platby"
+                  name="payment-choice"
+                  value={payment}
+                  disabled={busy}
+                  onChange={(value) => {
+                    setPayment(value as PaymentMethodEnum);
+                    setError("");
+                  }}
+                  choices={paymentChoices.map((choice) => ({
+                    value: choice.value,
+                    label: paymentLabel(choice.value as PaymentMethodEnum) ?? choice.label,
+                  }))}
+                />
+              </Paper>
+              <Paper
+                variant="orderSection"
+                component="fieldset"
+                disabled={busy}
+                aria-labelledby="optional-title"
+                data-optional="true"
+              >
+                <Typography variant="h4" component="h2" id="optional-title">
+                  Volitelné údaje
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox checked={showNote} onChange={(_, checked) => setShowNote(checked)} />
+                  }
+                  label="Přidat poznámku k objednávce"
+                />
+                {showNote && (
+                  <TextField
+                    label="Poznámka (nepovinná)"
+                    name="note"
+                    multiline
+                    minRows={2}
+                    slotProps={{ htmlInput: { maxLength: 2000 } }}
+                  />
+                )}
+                <FormControlLabel
+                  control={<Checkbox name="marketingConsent" />}
+                  label="Chci dostávat novinky (nepovinné)"
+                />
+              </Paper>
+            </div>
             <Paper
               variant="outlined"
               component="section"
               aria-label="Shrnutí objednávky"
-              className="cart-line"
+              className="cart-line purchase-summary"
             >
               <h2>Shrnutí objednávky</h2>
               {shop.items.map((item, index) => (
-                <p key={index}>
-                  {item.name} · {item.quantity} ks ·{" "}
-                  {preview.isSuccess && !preview.isFetching
-                    ? preview.data.items[index]?.lineTotal === null
-                      ? "k nacenění"
-                      : preview.data.items[index]?.lineTotal !== undefined
-                        ? money(preview.data.items[index]!.lineTotal! / 100)
-                        : "neověřeno"
-                    : "neověřeno"}
+                <p key={index} className="purchase-summary-row">
+                  <span>
+                    {item.name}
+                    <small>{item.quantity} ks</small>
+                  </span>
+                  {preview.isSuccess && !preview.isFetching && (
+                    <strong>
+                      {preview.data.items[index]?.lineTotal === null
+                        ? "k nacenění"
+                        : preview.data.items[index]?.lineTotal !== undefined
+                          ? money(preview.data.items[index]!.lineTotal! / 100)
+                          : "neověřeno"}
+                    </strong>
+                  )}
                 </p>
               ))}
+              {delivery && (
+                <p className="purchase-summary-row">
+                  <span>Doručení</span>
+                  <strong>
+                    {deliveryLabels[delivery]}
+                    {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
+                      <small>{carriers.find((carrier) => carrier.id === carrierId)?.name}</small>
+                    )}
+                  </strong>
+                </p>
+              )}
+              {payment && (
+                <p className="purchase-summary-row">
+                  <span>Platba</span>
+                  <strong>{paymentLabel(payment)}</strong>
+                </p>
+              )}
               {preview.isFetching && <p role="status">Ověřování cen a dopravy…</p>}
+              {preview.fetchStatus === "paused" && (
+                <p role="status">Ověření čeká na připojení k internetu.</p>
+              )}
+              {!delivery || !payment || !carrierValid ? (
+                <p className="muted">Celkovou cenu zobrazíme po výběru dopravy a platby.</p>
+              ) : null}
               {preview.isError && <p role="alert">{cartError(preview.error)}</p>}
               {preview.isSuccess && !preview.isFetching && (
                 <>
@@ -507,20 +601,21 @@ export function CheckoutPage() {
                       </p>
                     )),
                   )}
-                  <p>
-                    Doprava včetně případné dobírky:{" "}
-                    {preview.data.shippingCost === null
-                      ? "cena není nastavená, zvolte jiný způsob"
-                      : money(preview.data.shippingCost / 100)}
+                  <p className="purchase-summary-row">
+                    <span>Doprava včetně případné dobírky</span>
+                    <strong>
+                      {preview.data.shippingCost === null
+                        ? "cena není nastavená, zvolte jiný způsob"
+                        : money(preview.data.shippingCost / 100)}
+                    </strong>
                   </p>
                   {preview.data.requiresQuote ? (
-                    <p>
-                      Celá objednávka půjde k nacenění. Konečnou cenu potvrdí administrátor; nyní
-                      nic neplaťte.
-                    </p>
+                    <Alert severity="info" role="status">
+                      Konečnou cenu potvrdíme po nacenění. Zatím nic neplaťte.
+                    </Alert>
                   ) : (
-                    <p>
-                      Celkem:{" "}
+                    <p className="purchase-summary-row purchase-total">
+                      <span>Celkem</span>
                       <strong>
                         {preview.data.total === null
                           ? "není stanoveno"
@@ -530,26 +625,47 @@ export function CheckoutPage() {
                   )}
                 </>
               )}
-              {error && <p role="alert">{error}</p>}
-              <p>
-                Při odeslání se požadavek dočasně uloží do sessionStorage této karty kvůli
-                bezpečnému opakování. Po přijetí se kontaktní a adresní údaje z tohoto záznamu
-                odstraní.
-              </p>
+              {error && <Alert severity="error">{error}</Alert>}
+              {termsUrl && (
+                <FormControlLabel
+                  className="checkout-terms"
+                  control={<Checkbox name="termsAccepted" required disabled={busy} />}
+                  label={
+                    <span>
+                      Souhlasím s{" "}
+                      <a href={termsUrl} target="_blank" rel="noopener noreferrer">
+                        obchodními podmínkami
+                      </a>
+                    </span>
+                  }
+                />
+              )}
               <Button
-                type="button"
-                disabled={busy || !eligible || !delivery || !payment || !carrierValid}
-                onClick={() => void preview.refetch()}
+                type="submit"
+                variant="contained"
+                startIcon={<LockOutlined />}
+                disabled={busy || !termsUrl || !priced}
               >
-                Znovu ověřit shrnutí
-              </Button>
-              <Button type="submit" variant="contained" disabled={busy || !termsUrl || !priced}>
                 {busy
                   ? "Odesílání…"
                   : preview.data?.requiresQuote
                     ? "Odeslat objednávku k nacenění"
                     : "Objednat s povinností platby"}
               </Button>
+              {!busy && (
+                <Button component={Link} to="/kosik" startIcon={<ArrowBackRounded />}>
+                  Zpět do košíku
+                </Button>
+              )}
+              {(preview.isError || (preview.isSuccess && !priced)) && (
+                <Button
+                  type="button"
+                  disabled={busy || !eligible || !delivery || !payment || !carrierValid}
+                  onClick={() => void preview.refetch()}
+                >
+                  Znovu ověřit shrnutí
+                </Button>
+              )}
             </Paper>
           </form>
         </>

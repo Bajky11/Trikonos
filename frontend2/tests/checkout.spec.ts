@@ -13,9 +13,61 @@ async function fillCustomer(page: Page) {
   await page.getByRole("textbox", { name: "PSČ", exact: true }).fill("543 01");
 }
 async function choose(page: Page, label: string, name: string) {
-  await page.getByRole("combobox", { name: label, exact: true }).click();
-  await page.getByRole("option", { name, exact: true }).click();
+  await page
+    .getByRole("radiogroup", { name: label, exact: true })
+    .getByRole("radio", { name })
+    .check();
 }
+
+test("creates an order from the cart on mobile only after required details and consent", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockStoreApi(page);
+  const state = await mockCheckout(page);
+  await page.addInitScript((item) => {
+    if (!localStorage.getItem("trikonos-cart-v2"))
+      localStorage.setItem("trikonos-cart-v2", JSON.stringify([item]));
+  }, checkoutCatalog);
+  const steps = page.getByRole("navigation", { name: "Průběh objednávky" });
+  const currentStep = steps.locator('[aria-current="step"]');
+  await page.goto("/kosik");
+  await expect(currentStep).toContainText("Košík");
+  await page.getByRole("link", { name: "Pokračovat k objednání" }).click();
+  await expect(currentStep).toContainText("Údaje a doprava");
+  await expect(page.getByRole("textbox", { name: "IČO (nepovinné)" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Poznámka (nepovinná)" })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "Doručit na jinou adresu" })).toHaveCount(0);
+  await choose(page, "Způsob doručení", "Osobní odběr");
+  await choose(page, "Způsob platby", "Při převzetí na prodejně");
+  const summary = page.getByRole("region", { name: "Shrnutí objednávky" });
+  await expect(summary).toContainText("Osobní odběr");
+  await expect(summary).toContainText("Při převzetí na prodejně");
+  await expect(page.getByRole("heading", { name: "Údaje a doprava" })).toBeVisible();
+  await expect(summary.getByRole("button", { name: /dopravu a platbu/ })).toHaveCount(0);
+  const submit = page.getByRole("button", { name: "Objednat s povinností platby" });
+  const firstName = page.getByRole("textbox", { name: "Jméno", exact: true });
+  const terms = page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" });
+  await submit.click();
+  await expect(firstName).toBeFocused();
+  expect(state.posts).toHaveLength(0);
+  await fillCustomer(page);
+  await submit.click();
+  await expect(terms).toBeFocused();
+  expect(state.posts).toHaveLength(0);
+  await terms.check();
+  await submit.click();
+  await expect(currentStep).toContainText("Potvrzení");
+  await expect(page.getByRole("heading", { name: "TRK-2026-000123" })).toBeVisible();
+  expect(state.posts).toHaveLength(1);
+  expect(state.posts[0]).toMatchObject({
+    customer: { email: "jana@example.cz" },
+    billing: { zip: "54301" },
+    delivery: { deliveryType: "PERSONAL_PICKUP" },
+    expectedTotal: 69900,
+    termsAccepted: true,
+  });
+});
 
 test("blocks missing terms, reviews changed prices and recovers one order after a lost result and reload", async ({
   page,
@@ -34,11 +86,10 @@ test("blocks missing terms, reviews changed prices and recovers one order after 
   state.termsReady = true;
   await page.reload();
   await fillCustomer(page);
-  await choose(page, "Způsob doručení", "Na adresu");
-  await choose(page, "Dopravce", "Packeta");
+  await choose(page, "Způsob doručení", "Doručení na adresu");
   await choose(page, "Způsob platby", "Dobírkou");
   await expect(page.getByRole("region", { name: "Shrnutí objednávky" })).toContainText("788 Kč");
-  await choose(page, "Způsob platby", "Převodem");
+  await choose(page, "Způsob platby", "Bankovní převod");
   await expect(page.getByRole("region", { name: "Shrnutí objednávky" })).toContainText("778 Kč");
   await page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" }).check();
   state.price = 79900;
@@ -107,22 +158,24 @@ test("blocks unconfigured shipping, sends a mixed quote with a separate address 
   );
   await page.goto("/pokladna");
   await fillCustomer(page);
-  await choose(page, "Způsob doručení", "Na adresu");
-  await choose(page, "Dopravce", "Packeta");
+  await choose(page, "Způsob doručení", "Doručení na adresu");
   await choose(page, "Způsob platby", "Dobírkou");
   await expect(page.getByRole("region", { name: "Shrnutí objednávky" })).toContainText(
     "cena není nastavená",
   );
   await expect(page.getByRole("button", { name: "Odeslat objednávku k nacenění" })).toBeDisabled();
-  await choose(page, "Způsob doručení", "Osobní odběr");
-  await page
-    .getByRole("checkbox", { name: "Doručovací adresa je stejná jako fakturační" })
-    .uncheck();
+  state.shippingKnown = true;
+  await page.getByRole("button", { name: "Znovu ověřit shrnutí" }).click();
+  await page.getByRole("checkbox", { name: "Doručit na jinou adresu" }).check();
   const shipping = page.getByRole("group", { name: "Doručovací adresa", exact: true });
   await shipping.getByRole("textbox", { name: "Jméno a příjmení příjemce" }).fill("Petr Novák");
   await shipping.getByRole("textbox", { name: "Ulice a číslo domu" }).fill("Dolní 9");
   await shipping.getByRole("textbox", { name: "Obec", exact: true }).fill("Praha");
   await shipping.getByRole("textbox", { name: "PSČ", exact: true }).fill("11000");
+  await page.getByRole("checkbox", { name: "Přidat firemní nebo jiné fakturační údaje" }).check();
+  await page.getByRole("textbox", { name: "IČO (nepovinné)" }).fill("12345678");
+  await page.getByRole("checkbox", { name: "Přidat poznámku k objednávce" }).check();
+  await page.getByRole("textbox", { name: "Poznámka (nepovinná)" }).fill("Zavolat předem");
   await page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" }).check();
   await page.getByRole("button", { name: "Odeslat objednávku k nacenění" }).click();
   await expect(page).toHaveURL(/\/objednavka$/);
@@ -132,8 +185,10 @@ test("blocks unconfigured shipping, sends a mixed quote with a separate address 
   expect(state.posts).toHaveLength(1);
   expect(state.posts[0]!.items).toHaveLength(2);
   expect(state.posts[0]!.expectedTotal).toBeNull();
-  expect(state.posts[0]!.expectedShippingCost).toBe(0);
+  expect(state.posts[0]!.expectedShippingCost).toBe(8900);
   expect(state.posts[0]!.shipping.sameAsBilling).toBe(false);
-  expect(state.posts[0]!.delivery).not.toHaveProperty("carrierId");
+  expect(state.posts[0]!.delivery.carrierId).toBe(carrierId);
+  expect(state.posts[0]!.billing.ico).toBe("12345678");
+  expect(state.posts[0]!.note).toBe("Zavolat předem");
   expect(tokens).toEqual(["bootstrap-token"]);
 });

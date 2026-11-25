@@ -1,5 +1,12 @@
 import { alpha, createTheme } from "@mui/material/styles";
 
+declare module "@mui/material/Paper" {
+  interface PaperPropsVariantOverrides {
+    orderSection: true;
+    orderReceipt: true;
+  }
+}
+
 // All brand decisions live here. CSS uses these same tokens through CssBaseline.
 export const colors = {
   paper: "#f6f3ea",
@@ -66,7 +73,54 @@ export const theme = createTheme({
     MuiIconButton: { styleOverrides: { root: { borderRadius: 0, color: colors.fir } } },
     MuiPaper: {
       defaultProps: { elevation: 0 },
-      styleOverrides: { root: { backgroundImage: "none" } },
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
+          variants: [
+            {
+              props: { variant: "orderSection" },
+              style: {
+                display: "grid",
+                gap: 18,
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                minWidth: 0,
+                margin: 0,
+                padding: "clamp(16px, 3vw, 28px)",
+                border: `1px solid ${alpha(colors.fir, 0.14)}`,
+                backgroundColor: colors.surface,
+                "& > :is(h2, .MuiAlert-root, .MuiFormControlLabel-root, fieldset, p), &[data-optional] > *":
+                  { gridColumn: "1 / -1" },
+                "& .MuiRadioGroup-root .MuiFormControlLabel-root": {
+                  minHeight: 44,
+                  marginInline: 0,
+                },
+                "& .checkout-address": { border: 0, padding: 0, margin: 0 },
+                "@media (max-width: 600px)": { gridTemplateColumns: "minmax(0, 1fr)" },
+              },
+            },
+            {
+              props: { variant: "orderReceipt" },
+              style: {
+                display: "grid",
+                justifyItems: "start",
+                gap: 16,
+                maxWidth: 660,
+                marginInline: "auto",
+                padding: "clamp(22px, 5vw, 52px)",
+                border: `1px solid ${alpha(colors.fir, 0.17)}`,
+                backgroundColor: colors.surface,
+                overflowWrap: "anywhere",
+                "& > .MuiSvgIcon-root": {
+                  fontSize: 40,
+                  color: colors.fir,
+                },
+                "& > .MuiDivider-root": { width: "100%" },
+                "& h1": { fontSize: "clamp(28px, 4vw, 42px)" },
+              },
+            },
+          ],
+        },
+      },
     },
     MuiDialog: {
       styleOverrides: {

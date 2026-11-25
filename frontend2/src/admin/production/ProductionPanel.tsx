@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Alert,
@@ -12,11 +11,11 @@ import {
   TextField,
 } from "@mui/material";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useAdminProductionSummaryList } from "../../api/generated/api";
 import { DataTable } from "../../components/DataTable";
+import { AdminSectionHeader } from "../AdminSectionHeader";
 import { CatalogFeedback } from "../../components/Products";
 import { AdminDateFilter } from "../AdminDateFilter";
 import { orderStatuses } from "../orders/labels";
@@ -36,8 +35,6 @@ function validDate(value: string) {
 
 export function ProductionPanel() {
   const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [materialOpen, setMaterialOpen] = useState(false);
   const statuses = (params.get("status") ?? defaultStatuses).split(",").filter(Boolean);
   const createdFrom = params.get("createdFrom") || "";
   const createdTo = params.get("createdTo") || "";
@@ -84,47 +81,34 @@ export function ProductionPanel() {
   return (
     <div className="production-page">
       <section className="production-toolbar print-controls" aria-label="Nástroje výroby">
-        <div className="production-actions production-toolbar-buttons">
-          <Button
-            size="small"
-            startIcon={<FilterListIcon />}
-            aria-expanded={filtersOpen}
-            aria-controls="production-filters"
-            onClick={() => setFiltersOpen(!filtersOpen)}
-          >
-            {customFilter ? "Filtry · upravené" : "Filtry"}
-          </Button>
-          <Button
-            size="small"
-            startIcon={<Inventory2OutlinedIcon />}
-            disabled={!valid}
-            aria-expanded={valid && materialOpen}
-            aria-controls={valid ? "potrebny-material" : undefined}
-            onClick={() => setMaterialOpen(!materialOpen)}
-          >
-            Materiál
-          </Button>
-          <Button
-            size="small"
-            startIcon={<RefreshIcon />}
-            disabled={!valid || fetching}
-            onClick={() => {
-              void summary.refetch();
-              void orders.refetch();
-            }}
-          >
-            Obnovit
-          </Button>
-          <Button
-            size="small"
-            startIcon={<PrintOutlinedIcon />}
-            disabled={!valid || !summary.isSuccess || !orders.isSuccess || fetching}
-            onClick={() => window.print()}
-          >
-            Tisk přehledu
-          </Button>
-        </div>
-        <div id="production-filters" className="production-filters" hidden={!filtersOpen}>
+        <div id="production-filters" className="production-filters">
+          <AdminSectionHeader
+            className="production-filter-heading"
+            title="Filtry"
+            actions={
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<RefreshIcon />}
+                  disabled={!valid || fetching}
+                  onClick={() => {
+                    void summary.refetch();
+                    void orders.refetch();
+                  }}
+                >
+                  Obnovit data
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<PrintOutlinedIcon />}
+                  disabled={!valid || !summary.isSuccess || !orders.isSuccess || fetching}
+                  onClick={() => window.print()}
+                >
+                  Tisk přehledu
+                </Button>
+              </>
+            }
+          />
           <TextField
             select
             label="Stav objednávky"
@@ -161,7 +145,7 @@ export function ProductionPanel() {
             value={createdTo}
             onChange={(value) => update("createdTo", value)}
           />
-          <Button onClick={reset} disabled={!customFilter}>
+          <Button className="production-reset-filters" onClick={reset} disabled={!customFilter}>
             Výchozí filtry
           </Button>
         </div>
@@ -185,7 +169,7 @@ export function ProductionPanel() {
             component="section"
             variant="outlined"
             id="potrebny-material"
-            className={`production-material${materialOpen ? "" : " production-collapsed"}`}
+            className="production-material"
             aria-labelledby="production-material-title"
           >
             <div className="production-section-heading">
@@ -213,10 +197,10 @@ export function ProductionPanel() {
                 <DataTable
                   label="Souhrn výroby"
                   columns={[
-                    { label: "Typ" },
-                    { label: "Střih" },
-                    { label: "Barva" },
-                    { label: "Velikost" },
+                    { label: "Typ", width: "30%" },
+                    { label: "Střih", width: "24%" },
+                    { label: "Barva", width: "24%" },
+                    { label: "Velikost", align: "center", compact: true },
                     { label: "Kusů", align: "right", compact: true },
                   ]}
                 >
@@ -225,7 +209,9 @@ export function ProductionPanel() {
                       <TableCell>{row.productType}</TableCell>
                       <TableCell>{row.cut}</TableCell>
                       <TableCell>{row.color}</TableCell>
-                      <TableCell>{row.size}</TableCell>
+                      <TableCell align="center" className="data-table-nowrap">
+                        {row.size}
+                      </TableCell>
                       <TableCell align="right">
                         <strong>{number.format(row.quantity)}</strong>
                       </TableCell>

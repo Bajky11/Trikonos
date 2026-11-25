@@ -189,6 +189,7 @@ function ProductDetail({
                 motifId: product.id,
                 ...selectedVariant,
                 name: product.name,
+                previewUrl: images[activeImage]?.url ?? undefined,
                 quantity,
                 unitPrice,
               });

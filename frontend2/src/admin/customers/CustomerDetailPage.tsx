@@ -146,18 +146,24 @@ function CustomerDetail({ id }: { id: string }) {
         </Button>
         <DataTable
           label="Historie objednávek zákazníka"
-          columns={[{ label: "Číslo" }, { label: "Datum" }, { label: "Stav" }, { label: "Částka" }]}
+          columns={[
+            { label: "Číslo", width: "28%" },
+            { label: "Datum", width: "27%" },
+            { label: "Stav" },
+            { label: "Částka", align: "right", width: "22%" },
+          ]}
+          empty={!customer.orders.length ? "Zákazník zatím nemá žádnou objednávku." : undefined}
         >
           {customer.orders.slice(0, 10).map((order) => (
             <TableRow key={order.id}>
-              <TableCell>
+              <TableCell component="th" scope="row" className="data-table-nowrap">
                 <Link to={`/admin/objednavky/${order.id}?customer=${encodeURIComponent(id)}`}>
                   {order.orderNumber}
                 </Link>
               </TableCell>
-              <TableCell>{dateTime(order.createdAt)}</TableCell>
+              <TableCell className="data-table-nowrap">{dateTime(order.createdAt)}</TableCell>
               <TableCell>{orderStatuses[order.status] ?? order.status}</TableCell>
-              <TableCell>
+              <TableCell align="right" className="data-table-nowrap">
                 {order.total == null
                   ? "K nacenění"
                   : `${(order.total / 100).toLocaleString("cs-CZ")} ${order.currency}`}
@@ -165,7 +171,6 @@ function CustomerDetail({ id }: { id: string }) {
             </TableRow>
           ))}
         </DataTable>
-        {!customer.orders.length && <p role="status">Zákazník zatím nemá žádnou objednávku.</p>}
       </section>
     </Paper>
   );

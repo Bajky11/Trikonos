@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import type { AdminOrderDetail, StatusEnum } from "../src/api/generated/models";
+import type { AdminOrderDetail } from "../src/api/generated/models";
 import { options } from "./api-fixtures";
 
 export const adminOrderId = "80000000-0000-0000-0000-000000000001";
@@ -87,7 +87,7 @@ export function sampleOrder(): MutableOrder {
   };
 }
 
-export async function mockAdminOrders(page: Page) {
+export async function mockAdminOrders(page: Page, count = 21) {
   const state = {
     order: sampleOrder(),
     listError: false,
@@ -138,7 +138,9 @@ export async function mockAdminOrders(page: Page) {
     const row = {
       id: order.id,
       orderNumber: order.orderNumber,
-      customerName: "Jana Nováková",
+      customerFirstName: order.customer.firstName,
+      customerLastName: order.customer.lastName,
+      customerName: `${order.customer.firstName} ${order.customer.lastName}`,
       customerEmail: order.customer.email,
       createdAt: order.createdAt,
       itemCount: 1,
@@ -152,8 +154,11 @@ export async function mockAdminOrders(page: Page) {
     const pageNumber = Number(params.get("page") || 1);
     return route.fulfill({
       json: {
-        count: match ? 21 : 0,
-        next: match && pageNumber === 1 ? "http://localhost:8000/api/v1/admin/orders?page=2" : null,
+        count: match ? count : 0,
+        next:
+          match && count > 20 && pageNumber === 1
+            ? "http://localhost:8000/api/v1/admin/orders?page=2"
+            : null,
         previous: pageNumber > 1 ? "?page=1" : null,
         results: match ? [row] : [],
       },
@@ -194,7 +199,8 @@ export async function mockAdminOrders(page: Page) {
       return route.fulfill({ json: state.order });
     } else if (path.endsWith("/payment-status"))
       state.order.paymentStatus = body.paymentStatus as AdminOrderDetail["paymentStatus"];
-    else if (path.endsWith("/status")) state.order.status = body.status as StatusEnum;
+    else if (path.endsWith("/status"))
+      state.order.status = body.status as AdminOrderDetail["status"];
     else Object.assign(state.order, body);
     refresh();
     return route.fulfill({ json: state.order });
