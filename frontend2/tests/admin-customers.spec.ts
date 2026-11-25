@@ -22,7 +22,7 @@ test("recovers customer loading, filters/pages real data, preserves edits on ema
   await page.getByRole("button", { name: "Zkusit znovu", exact: true }).click();
   await page.getByRole("searchbox", { name: "Hledání zákazníků", exact: true }).fill("Firma");
   await expect.poll(() => state.lists.at(-1)?.get("q")).toBe("Firma");
-  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await page.getByRole("button", { name: "Přejít na stranu 2", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("page")).toBe("2");
   await page.getByRole("combobox", { name: "Marketingový souhlas", exact: true }).click();
   await page.getByRole("option", { name: "Bez souhlasu", exact: true }).click();
@@ -99,16 +99,12 @@ test("exports the global consent CSV only on demand, not filtered list data or a
     void dialog.accept();
   });
   await page.goto("/admin/klienti?marketingConsent=false&q=Firma");
-  await page
-    .getByRole("button", { name: "Exportovat souhlasící e-maily (CSV)", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Export e-mailů (CSV)", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
   expect(downloads).toBe(0);
   state.exportFailed = false;
   const downloading = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Exportovat souhlasící e-maily (CSV)", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Export e-mailů (CSV)", exact: true }).click();
   const downloaded = await downloading;
   expect(downloaded.suggestedFilename()).toBe("marketing-consents.csv");
   const csv = await readFile((await downloaded.path())!, "utf8");

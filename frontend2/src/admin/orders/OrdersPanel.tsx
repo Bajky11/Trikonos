@@ -1,18 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { DataTable } from "../../components/DataTable";
+import { useState } from "react";
+import { AdminDateFilter } from "../AdminDateFilter";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  Button,
-  MenuItem,
-  Pagination,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from "@mui/material";
+import { Button, MenuItem, Paper, TableCell, TableRow, TextField } from "@mui/material";
 import { adminOrdersExportRetrieve, useAdminOrdersList } from "../../api/generated/api";
 import { catalogError } from "../catalog/forms";
 import { CatalogFeedback } from "../../components/Products";
@@ -44,36 +34,21 @@ const filters: [string, string, Record<string, string>][] = [
   ],
 ];
 
-export function OrdersPanel({ search, overview = false }: { search: string; overview?: boolean }) {
+export function OrdersPanel({ overview = false }: { overview?: boolean }) {
   const [params, setParams] = useSearchParams();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
-  const previousSearch = useRef(search);
-  useEffect(() => {
-    if (previousSearch.current === search) return;
-    const timer = window.setTimeout(() => {
-      previousSearch.current = search;
-      setParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          next.delete("page");
-          if (search.trim()) next.set("q", search.trim());
-          else next.delete("q");
-          return next;
-        },
-        { replace: true },
-      );
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search, setParams]);
   const update = (key: string, value: string) =>
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete("page");
-      if (value) next.set(key, value);
-      else next.delete(key);
-      return next;
-    });
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("page");
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: key === "q" },
+    );
   const page = Math.max(1, Number(params.get("page")) || 1);
   const pageSize = overview ? 5 : 20;
   const filtersForRequest = {
@@ -95,52 +70,93 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
   );
   return (
     <Paper className="admin-panel" variant="outlined">
-      <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
-      {!overview && (
-        <>
-          <Button component={Link} to="/admin/objednavky/nova">
-            Ručně založit objednávku
-          </Button>
-          <Button
-            disabled={exporting || !orders.isSuccess}
-            onClick={() => {
-              if (
-                !window.confirm(
-                  "Stáhnout všechny objednávky odpovídající filtrům? Soubor obsahuje osobní údaje.",
-                )
-              )
-                return;
-              setExporting(true);
-              setExportError("");
-              void adminOrdersExportRetrieve(filtersForRequest, {
-                cache: "no-store",
-                headers: { Accept: "*/*" },
-              })
-                .then((blob) => {
+      <div className="admin-catalog-toolbar dictionary-toolbar">
+        <h2>{overview ? "Poslední objednávky" : "Objednávky"}</h2>
+        {!overview && (
+          <>
+            {filters.map(([key, label, values]) => (
+              <TextField
+                key={String(key)}
+                select
+                label={String(label)}
+                value={params.get(String(key)) || (key === "ordering" ? "-createdAt" : "")}
+                onChange={(event) => update(key, event.target.value)}
+              >
+                <MenuItem value="">Vše</MenuItem>
+                {Object.entries(values).map(([value, title]) => (
+                  <MenuItem key={value} value={value}>
+                    {title}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ))}
+            <AdminDateFilter
+              label="Od data"
+              value={params.get("createdFrom") || ""}
+              onChange={(value) => update("createdFrom", value)}
+            />
+            <AdminDateFilter
+              label="Do data"
+              value={params.get("createdTo") || ""}
+              onChange={(value) => update("createdTo", value)}
+            />
+            <TextField
+              label="Hledat v objednávkách"
+              type="search"
+              value={params.get("q") || ""}
+              onChange={(event) => update("q", event.target.value)}
+            />
+            <div className="account-actions">
+              <Button
+                variant="outlined"
+                disabled={exporting || !orders.isSuccess}
+                onClick={() => {
                   if (
-                    !(blob instanceof Blob) ||
-                    blob.type !==
-                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    !window.confirm(
+                      "Stáhnout všechny objednávky odpovídající filtrům? Soubor obsahuje osobní údaje.",
+                    )
                   )
-                    throw new Error("Server nevrátil soubor Excel.");
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = url;
-                  link.download = "objednavky.xlsx";
-                  link.click();
-                  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-                })
-                .catch((error: unknown) => setExportError(catalogError(error)))
-                .finally(() => setExporting(false));
-            }}
-          >
-            Exportovat do Excelu
-          </Button>
-          {exportError && <p role="alert">{exportError}</p>}
-        </>
+                    return;
+                  setExporting(true);
+                  setExportError("");
+                  void adminOrdersExportRetrieve(filtersForRequest, {
+                    cache: "no-store",
+                    headers: { Accept: "*/*" },
+                  })
+                    .then((blob) => {
+                      if (
+                        !(blob instanceof Blob) ||
+                        blob.type !==
+                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      )
+                        throw new Error("Server nevrátil soubor Excel.");
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = "objednavky.xlsx";
+                      link.click();
+                      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    })
+                    .catch((error: unknown) => setExportError(catalogError(error)))
+                    .finally(() => setExporting(false));
+                }}
+              >
+                Exportovat do Excelu
+              </Button>
+              <Button variant="contained" component={Link} to="/admin/objednavky/nova">
+                Ručně založit objednávku
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+      {exportError && (
+        <p className="admin-empty" role="alert">
+          {exportError}
+        </p>
       )}
       {params.get("customer") && (
-        <p>
+        <p className="admin-empty">
           Aktivní filtr zákazníka.{" "}
           <Link to={`/admin/klienti/${encodeURIComponent(params.get("customer")!)}`}>
             Profil zákazníka
@@ -148,100 +164,55 @@ export function OrdersPanel({ search, overview = false }: { search: string; over
           <Button onClick={() => update("customer", "")}>Zrušit filtr zákazníka</Button>
         </p>
       )}
-      {!overview && (
-        <div className="admin-catalog-toolbar">
-          {filters.map(([key, label, values]) => (
-            <TextField
-              key={String(key)}
-              select
-              label={String(label)}
-              value={params.get(String(key)) || (key === "ordering" ? "-createdAt" : "")}
-              onChange={(event) => update(key, event.target.value)}
-            >
-              <MenuItem value="">Vše</MenuItem>
-              {Object.entries(values).map(([value, title]) => (
-                <MenuItem key={value} value={value}>
-                  {title}
-                </MenuItem>
-              ))}
-            </TextField>
-          ))}
-          <TextField
-            label="Od data"
-            type="date"
-            value={params.get("createdFrom") || ""}
-            onChange={(event) => update("createdFrom", event.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-          <TextField
-            label="Do data"
-            type="date"
-            value={params.get("createdTo") || ""}
-            onChange={(event) => update("createdTo", event.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-          <TextField
-            label="Hledání objednávek"
-            type="search"
-            value={params.get("q") || ""}
-            onChange={(event) => update("q", event.target.value)}
-          />
-        </div>
-      )}
       <CatalogFeedback query={orders} label="Objednávky" />
       {orders.isSuccess && (
         <>
-          <TableContainer>
-            <Table aria-label="Objednávky">
-              <TableHead>
-                <TableRow>
-                  {["Číslo", "Zákazník", "Datum", "Částka", "Stav", "Platba"].map((label) => (
-                    <TableCell key={label}>{label}</TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {orders.data.results.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell>
-                      <Link to={`/admin/objednavky/${order.id}${params.size ? `?${params}` : ""}`}>
-                        {order.orderNumber}
-                      </Link>
-                      {order.hasCustom && <p>Vlastní potisk</p>}
-                    </TableCell>
-                    <TableCell>
-                      {order.customerName}
-                      <br />
-                      {order.customerEmail}
-                    </TableCell>
-                    <TableCell>{dateTime(order.createdAt)}</TableCell>
-                    <TableCell>
-                      {order.total == null ? "K nacenění" : money(order.total / 100)}
-                    </TableCell>
-                    <TableCell>{orderStatuses[order.status ?? ""] ?? order.status}</TableCell>
-                    <TableCell>
-                      {paymentStatuses[order.paymentStatus ?? ""] ?? order.paymentStatus}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {!orders.data.results.length && <p role="status">Žádná objednávka neodpovídá hledání.</p>}
-          {!overview && orders.data.count > pageSize && (
-            <Pagination
-              aria-label="Stránkování objednávek"
-              count={Math.ceil(orders.data.count / pageSize)}
-              page={page}
-              onChange={(_, value) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.set("page", String(value));
-                  return next;
-                })
-              }
-            />
-          )}
+          <DataTable
+            label="Objednávky"
+            columns={[
+              { label: "Číslo" },
+              { label: "Zákazník" },
+              { label: "Datum" },
+              { label: "Částka" },
+              { label: "Stav" },
+              { label: "Platba" },
+            ]}
+            page={!overview && orders.data.count > pageSize ? page : undefined}
+            pageCount={Math.ceil(orders.data.count / pageSize)}
+            paginationLabel="Stránkování objednávek"
+            onPageChange={(value) =>
+              setParams((current) => {
+                const next = new URLSearchParams(current);
+                next.set("page", String(value));
+                return next;
+              })
+            }
+            empty={!orders.data.results.length ? "Žádná objednávka neodpovídá hledání." : undefined}
+          >
+            {orders.data.results.map((order) => (
+              <TableRow key={order.id}>
+                <TableCell>
+                  <Link to={`/admin/objednavky/${order.id}${params.size ? `?${params}` : ""}`}>
+                    {order.orderNumber}
+                  </Link>
+                  {order.hasCustom && <p>Vlastní potisk</p>}
+                </TableCell>
+                <TableCell>
+                  {order.customerName}
+                  <br />
+                  {order.customerEmail}
+                </TableCell>
+                <TableCell>{dateTime(order.createdAt)}</TableCell>
+                <TableCell>
+                  {order.total == null ? "K nacenění" : money(order.total / 100)}
+                </TableCell>
+                <TableCell>{orderStatuses[order.status ?? ""] ?? order.status}</TableCell>
+                <TableCell>
+                  {paymentStatuses[order.paymentStatus ?? ""] ?? order.paymentStatus}
+                </TableCell>
+              </TableRow>
+            ))}
+          </DataTable>
           {overview && (
             <Button component={Link} to="/admin/objednavky">
               Všechny objednávky

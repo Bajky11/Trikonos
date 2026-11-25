@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   MenuItem,
-  Pagination,
   Paper,
   Tab,
-  Table,
-  TableBody,
   TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
   Tabs,
   TextField,
@@ -22,13 +21,13 @@ import {
 import { useCatalogOptionsRetrieve } from "../../api/generated/api";
 import { ApiError } from "../../api/http";
 import { CatalogFeedback } from "../../components/Products";
+import { DataTable } from "../../components/DataTable";
 import { money } from "../../data/catalog";
-import { catalogMutationKey, useCatalogMutation } from "../catalog/api";
+import { allPages, catalogMutationKey, useCatalogMutation } from "../catalog/api";
 import { catalogError } from "../catalog/forms";
 import { deleteWarning, lookupApis, lookupTitles, useProductTypes } from "./api";
 import type { LookupItem, LookupKind } from "./api";
 import { LookupForm } from "./LookupForm";
-import { ReorderDialog } from "./ReorderDialog";
 
 function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   const [q, setQ] = useState(search.trim());
@@ -40,7 +39,10 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   const [deleting, setDeleting] = useState<LookupItem | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [reordering, setReordering] = useState(false);
+  const [dragged, setDragged] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+  const filtered = !!(q || search.trim() || active || productType);
   useEffect(() => {
     const next = search.trim();
     if (q === next) return;
@@ -63,26 +65,38 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
   });
   const busy = useIsMutating({ mutationKey: catalogMutationKey }) > 0;
   const remove = useCatalogMutation(kind, (id: string) => lookupApis[kind].remove(id));
+  const reorder = useCatalogMutation(kind, (ids: string[]) => lookupApis[kind].reorder({ ids }));
+  const move = async (id: string, target: string | number) => {
+    if (busy || moving || filtered) return;
+    setMoving(true);
+    setMessage("");
+    setError("");
+    try {
+      const items = await allPages((page) => lookupApis[kind].list({ page, pageSize: 100 }));
+      const from = items.findIndex((item) => item.id === id);
+      const to =
+        typeof target === "number" ? from + target : items.findIndex((item) => item.id === target);
+      if (from < 0 || to < 0 || to >= items.length || from === to) return;
+      const [item] = items.splice(from, 1);
+      items.splice(to, 0, item!);
+      await reorder.mutateAsync(items.map((entry) => entry.id));
+      setMessage("Pořadí bylo uloženo.");
+    } catch (error) {
+      setError(catalogError(error));
+    } finally {
+      setMoving(false);
+      setDragged(null);
+      setDropTarget(null);
+    }
+  };
   return (
     <>
       <Paper className="admin-panel dictionary-panel" variant="outlined">
-        <div className="admin-catalog-toolbar">
+        <div className="admin-catalog-toolbar dictionary-toolbar">
           <h2>
             {lookupTitles[kind]}
             {list.data && ` (${list.data.count})`}
           </h2>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setMessage("");
-              setEditing({});
-            }}
-          >
-            + Přidat
-          </Button>
-          <Button disabled={busy} onClick={() => setReordering(true)}>
-            Změnit pořadí
-          </Button>
           <TextField
             label="Stav"
             select
@@ -116,9 +130,20 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
               ))}
             </TextField>
           )}
+          <Button
+            variant="contained"
+            onClick={() => {
+              setMessage("");
+              setEditing({});
+            }}
+          >
+            + Přidat
+          </Button>
         </div>
         <CatalogFeedback query={list} label="Položky číselníku" />
         {kind === "print-areas" && <CatalogFeedback query={types} label="Typy oblečení" />}
+        {filtered && <p>Pro změnu pořadí zrušte hledání a filtry.</p>}
+        {error && !deleting && <p role="alert">{error}</p>}
         {message && (
           <p className="dictionary-message" role="status">
             {message}
@@ -127,98 +152,155 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
         {list.isError && page > 1 && <Button onClick={() => setPage(1)}>První stránka</Button>}
         {list.isSuccess && (
           <>
-            <TableContainer>
-              <Table aria-label={lookupTitles[kind]} className="dictionary-table">
-                <TableHead>
-                  <TableRow>
-                    {[
-                      "Název",
-                      ...(kind === "print-areas" ? ["Typ oblečení"] : []),
-                      "Údaje",
-                      "Pořadí",
-                      "Stav",
-                      "Akce",
-                    ].map((label) => (
-                      <TableCell key={label}>{label}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {list.data.results.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell component="th" scope="row">
-                        {"hexValue" in item && (
-                          <i className="dictionary-swatch" style={{ background: item.hexValue }} />
-                        )}
-                        {item.name}
-                      </TableCell>
-                      {"productType" in item && (
-                        <TableCell>
-                          {types.data?.find((type) => type.id === item.productType)?.name ??
-                            item.productType}
-                        </TableCell>
-                      )}
-                      <TableCell>
-                        {"hexValue" in item
-                          ? item.hexValue
-                          : "slug" in item
-                            ? item.slug
-                            : "price" in item
-                              ? money((item.price ?? 0) / 100)
-                              : "widthMm" in item
-                                ? `${item.widthMm} × ${item.heightMm} mm`
-                                : "—"}
-                      </TableCell>
-                      <TableCell>{item.position ?? 0}</TableCell>
-                      <TableCell>{item.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
-                      <TableCell>
-                        <Button
-                          aria-label={`Upravit: ${item.name}`}
-                          onClick={() => {
-                            setMessage("");
-                            setEditing({ item });
-                          }}
-                        >
-                          Upravit
-                        </Button>
-                        <Button
-                          color="error"
-                          aria-label={`Smazat: ${item.name}`}
-                          onClick={() => {
-                            setError("");
-                            setDeleting(item);
-                          }}
-                        >
-                          Smazat
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {!list.data.count && (
-              <p className="admin-empty" role="status">
-                Žádné položky neodpovídají výběru.
-              </p>
-            )}
-            <Pagination
-              count={Math.max(1, Math.ceil(list.data.count / 20))}
+            <DataTable
+              label={lookupTitles[kind]}
+              columns={[
+                { label: "", compact: true, minWidth: 56 },
+                { label: "Název" },
+                ...(kind === "print-areas" ? [{ label: "Typ oblečení", compact: true }] : []),
+                { label: "Údaje", compact: true },
+                { label: "Stav", compact: true },
+                { label: "Pořadí", align: "center", compact: true },
+                { label: "Akce", align: "center", compact: true },
+              ]}
               page={page}
-              onChange={(_, value) => setPage(value)}
-            />
+              pageCount={Math.ceil(list.data.count / 20)}
+              onPageChange={setPage}
+              empty={!list.data.count ? "Žádné položky neodpovídají výběru." : undefined}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                  setDropTarget(null);
+              }}
+            >
+              {list.data.results.map((item, index) => (
+                <TableRow
+                  key={item.id}
+                  className={[
+                    dragged === item.id ? "dictionary-row-dragging" : "",
+                    dropTarget === item.id && dragged !== item.id
+                      ? `dictionary-drop-${list.data.results.findIndex((entry) => entry.id === dragged) < index ? "after" : "before"}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onDragOver={(event) => {
+                    if (dragged && !filtered && !busy && !moving) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDropTarget(item.id);
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragged) void move(dragged, item.id);
+                  }}
+                >
+                  <TableCell align="center">
+                    {filtered ? "—" : (page - 1) * 20 + index + 1}
+                  </TableCell>
+                  <TableCell component="th" scope="row">
+                    {"hexValue" in item && (
+                      <i className="dictionary-swatch" style={{ background: item.hexValue }} />
+                    )}
+                    {item.name}
+                  </TableCell>
+                  {"productType" in item && (
+                    <TableCell>
+                      {types.data?.find((type) => type.id === item.productType)?.name ??
+                        item.productType}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    {"hexValue" in item
+                      ? item.hexValue
+                      : "slug" in item
+                        ? item.slug
+                        : "price" in item
+                          ? money((item.price ?? 0) / 100)
+                          : "widthMm" in item
+                            ? `${item.widthMm} × ${item.heightMm} mm`
+                            : "—"}
+                  </TableCell>
+                  <TableCell>{item.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
+                  <TableCell align="right">
+                    <div
+                      className="dictionary-reorder"
+                      role="group"
+                      aria-label={`Změna pořadí: ${item.name}`}
+                    >
+                      <IconButton
+                        size="small"
+                        aria-label={`Výš: ${item.name}`}
+                        title="Posunout výš"
+                        disabled={filtered || busy || moving || (page === 1 && index === 0)}
+                        onClick={() => void move(item.id, -1)}
+                      >
+                        <ArrowUpwardIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        className="dictionary-drag-handle"
+                        aria-label={`Táhnout: ${item.name}`}
+                        title="Podržte a přetáhněte"
+                        disabled={filtered || busy || moving}
+                        draggable={!filtered && !busy && !moving}
+                        onDragStart={(event) => {
+                          setDragged(item.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", item.id);
+                        }}
+                        onDragEnd={() => {
+                          setDragged(null);
+                          setDropTarget(null);
+                        }}
+                      >
+                        <DragIndicatorIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        aria-label={`Níže: ${item.name}`}
+                        title="Posunout níž"
+                        disabled={
+                          filtered ||
+                          busy ||
+                          moving ||
+                          (page - 1) * 20 + index === list.data.count - 1
+                        }
+                        onClick={() => void move(item.id, 1)}
+                      >
+                        <ArrowDownwardIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                  </TableCell>
+                  <TableCell align="right">
+                    <div className="dictionary-actions">
+                      <Button
+                        aria-label={`Upravit: ${item.name}`}
+                        onClick={() => {
+                          setMessage("");
+                          setEditing({ item });
+                        }}
+                      >
+                        Upravit
+                      </Button>
+                      <Button
+                        color="error"
+                        aria-label={`Smazat: ${item.name}`}
+                        onClick={() => {
+                          setError("");
+                          setDeleting(item);
+                        }}
+                      >
+                        Smazat
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </DataTable>
           </>
         )}
       </Paper>
-      {reordering && (
-        <ReorderDialog
-          kind={kind}
-          close={() => {
-            setReordering(false);
-            setPage(1);
-          }}
-        />
-      )}
       <Dialog
         open={editing !== null}
         onClose={busy ? undefined : () => setEditing(null)}
@@ -289,20 +371,24 @@ function LookupTable({ kind, search }: { kind: LookupKind; search: string }) {
 function Sizes() {
   const options = useCatalogOptionsRetrieve();
   return (
-    <Paper className="admin-panel" variant="outlined">
-      <h2>Velikosti</h2>
-      <p>
-        Velikosti jsou pevný seznam backendu, nikoli upravitelný číselník. Pro konkrétní motiv je
-        povolíte v jeho variantách.
-      </p>
-      <CatalogFeedback query={options} label="Velikosti" />
-      {options.data && (
-        <ul>
-          {options.data.sizes.map((size) => (
-            <li key={size.value}>{size.label}</li>
-          ))}
-        </ul>
-      )}
+    <Paper className="admin-panel dictionary-panel" variant="outlined">
+      <div className="admin-catalog-toolbar dictionary-toolbar">
+        <h2>Velikosti</h2>
+      </div>
+      <div className="admin-panel-body">
+        <p>
+          Velikosti jsou pevný seznam backendu, nikoli upravitelný číselník. Pro konkrétní motiv je
+          povolíte v jeho variantách.
+        </p>
+        <CatalogFeedback query={options} label="Velikosti" />
+        {options.data && (
+          <ul>
+            {options.data.sizes.map((size) => (
+              <li key={size.value}>{size.label}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Paper>
   );
 }

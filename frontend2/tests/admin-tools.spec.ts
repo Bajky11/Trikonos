@@ -41,8 +41,9 @@ test("accounts use invitation creation, preserve LAST_ADMIN errors and prevent o
   });
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto("/admin/uzivatele");
-  const own = page.getByRole("row").filter({ hasText: admin.email });
-  await expect(own.getByRole("button", { name: "Smazat účet", exact: true })).toBeDisabled();
+  const own = page.getByRole("region", { name: "Váš účet" });
+  await expect(own).toContainText(admin.email);
+  await expect(page.getByRole("table").getByText(admin.email)).toHaveCount(0);
   await own.getByRole("button", { name: "Upravit účet", exact: true }).click();
   await page
     .getByRole("dialog")
@@ -137,6 +138,7 @@ test("changing a password clears fields and cached access before returning to lo
     return route.fulfill({ status: 204 });
   });
   await page.goto("/admin/heslo");
+  await expect(page).toHaveURL(/\/admin\/uzivatele#heslo$/);
   await page.getByLabel(/^Současné heslo/).fill("old-test-password");
   await page.getByLabel(/^Nové heslo/).fill("New test password 42!");
   await page.getByLabel(/^Zopakovat nové heslo/).fill("New test password 42!");
@@ -250,16 +252,27 @@ test("reorder loads every page including inactive rows and sends the full unfilt
     return route.fulfill({ status: 204 });
   });
   await page.goto("/admin/ciselniky");
-  await page.getByRole("button", { name: "Změnit pořadí", exact: true }).click();
-  await expect(
-    page.getByRole("dialog").getByText("Barva 22 (neaktivní)", { exact: false }),
-  ).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: "Výš: Barva 2", exact: true }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Uložit pořadí", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const currentPage = page.getByRole("button", { name: "Strana 1", exact: true });
+  await expect(currentPage).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: "Výš: Barva 2", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Pořadí bylo uloženo" })).toBeVisible();
   expect(writes[0]!.ids).toHaveLength(22);
   expect(writes[0]!.ids.slice(0, 2)).toEqual([rows[1]!.id, rows[0]!.id]);
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  const handle = page.getByLabel("Táhnout: Barva 3");
+  const targetRow = page
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "Barva 1", exact: true }) });
+  await handle.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await targetRow.dispatchEvent("dragover", { dataTransfer: transfer });
+  await expect(targetRow).toHaveClass(/dictionary-drop-before/);
+  await handle.dispatchEvent("dragend", { dataTransfer: transfer });
+  await expect(targetRow).not.toHaveClass(/dictionary-drop-before/);
+  await page
+    .getByLabel("Táhnout: Barva 3")
+    .dragTo(page.getByLabel("Táhnout: Barva 1", { exact: true }));
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[1]!.ids.slice(0, 3)).toEqual([rows[2]!.id, rows[0]!.id, rows[1]!.id]);
+  await page.getByRole("searchbox", { name: "Hledat v číselníku" }).fill("Barva");
+  await expect(page.getByRole("button", { name: "Výš: Barva 2", exact: true })).toBeDisabled();
 });

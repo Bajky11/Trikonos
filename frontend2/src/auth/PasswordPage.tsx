@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, TextField } from "@mui/material";
+import { Button, Paper, TextField } from "@mui/material";
 import {
   adminAuthPasswordCreate,
   adminAuthPasswordResetCreate,
@@ -27,7 +27,7 @@ export function PasswordPage({ mode }: { mode: "request" | "confirm" | "change" 
   const active = useRef(false);
   const title =
     mode === "request" ? "Obnova hesla" : mode === "confirm" ? "Nastavení hesla" : "Změna hesla";
-  useTitle(`${title} — administrace`);
+  useTitle(mode === "change" ? "Účty — admin" : `${title} — administrace`);
   useEffect(() => {
     if (mode === "confirm" && location.search) void navigate(location.pathname, { replace: true });
   }, [mode, location.pathname, location.search, navigate]);
@@ -37,8 +37,17 @@ export function PasswordPage({ mode }: { mode: "request" | "confirm" | "change" 
     mutationFn: (request: () => Promise<unknown>) => withCsrf(request),
   });
   return (
-    <main className={mode === "change" ? "admin-panel" : "shell page-main"}>
-      <h1>{title}</h1>
+    <Paper
+      component={mode === "change" ? "section" : "main"}
+      variant={mode === "change" ? "outlined" : undefined}
+      elevation={0}
+      square
+      className={
+        mode === "change" ? "admin-panel admin-panel-body admin-password" : "shell page-main"
+      }
+      sx={mode === "change" ? undefined : { background: "transparent" }}
+    >
+      {mode === "change" ? <h2>{title}</h2> : <h1>{title}</h1>}
       {done ? (
         <>
           <p role="status">
@@ -164,6 +173,6 @@ export function PasswordPage({ mode }: { mode: "request" | "confirm" | "change" 
           </fieldset>
         </form>
       )}
-    </main>
+    </Paper>
   );
 }

@@ -88,7 +88,7 @@ export function ManualOrderPage() {
   };
   if (record && record.actorId !== session.data?.id)
     return (
-      <Paper className="admin-panel">
+      <Paper className="admin-panel admin-panel-body">
         <h2>Rozpracovaná ruční objednávka</h2>
         <p role="alert">
           Tato karta má záznam jiného administrátora. Přihlaste původní účet; jeho údaje zde
@@ -98,7 +98,7 @@ export function ManualOrderPage() {
     );
   if (record?.kind === "created")
     return (
-      <Paper className="admin-panel">
+      <Paper className="admin-panel admin-panel-body">
         <h2>Objednávka již byla založená</h2>
         <Button component={Link} to={`/admin/objednavky/${record.id}`}>
           Otevřít založenou objednávku
@@ -121,7 +121,7 @@ export function ManualOrderPage() {
     );
   if (record?.kind === "pending")
     return (
-      <Paper className="admin-panel">
+      <Paper className="admin-panel admin-panel-body">
         <h2>Dokončit ruční založení</h2>
         <p>
           Pokus pro {record.body.customer.email} zůstává neměnný i po reloadu. Nezavírejte tuto
@@ -134,7 +134,7 @@ export function ManualOrderPage() {
       </Paper>
     );
   return (
-    <Paper className="admin-panel" variant="outlined">
+    <Paper className="admin-panel admin-panel-body admin-detail" variant="outlined">
       <h2>Ruční objednávka</h2>
       <p>
         Samostatný návrh bez zásahu do zákaznického košíku. Založení může vyvolat e-mail o přijetí.

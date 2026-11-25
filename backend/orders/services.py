@@ -388,6 +388,9 @@ def update_item_pricing(order, item, *, unit_price=UNSET, quantity=UNSET):
                 code='QUANTITY_OUT_OF_RANGE',
             )
         item.quantity = quantity
+    if quantity_changed:
+        item.production_status = 'WAITING'
+        item.production_revision += 1
     item.save()
     recalculate_totals(order)
     if quantity_changed:

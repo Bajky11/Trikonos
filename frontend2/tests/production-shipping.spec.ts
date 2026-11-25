@@ -58,31 +58,53 @@ test("production uses explicit shared filters, links to orders and renders the e
   await mockAdminOrders(page);
   let summaryFailed = true;
   const calls: { kind: string; query: URLSearchParams }[] = [];
-  await page.route(
-    /\/api\/v1\/admin\/production\/(summary|placements)(?:\?.*)?$/,
-    async (route) => {
-      const url = new URL(route.request().url()),
-        kind = url.pathname.split("/").at(-1)!;
-      calls.push({ kind, query: url.searchParams });
-      if (kind === "summary" && summaryFailed) return route.fulfill({ status: 503, json: {} });
-      await route.fulfill({
-        json:
-          kind === "summary"
-            ? [{ productType: "Tričko", cut: "Pánské", color: "Bílá", size: "L", quantity: 2 }]
-            : [
-                {
-                  orderNumber: "TRK-2026-0042",
-                  itemLabel: "Vlastní týmový potisk",
-                  printArea: "Přední strana",
-                  width: 200,
-                  height: 100,
-                  rotationDeg: 0,
-                  url: "/media/designs/team.png",
-                },
-              ],
-      });
-    },
-  );
+  await page.route(/\/api\/v1\/admin\/production\/(summary|orders)(?:\?.*)?$/, async (route) => {
+    const url = new URL(route.request().url()),
+      kind = url.pathname.split("/").at(-1)!;
+    calls.push({ kind, query: url.searchParams });
+    if (kind === "summary" && summaryFailed) return route.fulfill({ status: 503, json: {} });
+    await route.fulfill({
+      json:
+        kind === "summary"
+          ? [{ productType: "Tričko", cut: "Pánské", color: "Bílá", size: "L", quantity: 2 }]
+          : [
+              {
+                id: adminOrderId,
+                orderNumber: "TRK-2026-0042",
+                status: "PROCESSING",
+                productionStatus: "NOT_STARTED",
+                createdAt: "2026-11-16T12:00:00Z",
+                items: [
+                  {
+                    id: "item-1",
+                    motif: null,
+                    isCustom: true,
+                    customText: "Týmový potisk",
+                    productType: "Tričko",
+                    cut: "Pánské",
+                    color: "Bílá",
+                    size: "L",
+                    quantity: 2,
+                    productionStatus: "WAITING",
+                    productionRevision: 0,
+                    placements: [
+                      {
+                        id: "placement-1",
+                        printArea: "Přední strana",
+                        x: 0,
+                        y: 0,
+                        width: 200,
+                        height: 100,
+                        rotationDeg: 0,
+                        url: "/media/designs/team.png",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+    });
+  });
   await page.route(/\/api\/v1\/admin\/print-areas(?:\?.*)?$/, (route) =>
     route.fulfill({
       json: {
@@ -101,20 +123,37 @@ test("production uses explicit shared filters, links to orders and renders the e
       },
     }),
   );
+  await page.clock.setFixedTime(new Date(2026, 10, 23, 12));
   await page.goto("/admin/vyroba");
-  await expect(page.getByRole("alert")).toContainText("Souhrn výroby");
+  await expect(page.getByText("Výroba: Nezahájeno")).toBeVisible();
+  await expect(page.getByText("Objednávka: Ve výrobě")).toBeVisible();
+  await expect(page.getByText("0 / 2 ks hotovo")).toBeVisible();
+  await expect(page.getByText("Týmový potisk")).toBeHidden();
   await expect(
-    page.getByRole("button", { name: "Vytisknout výrobní přehled", exact: true }),
-  ).toBeDisabled();
+    page.getByRole("button", { name: "Vyberte datum", exact: true }).first(),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Materiál", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Souhrn výroby");
+  await expect(page.getByRole("button", { name: "Tisk přehledu", exact: true })).toBeDisabled();
   summaryFailed = false;
   await page.getByRole("button", { name: "Zkusit znovu", exact: true }).click();
   await expect(page.getByRole("table", { name: "Souhrn výroby", exact: true })).toBeVisible();
-  await expect(page.getByRole("table", { name: "Výrobní podklady", exact: true })).toContainText(
-    "200 × 100 mm",
-  );
-  expect(new Set(calls.map((call) => call.kind))).toEqual(new Set(["summary", "placements"]));
+  await expect(page.getByText("2 ks celkem")).toBeVisible();
+  await page.getByRole("button", { name: "Zobrazit položky" }).click();
+  await expect(
+    page.getByRole("table", { name: "Položky objednávky TRK-2026-0042", exact: true }),
+  ).toContainText("200 × 100 mm");
+  await page.setViewportSize({ width: 1024, height: 900 });
+  const itemRow = page.locator(".production-item-row").first();
+  const quantity = await itemRow.locator('[data-label="Kusů"]').boundingBox();
+  const status = await itemRow.getByRole("combobox").boundingBox();
+  expect(quantity && status && quantity.x + quantity.width <= status.x).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expect(new Set(calls.map((call) => call.kind))).toEqual(new Set(["summary", "orders"]));
   expect(calls.every((call) => call.query.get("status") === "PAID,PROCESSING")).toBe(true);
-  await page.getByLabel("Vytvořeno od", { exact: true }).fill("2026-11-01");
+  await page.getByRole("button", { name: "Filtry", exact: true }).click();
+  await page.getByRole("button", { name: "Vyberte datum", exact: true }).first().click();
+  await page.getByRole("gridcell", { name: "1", exact: true }).click();
   await expect
     .poll(
       () =>
@@ -125,15 +164,26 @@ test("production uses explicit shared filters, links to orders and renders the e
         ).size,
     )
     .toBe(2);
-  await page.getByRole("combobox", { name: "Tisková plocha (jen podklady)" }).click();
-  await page.getByRole("option", { name: "Přední strana", exact: true }).click();
-  await expect
-    .poll(() => calls.at(-1)?.query.get("printArea"))
-    .toBe("80000000-0000-0000-0000-000000000005");
-  const summaries = calls.filter((call) => call.kind === "summary");
-  expect(summaries.every((call) => !call.query.has("printArea"))).toBe(true);
-  await page.getByRole("link", { name: "TRK-2026-0042", exact: true }).click();
-  await page.getByRole("link", { name: "TRK-2026-0042", exact: true }).click();
+  await expect(page.getByText("Týmový potisk")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Otevřít podklad" })).toBeVisible();
+  await page.getByRole("button", { name: "Výchozí filtry" }).click();
+  await expect(page).toHaveURL(/\/admin\/vyroba$/);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(page.getByText("Týmový potisk")).toBeVisible();
+  console.log(await page.evaluate(() => Array.from(document.querySelectorAll('body *')).map(el => [el.className, el.getBoundingClientRect().right, el.getBoundingClientRect().width]).filter(([,r,w]) => Number(r)>376 && Number(w)>0).slice(0,60)));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Skrýt položky" }).click();
+  await page.getByRole("button", { name: "Vyrobeno 0", exact: true }).click();
+  await expect(page.getByText("V tomto stavu výroby nejsou žádné objednávky.")).toBeVisible();
+  await expect(page.getByText("Týmový potisk")).toBeHidden();
+  await expect(page.getByRole("table", { name: "Souhrn výroby", exact: true })).toBeVisible();
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByText("Týmový potisk")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Výrobní přehled" })).toBeVisible();
+  await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "Všechny 1", exact: true }).click();
+  await page.getByRole("button", { name: "Zobrazit položky" }).click();
   await page.getByRole("link", { name: "Výrobní list", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Výrobní list — TRK-2026-0042" })).toBeVisible();
   await expect(page.getByText(/x=0, y=0 mm/)).toBeVisible();
@@ -145,6 +195,86 @@ test("production uses explicit shared filters, links to orders and renders the e
     page.getByRole("button", { name: "Vytisknout výrobní list", exact: true }),
   ).toBeHidden();
   await expect(page.getByRole("heading", { name: "Výrobní list — TRK-2026-0042" })).toBeVisible();
+});
+
+test("tracks internal production across reload, completion and correction", async ({ page }) => {
+  let started = false;
+  let itemStatus = "WAITING";
+  let revision = 0;
+  await page.route(/\/api\/v1\/admin\/production\/summary(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route(/\/api\/v1\/admin\/production\/orders(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: adminOrderId,
+          orderNumber: "TRK-2026-0042",
+          status: "PAID",
+          createdAt: "2026-11-16T12:00:00Z",
+          productionStatus: !started
+            ? "NOT_STARTED"
+            : itemStatus === "DONE"
+              ? "DONE"
+              : "IN_PROGRESS",
+          items: [
+            {
+              id: "item-1",
+              motif: "Bitcoin",
+              isCustom: false,
+              customText: "",
+              productType: "Tričko",
+              cut: "Pánské",
+              color: "Bílá",
+              size: "L",
+              quantity: 2,
+              productionStatus: itemStatus,
+              productionRevision: revision,
+              placements: [],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await page.route(`**/api/v1/admin/production/orders/${adminOrderId}/start`, (route) => {
+    expect(route.request().headers()["x-csrftoken"]).toBe("bootstrap-token");
+    started = true;
+    return route.fulfill({ status: 204 });
+  });
+  await page.route(`**/api/v1/admin/production/orders/${adminOrderId}/items/item-1`, (route) => {
+    const data = route.request().postDataJSON();
+    expect(data.expectedStatus).toBe(itemStatus);
+    expect(data.expectedRevision).toBe(revision);
+    itemStatus = data.status;
+    revision++;
+    return route.fulfill({ status: 204 });
+  });
+  await page.goto("/admin/vyroba");
+  await expect(page.getByText("Výroba: Nezahájeno")).toBeVisible();
+  await page.getByRole("button", { name: "Zobrazit položky" }).click();
+  const itemStatusControl = page.getByRole("combobox", { name: "Stav výroby položky Bitcoin" });
+  await expect(itemStatusControl).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByText("Tiskový podklad ověřte u motivu")).toHaveCount(0);
+  await page.getByRole("button", { name: "Začít pracovat" }).click();
+  await expect(page.getByText("Výroba: Rozpracováno")).toBeVisible();
+  await itemStatusControl.click();
+  await page.getByRole("option", { name: "Vyrábím", exact: true }).click();
+  await expect.poll(() => itemStatus).toBe("IN_PROGRESS");
+  await page.reload();
+  await page.getByRole("button", { name: "Zobrazit položky" }).click();
+  await expect(itemStatusControl).toHaveText("Vyrábím");
+  await itemStatusControl.click();
+  await page.getByRole("option", { name: "Vyrobeno", exact: true }).click();
+  await expect(page.getByText("Výroba: Vyrobeno")).toBeVisible();
+  await expect(page.getByText("2 / 2 ks hotovo")).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: /Postup výroby objednávky/ })).toHaveAttribute(
+    "aria-valuenow",
+    "100",
+  );
+  await itemStatusControl.click();
+  await page.getByRole("option", { name: "Čeká", exact: true }).click();
+  await expect(page.getByText("Výroba: Rozpracováno")).toBeVisible();
 });
 
 test("creates a packet once, downloads a real PDF blob, syncs shipment independently and resends an email explicitly", async ({

@@ -16,10 +16,10 @@ test("filters and paginates server orders, prices a quote, reconfirms changed pr
   await page.getByRole("combobox", { name: "Stav objednávky", exact: true }).click();
   await page.getByRole("option", { name: "Čeká na nacenění", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("status")).toBe("QUOTE_REQUESTED");
-  await page.getByRole("button", { name: "Go to page 2" }).click();
+  await page.getByRole("button", { name: "Přejít na stranu 2" }).click();
   await expect.poll(() => state.lists.at(-1)?.get("page")).toBe("2");
   await page
-    .getByRole("searchbox", { name: "Hledání objednávek", exact: true })
+    .getByRole("searchbox", { name: "Hledat v objednávkách", exact: true })
     .fill("jana@example.cz");
   await expect.poll(() => state.lists.at(-1)?.get("q")).toBe("jana@example.cz");
   await expect.poll(() => state.lists.at(-1)?.get("page")).toBe("1");

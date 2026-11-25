@@ -147,3 +147,39 @@ export const theme = createTheme({
     },
   },
 });
+
+export const adminTheme = createTheme(theme, {
+  components: {
+    MuiOutlinedInput: {
+      styleOverrides: { root: { minHeight: 44, minWidth: 0 } },
+    },
+    MuiFormControl: {
+      styleOverrides: { root: { maxWidth: "100%" } },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: { margin: "clamp(12px, 4vw, 32px)" },
+        paperFullWidth: { width: "calc(100% - 2 * clamp(12px, 4vw, 32px))" },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          paddingInline: "clamp(16px, 4vw, 24px)",
+          ".MuiDialogTitle-root + &": { paddingTop: 12 },
+        },
+      },
+    },
+    MuiDialogActions: {
+      defaultProps: { disableSpacing: true },
+      styleOverrides: {
+        root: { padding: "12px clamp(16px, 4vw, 24px)", flexWrap: "wrap", gap: 8 },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: { paddingInline: "clamp(12px, 1.5vw, 20px)" },
+      },
+    },
+  },
+});

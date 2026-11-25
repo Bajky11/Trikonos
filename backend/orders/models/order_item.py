@@ -7,6 +7,12 @@ from .choices import Size
 from .order import Order
 
 
+class ItemProductionStatus(models.TextChoices):
+    WAITING = 'WAITING', 'Čeká'
+    IN_PROGRESS = 'IN_PROGRESS', 'Vyrábím'
+    DONE = 'DONE', 'Vyrobeno'
+
+
 class OrderItem(UUIDModel):
     """One ordered line (one shirt/hoodie/accessory). Exactly one of two
     paths per item, never mixed:
@@ -28,6 +34,8 @@ class OrderItem(UUIDModel):
     item_label = models.CharField(max_length=255, help_text='Snapshot, e.g. "Bitcoin / Men / Black / M"')
     unit_price = models.PositiveIntegerField(null=True, blank=True, help_text='motif.price (catalog) or NULL until admin prices a custom item')
     quantity = models.PositiveIntegerField(default=1)
+    production_status = models.CharField(max_length=20, choices=ItemProductionStatus.choices, default=ItemProductionStatus.WAITING)
+    production_revision = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = 'order_items'

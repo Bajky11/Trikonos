@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, MenuItem, TextField } from "@mui/material";
+import { Autocomplete, Button, MenuItem, TextField } from "@mui/material";
 import {
   motifsList,
   uploadsDesignsCreate,
@@ -151,24 +151,24 @@ export function ManualItemForm({
           </TextField>
           {!custom ? (
             <>
-              <TextField
-                select
-                label="Motiv položky"
-                value={slug}
-                required
+              <Autocomplete
+                options={motifs.data ?? []}
+                getOptionLabel={(motif) => motif.name}
+                getOptionKey={(motif) => motif.id}
+                value={motifs.data?.find((motif) => motif.slug === slug) ?? null}
                 disabled={busy}
-                onChange={(event) => {
-                  setSlug(event.target.value);
+                loading={motifs.isLoading}
+                loadingText="Načítám motivy…"
+                noOptionsText="Žádný odpovídající motiv"
+                clearText="Vymazat motiv"
+                openText="Zobrazit motivy"
+                closeText="Skrýt motivy"
+                onChange={(_, motif) => {
+                  setSlug(motif?.slug ?? "");
                   setVariant("");
                 }}
-              >
-                <MenuItem value="">Vyberte motiv</MenuItem>
-                {(motifs.data ?? []).map((motif) => (
-                  <MenuItem value={motif.slug} key={motif.id}>
-                    {motif.name}
-                  </MenuItem>
-                ))}
-              </TextField>
+                renderInput={(params) => <TextField {...params} label="Motiv položky" required />}
+              />
               {slug && <CatalogFeedback query={detail} label="Varianty motivu" />}
               <TextField
                 select
@@ -242,33 +242,33 @@ export function ManualItemForm({
                 </TextField>
               ))}
               <TextField name="customText" label="Popis vlastního potisku" />
-              <label>
-                PNG/JPG podklad
-                <input
-                  aria-label="PNG/JPG podklad"
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  disabled={busy}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = "";
-                    if (!file) return;
-                    setUpload(null);
-                    if (
-                      !["image/png", "image/jpeg"].includes(file.type) ||
-                      file.size > 20 * 1024 * 1024
-                    ) {
-                      setError("Použijte PNG/JPG nejvýše 20 MB.");
-                      return;
-                    }
-                    void uploadMutation
-                      .mutateAsync(file)
-                      .then(setUpload)
-                      .catch((error: unknown) => setError(catalogError(error)))
-                      .finally(() => uploadMutation.reset());
-                  }}
-                />
-              </label>
+              <TextField
+                label="PNG/JPG podklad"
+                type="file"
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { accept: "image/png,image/jpeg" },
+                }}
+                disabled={busy}
+                onChange={(event) => {
+                  const file = (event.target as HTMLInputElement).files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setUpload(null);
+                  if (
+                    !["image/png", "image/jpeg"].includes(file.type) ||
+                    file.size > 20 * 1024 * 1024
+                  ) {
+                    setError("Použijte PNG/JPG nejvýše 20 MB.");
+                    return;
+                  }
+                  void uploadMutation
+                    .mutateAsync(file)
+                    .then(setUpload)
+                    .catch((error: unknown) => setError(catalogError(error)))
+                    .finally(() => uploadMutation.reset());
+                }}
+              />
               {upload && (
                 <p role="status">Podklad nahraný: {upload.fileName}. Token platí 7 dní.</p>
               )}

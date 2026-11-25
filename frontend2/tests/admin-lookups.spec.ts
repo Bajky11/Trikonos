@@ -28,7 +28,12 @@ test("paginates and searches real lookup data, handles duplicates and refreshes 
     .getByRole("navigation", { name: "Administrace" })
     .getByRole("link", { name: "Číselníky" })
     .click();
-  await page.getByRole("button", { name: "Go to page 2" }).click();
+  const pagination = page.getByRole("navigation", { name: "Stránkování: Barvy" });
+  await pagination.getByRole("button", { name: "Přejít na stranu 2" }).click();
+  await expect(pagination.getByRole("button", { name: "Strana 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await expect(
     page.getByRole("table", { name: "Barvy", exact: true }).getByRole("row"),
   ).toHaveCount(3);
@@ -86,6 +91,27 @@ test("paginates and searches real lookup data, handles duplicates and refreshes 
   expect(
     await page.evaluate(() => localStorage.getItem("trikonos-react-dictionaries-v1")),
   ).toBeNull();
+});
+
+test("keeps the shared table scrollable by keyboard on mobile and displays an inline empty state", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/admin/ciselniky");
+
+  const viewport = page.getByRole("region", { name: "Zobrazení tabulky: Barvy" });
+  const table = viewport.getByRole("table", { name: "Barvy", exact: true });
+  await expect(table.getByRole("columnheader", { name: "Název" })).toBeVisible();
+  expect(await viewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await viewport.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+
+  await page.getByRole("searchbox", { name: "Hledat v číselníku" }).fill("žádná taková barva");
+  await expect(table.getByRole("status")).toHaveText("Žádné položky neodpovídají výběru.");
+  await expect(page.getByRole("navigation", { name: "Stránkování: Barvy" })).toHaveCount(0);
 });
 
 test("preserves category URLs, explains IN_USE, stores exact type prices and print dimensions, and keeps sizes read-only", async ({

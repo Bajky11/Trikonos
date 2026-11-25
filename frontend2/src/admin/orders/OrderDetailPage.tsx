@@ -120,7 +120,7 @@ function OrderDetail({ orderId }: { orderId: string }) {
         (target) => target !== "PAID" || order.total != null,
       );
   return (
-    <Paper className="admin-panel" variant="outlined">
+    <Paper className="admin-panel admin-panel-body admin-detail" variant="outlined">
       <Button component={Link} to={`/admin/objednavky${location.search}`}>
         Zpět na objednávky
       </Button>

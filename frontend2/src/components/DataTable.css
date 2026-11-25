@@ -1,0 +1,138 @@
+.data-table-root {
+  --table-inset: clamp(12px, 1.5vw, 20px);
+  --table-row-padding: 12px;
+  --table-rule: color-mix(in srgb, var(--fir) 13%, transparent);
+  --table-hover: color-mix(in srgb, var(--fir) 7%, var(--surface));
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  border-block-start: 1px solid var(--border);
+}
+
+.data-table-root[data-density="compact"] {
+  --table-row-padding: 6px;
+}
+
+.data-table-root .data-table-scroll {
+  overflow: auto;
+}
+
+.data-table-scroll:focus-visible {
+  outline: 2px solid var(--fir);
+  outline-offset: -2px;
+}
+
+.data-table-root .data-table {
+  white-space: normal;
+}
+
+.data-table .MuiTableCell-root {
+  padding: var(--table-row-padding) var(--table-inset);
+  border-bottom-color: var(--table-rule);
+  overflow-wrap: break-word;
+}
+
+.data-table .MuiTableCell-head {
+  background: color-mix(in srgb, var(--sage) 72%, var(--surface));
+  border-bottom-color: var(--border);
+  color: var(--fir);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  text-transform: none;
+  padding-block: 11px;
+}
+
+.data-table [scope="row"] {
+  font-weight: 700;
+}
+
+.data-table .MuiTableCell-alignRight {
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table-root .data-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.data-table-root .data-table tbody tr:not(.data-table-empty-row):focus-within {
+  background-color: var(--table-hover);
+}
+
+@media (hover: hover) {
+  .data-table-root .data-table tbody tr:not(.data-table-empty-row):hover {
+    background-color: var(--table-hover);
+  }
+}
+
+.data-table-root .data-table tbody tr.data-table-empty-row {
+  background: transparent;
+}
+
+.data-table-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding-block: 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.data-table-empty-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--table-rule);
+  border-radius: 8px;
+  background: var(--sage);
+  color: var(--fir);
+}
+
+.data-table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 8px var(--table-inset);
+  border-top: 1px solid var(--border);
+}
+
+.data-table-page-status {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table-page-status strong {
+  color: var(--ink);
+}
+
+.data-table-pagination .MuiPaginationItem-root {
+  min-width: 36px;
+  height: 36px;
+  margin: 2px 1px;
+  border-radius: 6px;
+  color: var(--ink);
+}
+
+.data-table-pagination .MuiPaginationItem-root.Mui-selected {
+  background: var(--fir);
+  color: var(--surface);
+}
+
+.data-table-pagination .MuiPaginationItem-root.Mui-selected:hover {
+  background: var(--dark);
+}
+
+.data-table-pagination .MuiPaginationItem-root:focus-visible {
+  outline: 2px solid var(--fir);
+  outline-offset: 1px;
+}
+
+@media (pointer: coarse) {
+  .data-table-pagination .MuiPaginationItem-root:not(.MuiPaginationItem-ellipsis) {
+    min-width: 44px;
+    height: 44px;
+  }
+}

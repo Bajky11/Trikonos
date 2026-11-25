@@ -1,6 +1,8 @@
+import { DataTable } from "../components/DataTable";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, MenuItem, Paper, TableContainer, TextField } from "@mui/material";
+import { Button, MenuItem, Paper, TableCell, TableRow, TextField } from "@mui/material";
+import { AdminDateFilter } from "./AdminDateFilter";
 import {
   useAdminDashboardRetrieve,
   useAdminStatsRevenueList,
@@ -55,61 +57,47 @@ export function Dashboard() {
             ))}
           </section>
           <Paper className="admin-panel admin-section" variant="outlined">
-            <h2>Poslední objednávky</h2>
-            <TableContainer>
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    {["Číslo", "Zákazník", "Datum", "Částka", "Stav"].map((label) => (
-                      <th scope="col" key={label}>
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>
-                        <Link to={`/admin/objednavky/${order.id}`}>{order.orderNumber}</Link>
-                      </td>
-                      <td>{order.customerName || "—"}</td>
-                      <td>{dateTime(order.createdAt)}</td>
-                      <td>{order.total === null ? "K nacenění" : money(order.total / 100)}</td>
-                      <td>{orderStatuses[order.status] ?? order.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableContainer>
-            {!data.recentOrders.length && <p>Zatím žádné objednávky.</p>}
-            <Button component={Link} to="/admin/objednavky">
-              Všechny objednávky
-            </Button>
+            <div className="admin-catalog-toolbar dictionary-toolbar">
+              <h2>Poslední objednávky</h2>
+              <Button variant="outlined" component={Link} to="/admin/objednavky">
+                Všechny objednávky
+              </Button>
+            </div>
+            <DataTable
+              label="Poslední objednávky"
+              columns={[
+                { label: "Číslo" },
+                { label: "Zákazník" },
+                { label: "Datum" },
+                { label: "Částka" },
+                { label: "Stav" },
+              ]}
+            >
+              {data.recentOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell>
+                    <Link to={`/admin/objednavky/${order.id}`}>{order.orderNumber}</Link>
+                  </TableCell>
+                  <TableCell>{order.customerName || "—"}</TableCell>
+                  <TableCell>{dateTime(order.createdAt)}</TableCell>
+                  <TableCell>
+                    {order.total === null ? "K nacenění" : money(order.total / 100)}
+                  </TableCell>
+                  <TableCell>{orderStatuses[order.status] ?? order.status}</TableCell>
+                </TableRow>
+              ))}
+            </DataTable>
+            <div className="admin-panel-body">
+              {!data.recentOrders.length && <p>Zatím žádné objednávky.</p>}
+            </div>
           </Paper>
         </>
       )}
       <Paper className="admin-panel admin-section" variant="outlined">
-        <h2>Statistiky objednávek</h2>
-        <p>
-          Výchozí období: posledních 30 dní. Dny se počítají podle českého času. Částky nezahrnují
-          storna a refundace a nepředstavují přijaté platby.
-        </p>
-        <div className="admin-catalog-toolbar">
-          <TextField
-            type="date"
-            label="Statistiky od"
-            slotProps={{ inputLabel: { shrink: true } }}
-            value={createdFrom}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <TextField
-            type="date"
-            label="Statistiky do"
-            slotProps={{ inputLabel: { shrink: true } }}
-            value={createdTo}
-            onChange={(e) => setTo(e.target.value)}
-          />
+        <div className="admin-catalog-toolbar dictionary-toolbar">
+          <h2>Statistiky objednávek</h2>{" "}
+          <AdminDateFilter label="Statistiky od" value={createdFrom} onChange={setFrom} />
+          <AdminDateFilter label="Statistiky do" value={createdTo} onChange={setTo} />
           <TextField
             select
             label="Seskupit podle"
@@ -130,62 +118,56 @@ export function Dashboard() {
             <MenuItem value="REVENUE">Hodnota položek</MenuItem>
           </TextField>
         </div>
-        {!valid ? (
-          <p role="alert">Počáteční datum musí být nejpozději v koncový den.</p>
-        ) : (
-          <>
-            <h3>Hodnota objednávek v čase</h3>
-            <CatalogFeedback query={revenue} label="Hodnota objednávek" />
-            {revenue.data?.length === 0 && <p>Ve zvoleném období nejsou žádné výsledky.</p>}
-            {revenue.data?.length ? (
-              <TableContainer>
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Začátek období</th>
-                      <th scope="col">Hodnota</th>
-                      <th scope="col">Objednávky</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {revenue.data.map((row) => (
-                      <tr key={row.period}>
-                        <td>{row.period}</td>
-                        <td>{money(row.revenue / 100)}</td>
-                        <td>{row.ordersCount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableContainer>
-            ) : null}
-            <h3>Nejprodávanější katalogové motivy</h3>
-            <CatalogFeedback query={motifs} label="Motivy" />
-            {motifs.data?.length === 0 && <p>Ve zvoleném období nejsou žádné výsledky.</p>}
-            {motifs.data?.length ? (
-              <TableContainer>
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Motiv</th>
-                      <th scope="col">Kusy</th>
-                      <th scope="col">Hodnota položek</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {motifs.data.map((row) => (
-                      <tr key={row.motifId}>
-                        <td>{row.motifName}</td>
-                        <td>{row.quantity}</td>
-                        <td>{money(row.revenue / 100)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableContainer>
-            ) : null}
-          </>
-        )}
+        <div className="admin-panel-body">
+          <p>
+            Výchozí období: posledních 30 dní. Dny se počítají podle českého času. Částky nezahrnují
+            storna a refundace a nepředstavují přijaté platby.
+          </p>
+          {!valid ? (
+            <p role="alert">Počáteční datum musí být nejpozději v koncový den.</p>
+          ) : (
+            <>
+              <h3>Hodnota objednávek v čase</h3>
+              <CatalogFeedback query={revenue} label="Hodnota objednávek" />
+              {revenue.data?.length === 0 && <p>Ve zvoleném období nejsou žádné výsledky.</p>}
+              {revenue.data?.length ? (
+                <DataTable
+                  label="Hodnota objednávek v čase"
+                  columns={[
+                    { label: "Začátek období" },
+                    { label: "Hodnota" },
+                    { label: "Objednávky" },
+                  ]}
+                >
+                  {revenue.data.map((row) => (
+                    <TableRow key={row.period}>
+                      <TableCell>{row.period}</TableCell>
+                      <TableCell>{money(row.revenue / 100)}</TableCell>
+                      <TableCell>{row.ordersCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </DataTable>
+              ) : null}
+              <h3>Nejprodávanější katalogové motivy</h3>
+              <CatalogFeedback query={motifs} label="Motivy" />
+              {motifs.data?.length === 0 && <p>Ve zvoleném období nejsou žádné výsledky.</p>}
+              {motifs.data?.length ? (
+                <DataTable
+                  label="Nejprodávanější katalogové motivy"
+                  columns={[{ label: "Motiv" }, { label: "Kusy" }, { label: "Hodnota položek" }]}
+                >
+                  {motifs.data.map((row) => (
+                    <TableRow key={row.motifId}>
+                      <TableCell>{row.motifName}</TableCell>
+                      <TableCell>{row.quantity}</TableCell>
+                      <TableCell>{money(row.revenue / 100)}</TableCell>
+                    </TableRow>
+                  ))}
+                </DataTable>
+              ) : null}
+            </>
+          )}
+        </div>
       </Paper>
     </>
   );

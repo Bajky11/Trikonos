@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mockAuthApi, mockStoreApi } from "./api-fixtures";
 import { adminOrderId } from "./admin-orders-fixtures";
+import { fillAdminDate } from "./admin-date-fields";
 
 test("uses real dashboard data and downloads Excel with the current filters", async ({ page }) => {
   await mockStoreApi(page);
@@ -99,10 +100,42 @@ test("submits a courier batch once and surfaces an uncertain result", async ({ p
   page.once("dialog", (dialog) => void dialog.accept());
   await page.goto("/admin/svoz");
   await page.getByRole("checkbox", { name: /TRK-TEST-1/ }).check();
-  await page.getByLabel("Svoz od").fill("2099-01-01T10:00");
-  await page.getByLabel("Svoz do").fill("2099-01-01T11:00");
+  const date = { Den: "01", Měsíc: "01", Rok: "2099" };
+  await fillAdminDate(page, "Svoz od", { ...date, Hodiny: "10", Minuty: "00" });
+  await fillAdminDate(page, "Svoz do", { ...date, Hodiny: "11", Minuty: "00" });
   await page.getByRole("button", { name: "Objednat svoz", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("svoz neopakujte");
   await expect(page.getByRole("button", { name: "Objednat svoz", exact: true })).toBeDisabled();
   expect(posts).toBe(1);
+});
+
+test("admin filters keep a usable width and tables scroll inside the page on mobile", async ({
+  page,
+}) => {
+  await mockAuthApi(page, true);
+  await page.goto("/admin/objednavky");
+  for (const width of [1440, 768, 375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const status = page.getByRole("combobox", { name: "Stav objednávky", exact: true });
+    await expect(status).toBeVisible();
+    expect((await status.boundingBox())?.width).toBeGreaterThanOrEqual(190);
+    expect(await page.locator("body").evaluate((body) => body.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+  const table = page.getByRole("table", { name: "Objednávky", exact: true });
+  await expect(table).toBeVisible();
+  expect(
+    await table.evaluate((node) => {
+      const container = node.parentElement!;
+      return (
+        container.scrollWidth > container.clientWidth &&
+        getComputedStyle(container).overflowX === "auto"
+      );
+    }),
+  ).toBe(true);
+  await page.getByRole("combobox", { name: "Stav objednávky", exact: true }).click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.getByRole("option", { name: "Nová", exact: true }).click();
+  await expect(page).toHaveURL(/status=NEW/);
 });

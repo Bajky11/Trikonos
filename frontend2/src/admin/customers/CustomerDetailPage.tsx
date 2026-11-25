@@ -1,16 +1,8 @@
+import { DataTable } from "../../components/DataTable";
 import { useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-} from "@mui/material";
+import { Button, Paper, TableCell, TableRow } from "@mui/material";
 import {
   adminCustomersPartialUpdate,
   getAdminAuthMeRetrieveQueryKey,
@@ -105,7 +97,7 @@ function CustomerDetail({ id }: { id: string }) {
     );
   const customer = detail.data;
   return (
-    <Paper className="admin-panel" variant="outlined">
+    <Paper className="admin-panel admin-panel-body admin-detail" variant="outlined">
       {back}
       <h2>Zákazník {customer.email}</h2>
       <p>
@@ -152,35 +144,27 @@ function CustomerDetail({ id }: { id: string }) {
         <Button component={Link} to={`/admin/objednavky?customer=${encodeURIComponent(id)}`}>
           Všechny objednávky zákazníka
         </Button>
-        <TableContainer>
-          <Table aria-label="Historie objednávek zákazníka">
-            <TableHead>
-              <TableRow>
-                {["Číslo", "Datum", "Stav", "Částka"].map((label) => (
-                  <TableCell key={label}>{label}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {customer.orders.slice(0, 10).map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>
-                    <Link to={`/admin/objednavky/${order.id}?customer=${encodeURIComponent(id)}`}>
-                      {order.orderNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{dateTime(order.createdAt)}</TableCell>
-                  <TableCell>{orderStatuses[order.status] ?? order.status}</TableCell>
-                  <TableCell>
-                    {order.total == null
-                      ? "K nacenění"
-                      : `${(order.total / 100).toLocaleString("cs-CZ")} ${order.currency}`}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <DataTable
+          label="Historie objednávek zákazníka"
+          columns={[{ label: "Číslo" }, { label: "Datum" }, { label: "Stav" }, { label: "Částka" }]}
+        >
+          {customer.orders.slice(0, 10).map((order) => (
+            <TableRow key={order.id}>
+              <TableCell>
+                <Link to={`/admin/objednavky/${order.id}?customer=${encodeURIComponent(id)}`}>
+                  {order.orderNumber}
+                </Link>
+              </TableCell>
+              <TableCell>{dateTime(order.createdAt)}</TableCell>
+              <TableCell>{orderStatuses[order.status] ?? order.status}</TableCell>
+              <TableCell>
+                {order.total == null
+                  ? "K nacenění"
+                  : `${(order.total / 100).toLocaleString("cs-CZ")} ${order.currency}`}
+              </TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
         {!customer.orders.length && <p role="status">Zákazník zatím nemá žádnou objednávku.</p>}
       </section>
     </Paper>

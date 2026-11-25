@@ -63,7 +63,7 @@ test("creates a separate mixed manual order and recovers the same id/body after 
   );
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto("/admin/objednavky/nova");
-  await page.getByRole("combobox", { name: "Motiv položky", exact: true }).click();
+  await page.getByRole("combobox", { name: "Motiv položky", exact: true }).fill(motifs[0]!.name);
   await page.getByRole("option", { name: motifs[0]!.name, exact: true }).click();
   await page.getByRole("combobox", { name: "Varianta položky", exact: true }).click();
   await page.getByRole("option", { name: /Tričko.*Pánské.*Bílá.*L/ }).click();

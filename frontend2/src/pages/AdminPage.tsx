@@ -1,6 +1,19 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from "react-router-dom";
-import { Avatar, Button, Paper, TextField } from "@mui/material";
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Outlet,
+  useLocation,
+  useOutletContext,
+  useParams,
+} from "react-router-dom";
+import { Alert, Avatar, Button, Paper, TextField, ThemeProvider } from "@mui/material";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { csCZ } from "@mui/x-date-pickers/locales";
+import "dayjs/locale/cs";
+import { adminTheme } from "../theme";
 import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
 import type { Me } from "../api/generated/models";
@@ -10,7 +23,6 @@ import { OrdersPanel } from "../admin/orders/OrdersPanel";
 import { ProductionPanel } from "../admin/production/ProductionPanel";
 import { CustomersPanel } from "../admin/customers/CustomersPanel";
 import { UsersPanel } from "../admin/accounts/UsersPanel";
-import { PasswordPage } from "../auth/PasswordPage";
 import { GlobalSearch } from "../admin/GlobalSearch";
 import { Dashboard } from "../admin/Dashboard";
 import { PacketaPage } from "../admin/shipping/PacketaPage";
@@ -24,7 +36,6 @@ const sections = [
   ["sezony", "Sezóny"],
   ["klienti", "Klienti"],
   ["uzivatele", "Účty"],
-  ["heslo", "Heslo"],
   ["ciselniky", "Číselníky"],
 ];
 export function AdminLayout() {
@@ -35,75 +46,87 @@ export function AdminLayout() {
   const manual = location.pathname === "/admin/objednavky/nova";
   const section =
     routeSection ?? (orderId || manual ? "objednavky" : customerId ? "klienti" : "prehled");
-  const [search, setSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState({ path: location.pathname, value: "" });
+  if (localSearch.path !== location.pathname) {
+    setLocalSearch({ path: location.pathname, value: "" });
+  }
+  const search = localSearch.path === location.pathname ? localSearch.value : "";
+  const searchLabel = {
+    produkty: "Hledat v motivech",
+    ciselniky: "Hledat v číselníku",
+    klienti: "Hledat v zákaznících",
+  }[section];
   const title = sections.find(([id]) => id === section)?.[1] || "Stránka nenalezena";
   useTitle(`${title} — admin`);
   return (
-    <div className="admin-app">
-      <aside className="admin-sidebar">
-        <Link className="admin-brand" to="/admin">
-          Trikonoš <span>admin</span>
-        </Link>
-        <nav aria-label="Administrace">
-          {sections.map(([id, label]) => (
-            <NavLink
-              key={id}
-              to={id === "prehled" ? "/admin" : `/admin/${id}`}
-              end={id === "prehled"}
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <Link className="admin-back" to="/">
-          ← Zpět na web
-        </Link>
-      </aside>
-      <div className="admin-workspace">
-        <header className="admin-header">
-          <h1>{title}</h1>
-          <div className="admin-tools">
-            <TextField
-              className="admin-search"
-              placeholder={section === "vyroba" ? "Použijte filtry výroby" : "Hledat…"}
-              disabled={
-                ["prehled", "vyroba", "svoz", "uzivatele", "heslo"].includes(section) ||
-                !!orderId ||
-                !!customerId ||
-                manual
-              }
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              slotProps={{
-                htmlInput: {
-                  "aria-label":
-                    section === "produkty"
-                      ? "Hledat v motivech"
-                      : section === "ciselniky"
-                        ? "Hledat v číselníku"
-                        : section === "klienti"
-                          ? "Hledat v zákaznících"
-                          : "Hledat v objednávkách",
-                },
-              }}
-            />
-            <GlobalSearch />
-            <Avatar className="admin-avatar" variant="square">
-              {(user.name || user.email).slice(0, 2).toLocaleUpperCase("cs")}
-            </Avatar>
-            <span>{user.name || user.email}</span>
-            <Button disabled={logout.isPending} onClick={() => logout.mutate()}>
-              Odhlásit se
-            </Button>
+    <ThemeProvider theme={adminTheme}>
+      <LocalizationProvider
+        dateAdapter={AdapterDayjs}
+        adapterLocale="cs"
+        localeText={csCZ.components.MuiLocalizationProvider.defaultProps.localeText}
+      >
+        <div className="admin-app">
+          <aside className="admin-sidebar">
+            <Link className="admin-brand" to="/admin">
+              Trikonoš <span>admin</span>
+            </Link>
+            <nav aria-label="Administrace">
+              {sections.map(([id, label]) => (
+                <NavLink
+                  key={id}
+                  to={id === "prehled" ? "/admin" : `/admin/${id}`}
+                  end={id === "prehled"}
+                >
+                  {label}
+                </NavLink>
+              ))}
+            </nav>
+            <Link className="admin-back" to="/">
+              ← Zpět na web
+            </Link>
+          </aside>
+          <div className="admin-workspace">
+            <header className="admin-header">
+              <h1>{title}</h1>
+              <div className="admin-tools">
+                {searchLabel && !customerId && (
+                  <TextField
+                    className="admin-search"
+                    placeholder={searchLabel}
+                    type="search"
+                    value={search}
+                    onChange={(event) =>
+                      setLocalSearch({ path: location.pathname, value: event.target.value })
+                    }
+                    slotProps={{ htmlInput: { "aria-label": searchLabel } }}
+                  />
+                )}
+                <GlobalSearch />
+                <div className="admin-account">
+                  <Avatar className="admin-avatar" variant="square" aria-hidden="true">
+                    {(user.name || user.email).slice(0, 2).toLocaleUpperCase("cs")}
+                  </Avatar>
+                  <span>{user.name || user.email}</span>
+                </div>
+                <Button
+                  variant="outlined"
+                  disabled={logout.isPending}
+                  onClick={() => logout.mutate()}
+                >
+                  Odhlásit se
+                </Button>
+              </div>
+            </header>
+            <main className="admin-content">
+              {logout.isError && (
+                <Alert severity="error">Odhlášení se nezdařilo. Zkuste to znovu.</Alert>
+              )}
+              <Outlet context={{ search }} />
+            </main>
           </div>
-        </header>
-        <main className="admin-content">
-          {logout.isError && <p role="alert">Odhlášení se nezdařilo. Zkuste to znovu.</p>}
-          <Outlet context={{ search }} />
-        </main>
-      </div>
-    </div>
+        </div>
+      </LocalizationProvider>
+    </ThemeProvider>
   );
 }
 export function AdminPage({ section: explicitSection }: { section?: string }) {
@@ -113,7 +136,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
   return (
     <>
       {section === "prehled" && <Dashboard />}
-      {section === "objednavky" && <OrdersPanel search={search} />}
+      {section === "objednavky" && <OrdersPanel />}
       {section === "svoz" && <PacketaPage />}
       {section === "ciselniky" && <DictionariesPanel search={search} />}
       {section === "vyroba" && <ProductionPanel />}
@@ -129,8 +152,8 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
       {section === "produkty" && <ProductsPanel search={search} />}
       {section === "klienti" && <CustomersPanel search={search} />}
       {section === "uzivatele" && <UsersPanel />}
-      {section === "heslo" && <PasswordPage key="change" mode="change" />}
-      {!sections.some(([id]) => id === section) && (
+      {section === "heslo" && <Navigate to="/admin/uzivatele#heslo" replace />}
+      {section !== "heslo" && !sections.some(([id]) => id === section) && (
         <Paper className="admin-panel" variant="outlined">
           <h2>Stránka nenalezena</h2>
           <p className="admin-empty">
@@ -138,10 +161,6 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
           </p>
         </Paper>
       )}
-      <p className="admin-prototype">
-        Katalog, číselníky, objednávky a zákazníci používají backend. Statistiky přehledu a ostatní
-        nepřipojené sekce jsou zatím ukázkové.
-      </p>
     </>
   );
 }

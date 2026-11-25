@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -9,12 +9,8 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
-  Pagination,
   Paper,
-  Table,
-  TableBody,
   TableCell,
-  TableHead,
   TableRow,
   TextField,
 } from "@mui/material";
@@ -30,6 +26,8 @@ import { ApiError } from "../../api/http";
 import { withCsrf } from "../../auth/csrf";
 import { replaceSession, useSession } from "../../auth/session";
 import { CatalogFeedback } from "../../components/Products";
+import { DataTable } from "../../components/DataTable";
+import { PasswordPage } from "../../auth/PasswordPage";
 import { catalogError, formText } from "../catalog/forms";
 import { dateTime } from "../orders/labels";
 
@@ -41,6 +39,7 @@ export function UsersPanel() {
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [uncertain, setUncertain] = useState(false);
+  const [showPassword, setShowPassword] = useState(useLocation().hash === "#heslo");
   const active = useRef(false);
   const list = useAdminUsersList(
     { page, pageSize: 20 },
@@ -92,183 +91,245 @@ export function UsersPanel() {
   };
   const busy = write.isPending || uncertain;
   return (
-    <Paper className="admin-panel" variant="outlined">
-      <h2>Administrátorské účty</h2>
-      <p>
-        Všechny účty mají stejná administrátorská oprávnění. Nejde o zákaznické záznamy. Seznam je
-        stránkovaný, API nemá filtr hledání.
-      </p>
-      <Button
-        disabled={busy}
-        onClick={() => {
-          setError("");
-          setEditing({});
-        }}
+    <>
+      <Paper
+        className="admin-panel"
+        variant="outlined"
+        component="section"
+        aria-labelledby="current-account-heading"
       >
-        Vytvořit účet
-      </Button>
-      <Button
-        disabled={write.isPending}
-        onClick={() => {
-          void list.refetch().then((result) => {
-            if (result.isSuccess) {
-              setUncertain(false);
-              setError("");
-            }
-          });
-        }}
-      >
-        Obnovit účty
-      </Button>
-      <Button component={Link} to="/zapomenute-heslo">
-        Vyžádat odkaz pro nastavení hesla
-      </Button>
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
-      <CatalogFeedback query={list} label="Administrátorské účty" />
-      {list.isSuccess && (
-        <>
-          <Table aria-label="Administrátorské účty">
-            <TableHead>
-              <TableRow>
-                {["E-mail", "Jméno", "Stav", "Akce"].map((label) => (
-                  <TableCell key={label}>{label}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {list.data.results.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    {user.email}
-                    {user.id === session.data?.id && " (váš účet)"}
-                  </TableCell>
-                  <TableCell>
-                    {user.name}
-                    <br />
-                    {dateTime(user.createdAt)}
-                  </TableCell>
-                  <TableCell>{user.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
-                  <TableCell>
-                    <Button
-                      disabled={busy}
-                      onClick={() => {
-                        setError("");
-                        setEditing({ user });
-                      }}
-                    >
-                      Upravit účet
-                    </Button>
-                    <Button
-                      color="error"
-                      disabled={busy || user.id === session.data?.id}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Nenávratně smazat účet ${user.email}? Bezpečnější možnost je deaktivace.`,
-                          )
-                        )
-                          run(() => adminUsersDestroy(user.id), "Účet byl smazaný.");
-                      }}
-                    >
-                      Smazat účet
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Pagination
-            page={page}
-            count={Math.max(1, Math.ceil(list.data.count / 20))}
-            onChange={(_, value) => setPage(value)}
-          />
-        </>
-      )}
-      <Dialog
-        open={editing !== null}
-        onClose={write.isPending ? undefined : () => setEditing(null)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>{editing?.user ? "Upravit účet" : "Vytvořit účet"}</DialogTitle>
-        <DialogContent>
-          {editing && (
-            <form
-              key={editing.user?.id || "new"}
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (busy) return;
-                const data = new FormData(event.currentTarget),
-                  name = formText(data, "name").trim();
-                if (editing.user) {
-                  const isActive = data.get("isActive") === "on",
-                    own = editing.user.id === session.data?.id;
-                  if (
-                    !isActive &&
-                    !window.confirm(
-                      `Deaktivovat ${editing.user.email}${own ? " a ukončit svůj přístup" : ""}?`,
-                    )
-                  )
-                    return;
-                  run(
-                    () => adminUsersPartialUpdate(editing.user!.id, { name, isActive }),
-                    "Účet byl uložený.",
-                    own && !isActive,
-                  );
-                } else {
-                  const email = formText(data, "email").trim();
-                  run(
-                    () => adminUsersCreate({ email, name }),
-                    "Účet byl vytvořený a bylo vyvoláno odeslání odkazu pro nastavení hesla.",
-                  );
-                }
+        <div className="admin-catalog-toolbar dictionary-toolbar">
+          <h2 id="current-account-heading">Váš účet</h2>
+          {session.data && (
+            <div className="account-actions">
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => {
+                  setError("");
+                  setEditing({ user: { ...session.data!, isActive: true, createdAt: "" } });
+                }}
+              >
+                Upravit účet
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => setShowPassword((shown) => !shown)}
+                aria-expanded={showPassword}
+              >
+                Změnit heslo
+              </Button>
+            </div>
+          )}
+        </div>
+        <div className="admin-panel-body">
+          {session.data && (
+            <p>
+              <strong>{session.data.name}</strong>
+              <br />
+              {session.data.email}
+            </p>
+          )}
+          {showPassword && <PasswordPage mode="change" />}
+        </div>
+      </Paper>
+      <Paper className="admin-panel dictionary-panel" variant="outlined">
+        <div className="admin-catalog-toolbar dictionary-toolbar">
+          <div className="account-heading">
+            <h2>Ostatní účty</h2>
+            <p>
+              Všechny účty mají stejná administrátorská oprávnění. Nejde o zákaznické záznamy.
+              Seznam je stránkovaný, API nemá filtr hledání.
+            </p>
+          </div>
+          <div className="account-actions">
+            <Button
+              variant="outlined"
+              disabled={write.isPending}
+              onClick={() => {
+                void list.refetch().then((result) => {
+                  if (result.isSuccess) {
+                    setUncertain(false);
+                    setError("");
+                  }
+                });
               }}
             >
-              <fieldset className="checkout-fields" disabled={busy}>
-                {editing.user ? (
-                  <p>{editing.user.email}</p>
-                ) : (
+              Obnovit účty
+            </Button>
+            <Button variant="outlined" component={Link} to="/zapomenute-heslo">
+              Vyžádat odkaz pro nastavení hesla
+            </Button>
+            <Button
+              variant="contained"
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setEditing({});
+              }}
+            >
+              Vytvořit účet
+            </Button>
+          </div>
+        </div>
+        <div className="admin-panel-body">
+          {error && <p role="alert">{error}</p>}
+          {message && <p role="status">{message}</p>}
+          <CatalogFeedback query={list} label="Administrátorské účty" />
+        </div>
+        {list.isSuccess && (
+          <>
+            <DataTable
+              label="Administrátorské účty"
+              columns={[
+                { label: "E-mail" },
+                { label: "Jméno", compact: true },
+                { label: "Stav", compact: true },
+                { label: "Akce", align: "center", compact: true },
+              ]}
+              page={page}
+              pageCount={Math.ceil(list.data.count / 20)}
+              onPageChange={setPage}
+              empty={
+                list.data.results.filter((user) => user.id !== session.data?.id).length === 0
+                  ? "Na této stránce nejsou žádné další účty."
+                  : undefined
+              }
+            >
+              {list.data.results
+                .filter((user) => user.id !== session.data?.id)
+                .map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      {user.email}
+                      {user.id === session.data?.id && " (váš účet)"}
+                    </TableCell>
+                    <TableCell>
+                      {user.name}
+                      <br />
+                      {dateTime(user.createdAt)}
+                    </TableCell>
+                    <TableCell>{user.isActive ? "Aktivní" : "Neaktivní"}</TableCell>
+                    <TableCell align="right">
+                      <div className="account-actions">
+                        <Button
+                          variant="outlined"
+                          disabled={busy}
+                          onClick={() => {
+                            setError("");
+                            setEditing({ user });
+                          }}
+                        >
+                          Upravit účet
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          disabled={busy || user.id === session.data?.id}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Nenávratně smazat účet ${user.email}? Bezpečnější možnost je deaktivace.`,
+                              )
+                            )
+                              run(() => adminUsersDestroy(user.id), "Účet byl smazaný.");
+                          }}
+                        >
+                          Smazat účet
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </DataTable>
+          </>
+        )}
+        <Dialog
+          open={editing !== null}
+          onClose={write.isPending ? undefined : () => setEditing(null)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>{editing?.user ? "Upravit účet" : "Vytvořit účet"}</DialogTitle>
+          <DialogContent>
+            {editing && (
+              <form
+                key={editing.user?.id || "new"}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (busy) return;
+                  const data = new FormData(event.currentTarget),
+                    name = formText(data, "name").trim();
+                  if (editing.user) {
+                    const isActive = data.get("isActive") === "on",
+                      own = editing.user.id === session.data?.id;
+                    if (
+                      !isActive &&
+                      !window.confirm(
+                        `Deaktivovat ${editing.user.email}${own ? " a ukončit svůj přístup" : ""}?`,
+                      )
+                    )
+                      return;
+                    run(
+                      () => adminUsersPartialUpdate(editing.user!.id, { name, isActive }),
+                      "Účet byl uložený.",
+                      own && !isActive,
+                    );
+                  } else {
+                    const email = formText(data, "email").trim();
+                    run(
+                      () => adminUsersCreate({ email, name }),
+                      "Účet byl vytvořený a bylo vyvoláno odeslání odkazu pro nastavení hesla.",
+                    );
+                  }
+                }}
+              >
+                <fieldset className="checkout-fields" disabled={busy}>
+                  {editing.user ? (
+                    <p>{editing.user.email}</p>
+                  ) : (
+                    <TextField
+                      name="email"
+                      label="E-mail nového účtu"
+                      type="email"
+                      required
+                      slotProps={{ htmlInput: { maxLength: 254 } }}
+                    />
+                  )}
                   <TextField
-                    name="email"
-                    label="E-mail nového účtu"
-                    type="email"
+                    name="name"
+                    label="Jméno administrátora"
                     required
-                    slotProps={{ htmlInput: { maxLength: 254 } }}
+                    defaultValue={editing.user?.name || ""}
+                    slotProps={{ htmlInput: { maxLength: 255 } }}
                   />
-                )}
-                <TextField
-                  name="name"
-                  label="Jméno administrátora"
-                  required
-                  defaultValue={editing.user?.name || ""}
-                  slotProps={{ htmlInput: { maxLength: 255 } }}
-                />
-                {editing.user ? (
-                  <FormControlLabel
-                    label="Aktivní účet"
-                    control={<Checkbox name="isActive" defaultChecked={editing.user.isActive} />}
-                  />
-                ) : (
-                  <p>
-                    Heslo se zde nezadává. Novému účtu backend odešle odkaz na jeho nastavení; musí
-                    být funkční SMTP. Případné opětovné vyžádání odkazu je na stránce obnovy hesla.
-                  </p>
-                )}
-                {error && <p role="alert">{error}</p>}
-                <Button type="submit" variant="contained">
-                  Uložit účet
-                </Button>
-              </fieldset>
-            </form>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={write.isPending} onClick={() => setEditing(null)}>
-            Zavřít
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Paper>
+                  {editing.user ? (
+                    <FormControlLabel
+                      label="Aktivní účet"
+                      control={<Checkbox name="isActive" defaultChecked={editing.user.isActive} />}
+                    />
+                  ) : (
+                    <p>
+                      Heslo se zde nezadává. Novému účtu backend odešle odkaz na jeho nastavení;
+                      musí být funkční SMTP. Případné opětovné vyžádání odkazu je na stránce obnovy
+                      hesla.
+                    </p>
+                  )}
+                  {error && <p role="alert">{error}</p>}
+                  <Button type="submit" variant="contained">
+                    Uložit účet
+                  </Button>
+                </fieldset>
+              </form>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button disabled={write.isPending} onClick={() => setEditing(null)}>
+              Zavřít
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Paper>
+    </>
   );
 }

@@ -20,6 +20,7 @@ class Order(UUIDModel):
     order_number = models.CharField(max_length=50, unique=True, help_text='Generated from order_number_seq')
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='orders')
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.NEW, db_index=True)
+    production_started = models.BooleanField(default=False, help_text='Interní evidence zahájení výroby.')
 
     # Pricing - nullable until set (custom print waits on admin pricing)
     subtotal = models.PositiveIntegerField(null=True, blank=True, help_text='In haléře')

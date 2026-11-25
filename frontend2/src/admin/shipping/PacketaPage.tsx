@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Checkbox, FormControlLabel, Pagination, Paper, TextField } from "@mui/material";
+import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import type { Dayjs } from "dayjs";
 import {
   adminCourierPickupsCreate,
   adminPacketaConfigUpdate,
@@ -85,7 +87,7 @@ function PacketaSettings({ config, refresh }: { config: AdminPacketaConfig; refr
           />
         ))}
       </div>
-      <Button type="submit" disabled={saving}>
+      <Button type="submit" variant="contained" disabled={saving}>
         Uložit nastavení Packety
       </Button>
       {saved && <p role="status">Nastavení je uložené.</p>}
@@ -103,6 +105,8 @@ export function PacketaPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [sending, setSending] = useState(false);
+  const [from, setFrom] = useState<Dayjs | null>(null);
+  const [to, setTo] = useState<Dayjs | null>(null);
   const active = useRef(false);
   const orders = useAdminOrdersList(
     { q: q.trim() || undefined, page, pageSize: 20, pickupEligible: "true" },
@@ -112,187 +116,193 @@ export function PacketaPage() {
   return (
     <>
       <Paper className="admin-panel admin-section" variant="outlined">
-        <h2>Objednat svoz Packety</h2>
-        <p>
-          Vyberte už založené zásilky. Výběr se zachová při změně stránky a hledání. Termín
-          zadávejte v místním čase tohoto zařízení.
-        </p>
-        <TextField
-          label="Vyhledat zásilky"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setPage(1);
-          }}
-        />
-        <CatalogFeedback query={orders} label="Zásilky ke svozu" />
-        {orders.data?.count === 0 && <p>Žádné dostupné zásilky.</p>}
-        <ul className="pickup-list">
-          {orders.data?.results.map((order) => (
-            <li key={order.id}>
-              <FormControlLabel
-                label={`${order.orderNumber} — ${order.customerName}`}
-                control={
-                  <Checkbox
-                    checked={Object.hasOwn(selected, order.id)}
-                    disabled={sending || (count >= 100 && !Object.hasOwn(selected, order.id))}
-                    onChange={(_, checked) =>
-                      setSelected((previous) => {
-                        const next = { ...previous };
-                        if (checked) next[order.id] = order.orderNumber;
-                        else delete next[order.id];
-                        return next;
-                      })
-                    }
-                  />
-                }
-              />
-              <Link to={`/admin/objednavky/${order.id}`}>Detail</Link>
-            </li>
-          ))}
-        </ul>
-        {(orders.data?.count ?? 0) > 20 && (
-          <Pagination
-            aria-label="Stránky zásilek"
-            page={page}
-            count={Math.ceil((orders.data?.count ?? 0) / 20)}
-            onChange={(_, value) => setPage(value)}
+        <div className="admin-catalog-toolbar dictionary-toolbar">
+          <h2>Objednat svoz Packety</h2>{" "}
+          <TextField
+            label="Vyhledat zásilky"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
           />
-        )}
-        <p>
-          Vybráno: {count}{" "}
-          {count > 0 && (
-            <Button disabled={sending} onClick={() => setSelected({})}>
-              Zrušit výběr
-            </Button>
+        </div>
+        <div className="admin-panel-body">
+          <p>
+            Vyberte už založené zásilky. Výběr se zachová při změně stránky a hledání. Termín
+            zadávejte v místním čase tohoto zařízení.
+          </p>
+          <CatalogFeedback query={orders} label="Zásilky ke svozu" />
+          {orders.data?.count === 0 && <p>Žádné dostupné zásilky.</p>}
+          <ul className="pickup-list">
+            {orders.data?.results.map((order) => (
+              <li key={order.id}>
+                <FormControlLabel
+                  label={`${order.orderNumber} — ${order.customerName}`}
+                  control={
+                    <Checkbox
+                      checked={Object.hasOwn(selected, order.id)}
+                      disabled={sending || (count >= 100 && !Object.hasOwn(selected, order.id))}
+                      onChange={(_, checked) =>
+                        setSelected((previous) => {
+                          const next = { ...previous };
+                          if (checked) next[order.id] = order.orderNumber;
+                          else delete next[order.id];
+                          return next;
+                        })
+                      }
+                    />
+                  }
+                />
+                <Link to={`/admin/objednavky/${order.id}`}>Detail</Link>
+              </li>
+            ))}
+          </ul>
+          {(orders.data?.count ?? 0) > 20 && (
+            <div className="data-table-footer">
+              <Pagination
+                size="small"
+                aria-label="Stránky zásilek"
+                page={page}
+                count={Math.ceil((orders.data?.count ?? 0) / 20)}
+                onChange={(_, value) => setPage(value)}
+              />
+            </div>
           )}
-        </p>
-        {count > 0 && <p className="pickup-selection">{Object.values(selected).join(", ")}</p>}
-        <form
-          className="dialog-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (
-              active.current ||
-              !count ||
-              !config.data?.apiPasswordSet ||
-              !config.data.pickupAddressId
-            )
-              return;
-            const form = new FormData(event.currentTarget);
-            const from = new Date(formText(form, "from"));
-            const to = new Date(formText(form, "to"));
-            setError("");
-            setSuccess("");
-            if (
-              !Number.isFinite(+from) ||
-              !Number.isFinite(+to) ||
-              from >= to ||
-              to <= new Date()
-            ) {
-              setError("Zadejte platný budoucí konec svozu po jeho začátku.");
-              return;
-            }
-            if (!window.confirm(`Skutečně objednat svoz pro ${count} zásilek?`)) return;
-            active.current = true;
-            setSending(true);
-            void withCsrf(() =>
-              adminCourierPickupsCreate({
-                orderIds: Object.keys(selected),
-                pickupFrom: from.toISOString(),
-                pickupTo: to.toISOString(),
-                note: formText(form, "note"),
-              }),
-            )
-              .then((result) => {
-                setSuccess(`Svoz potvrzen: ${result.pickupId} (${result.externalId}).`);
-                setSelected({});
-              })
-              .catch((failure: unknown) => {
-                if (
-                  !(failure instanceof ApiError) ||
-                  failure.status >= 500 ||
-                  failure.status === 409
-                ) {
-                  setError(
-                    `${catalogError(failure)} Ověřte historii a stav přímo u Packety, svoz neopakujte.`,
-                  );
+          <p>
+            Vybráno: {count}{" "}
+            {count > 0 && (
+              <Button disabled={sending} onClick={() => setSelected({})}>
+                Zrušit výběr
+              </Button>
+            )}
+          </p>
+          {count > 0 && <p className="pickup-selection">{Object.values(selected).join(", ")}</p>}
+          <form
+            className="dialog-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                active.current ||
+                !count ||
+                !config.data?.apiPasswordSet ||
+                !config.data.pickupAddressId
+              )
+                return;
+              const form = new FormData(event.currentTarget);
+              setError("");
+              setSuccess("");
+              if (!from?.isValid() || !to?.isValid() || +from >= +to || +to <= Date.now()) {
+                setError("Zadejte platný budoucí konec svozu po jeho začátku.");
+                return;
+              }
+              if (!window.confirm(`Skutečně objednat svoz pro ${count} zásilek?`)) return;
+              active.current = true;
+              setSending(true);
+              void withCsrf(() =>
+                adminCourierPickupsCreate({
+                  orderIds: Object.keys(selected),
+                  pickupFrom: from.toISOString(),
+                  pickupTo: to.toISOString(),
+                  note: formText(form, "note"),
+                }),
+              )
+                .then((result) => {
+                  setSuccess(`Svoz potvrzen: ${result.pickupId} (${result.externalId}).`);
                   setSelected({});
-                } else setError(catalogError(failure));
-              })
-              .finally(() => {
-                active.current = false;
-                setSending(false);
-                setPage(1);
-                void history.refetch();
-                if (page === 1) void orders.refetch();
-              });
-          }}
-        >
-          <div className="admin-catalog-toolbar">
-            <TextField
-              name="from"
-              label="Svoz od"
-              type="datetime-local"
-              required
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              name="to"
-              label="Svoz do"
-              type="datetime-local"
-              required
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              name="note"
-              label="Poznámka kurýrovi"
-              slotProps={{ htmlInput: { maxLength: 500 } }}
-            />
-          </div>
-          {!config.data?.apiPasswordSet || !config.data.pickupAddressId ? (
-            <p>Nejprve vyplňte nastavení Packety níže.</p>
-          ) : null}
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={
-              !count || sending || !config.data?.apiPasswordSet || !config.data.pickupAddressId
-            }
+                })
+                .catch((failure: unknown) => {
+                  if (
+                    !(failure instanceof ApiError) ||
+                    failure.status >= 500 ||
+                    failure.status === 409
+                  ) {
+                    setError(
+                      `${catalogError(failure)} Ověřte historii a stav přímo u Packety, svoz neopakujte.`,
+                    );
+                    setSelected({});
+                  } else setError(catalogError(failure));
+                })
+                .finally(() => {
+                  active.current = false;
+                  setSending(false);
+                  setPage(1);
+                  void history.refetch();
+                  if (page === 1) void orders.refetch();
+                });
+            }}
           >
-            Objednat svoz
-          </Button>
-        </form>
-        {success && <p role="status">{success}</p>}
-        {error && <p role="alert">{error}</p>}
+            <div className="admin-catalog-toolbar">
+              <DateTimePicker
+                label="Svoz od"
+                value={from}
+                onChange={setFrom}
+                disabled={sending}
+                ampm={false}
+                slotProps={{ textField: { required: true, size: "small" } }}
+              />
+              <DateTimePicker
+                label="Svoz do"
+                value={to}
+                onChange={setTo}
+                disabled={sending}
+                ampm={false}
+                slotProps={{ textField: { required: true, size: "small" } }}
+              />
+              <TextField
+                name="note"
+                label="Poznámka kurýrovi"
+                slotProps={{ htmlInput: { maxLength: 500 } }}
+              />
+            </div>
+            {!config.data?.apiPasswordSet || !config.data.pickupAddressId ? (
+              <p>Nejprve vyplňte nastavení Packety níže.</p>
+            ) : null}
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={
+                !count || sending || !config.data?.apiPasswordSet || !config.data.pickupAddressId
+              }
+            >
+              Objednat svoz
+            </Button>
+          </form>
+          {success && <p role="status">{success}</p>}
+          {error && <p role="alert">{error}</p>}
+        </div>
       </Paper>
       <Paper className="admin-panel admin-section" variant="outlined">
         <h2>Historie svozů</h2>
-        <CatalogFeedback query={history} label="Historie svozů" />
-        {history.data?.length === 0 && <p>Zatím žádné svozy.</p>}
-        <ul>
-          {history.data?.map((row) => (
-            <li key={row.id}>
-              {dateTime(row.pickupFrom)} – {dateTime(row.pickupTo)} · {row.orderIds.length} zásilek
-              ·{" "}
-              {row.pickupId
-                ? `${row.pickupId} (${row.externalId})`
-                : "Nepotvrzeno — ověřte přímo u Packety"}
-            </li>
-          ))}
-        </ul>
+        <div className="admin-panel-body">
+          <CatalogFeedback query={history} label="Historie svozů" />
+          {history.data?.length === 0 && <p>Zatím žádné svozy.</p>}
+          <ul>
+            {history.data?.map((row) => (
+              <li key={row.id}>
+                {dateTime(row.pickupFrom)} – {dateTime(row.pickupTo)} · {row.orderIds.length}{" "}
+                zásilek ·{" "}
+                {row.pickupId
+                  ? `${row.pickupId} (${row.externalId})`
+                  : "Nepotvrzeno — ověřte přímo u Packety"}
+              </li>
+            ))}
+          </ul>
+        </div>
       </Paper>
       <Paper className="admin-panel admin-section" variant="outlined">
         <h2>Nastavení Packety</h2>
-        <CatalogFeedback query={config} label="Nastavení Packety" />
-        {config.data && (
-          <PacketaSettings
-            config={config.data}
-            refresh={() => {
-              void config.refetch();
-            }}
-          />
-        )}
+        <div className="admin-panel-body">
+          <CatalogFeedback query={config} label="Nastavení Packety" />
+          {config.data && (
+            <PacketaSettings
+              config={config.data}
+              refresh={() => {
+                void config.refetch();
+              }}
+            />
+          )}
+        </div>
       </Paper>
     </>
   );

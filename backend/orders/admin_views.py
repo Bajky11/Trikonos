@@ -307,8 +307,9 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=['patch'], url_path=r'items/(?P<item_id>[^/.]+)')
+    @transaction.atomic
     def update_item(self, request, pk=None, item_id=None):
-        order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=self.get_object().pk)
         item = order.items.filter(id=item_id).first()
         if item is None:
             raise NotFound(_('Item not found.'))
@@ -343,8 +344,9 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=['patch'], url_path=r'items/(?P<item_id>[^/.]+)/placements/(?P<placement_id>[^/.]+)')
+    @transaction.atomic
     def update_placement(self, request, pk=None, item_id=None, placement_id=None):
-        order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=self.get_object().pk)
         services.ensure_order_editable(order)
         item = order.items.filter(id=item_id).first()
         if item is None:
@@ -370,10 +372,15 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             )
         services.validate_placement_bounds(print_area, x, y, width, height)
 
+        changed = any(getattr(placement, field) != value for field, value in data.items())
         for field in ('print_area', 'x', 'y', 'width', 'height', 'rotation_deg'):
             if field in data:
                 setattr(placement, field, data[field])
         placement.save()
+        if changed:
+            item.production_status = 'WAITING'
+            item.production_revision += 1
+            item.save(update_fields=['production_status', 'production_revision'])
 
         order.refresh_from_db()
         return Response(AdminOrderDetailSerializer(order, context=self.get_serializer_context()).data)

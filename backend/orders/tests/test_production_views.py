@@ -155,3 +155,94 @@ def test_production_placements_filtered_by_status_and_date_range(admin_client, p
         {'status': 'QUOTE_REQUESTED', 'createdFrom': str(today), 'createdTo': str(tomorrow)},
     )
     assert len(by_date.data) == 1
+
+
+def test_production_orders_group_items_and_placements_and_filter(admin_client, motif, product_type, cut, color, print_area):
+    order = _order()
+    build_order_item(order, {
+        'is_custom': False, 'motif': motif, 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 2,
+    })
+    build_order_item(order, {
+        'is_custom': True, 'motif': None, 'custom_text': 'Text pro tisk', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 3,
+        'placements': [{'print_area': print_area, 'url': 'https://files.example/design.png',
+                        'x': 1, 'y': 2, 'width': 10, 'height': 10, 'rotation_deg': 15}],
+    })
+    _order(status=OrderStatus.NEW, email='other@example.cz', order_number='TRK-2026-7004')
+    response = admin_client.get('/api/v1/admin/production/orders')
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert str(response.data[0]['id']) == str(order.id)
+    items = response.data[0]['items']
+    assert len(items) == 2
+    assert next(item for item in items if not item['is_custom'])['quantity'] == 2
+    custom = next(item for item in items if item['is_custom'])
+    assert custom['custom_text'] == 'Text pro tisk'
+    assert custom['placements'][0]['x'] == 1
+    assert custom['placements'][0]['url'] == 'https://files.example/design.png'
+    assert admin_client.get('/api/v1/admin/production/orders', {'status': 'NEW'}).data[0]['order_number'] == 'TRK-2026-7004'
+    tomorrow = str(timezone.now().date() + timedelta(days=1))
+    assert admin_client.get('/api/v1/admin/production/orders', {'createdFrom': tomorrow}).data == []
+    assert APIClient().get('/api/v1/admin/production/orders').status_code in (401, 403)
+
+
+def test_internal_production_workflow_and_stale_updates(admin_client, motif, product_type, cut, color, mailoutbox):
+    order = _order()
+    data = {'is_custom': False, 'motif': motif, 'product_type': product_type, 'cut': cut, 'color': color, 'size': 'M', 'quantity': 2}
+    first = build_order_item(order, data)
+    second = build_order_item(order, data)
+    start = f'/api/v1/admin/production/orders/{order.id}/start'
+    item_url = lambda item: f'/api/v1/admin/production/orders/{order.id}/items/{item.id}'
+    def set_status(item, old, new):
+        item.refresh_from_db()
+        return admin_client.patch(item_url(item), {'expected_status': old, 'expected_revision': item.production_revision, 'status': new}, format='json')
+    def production_status():
+        return admin_client.get('/api/v1/admin/production/orders').data[0]['production_status']
+
+    assert production_status() == 'NOT_STARTED'
+    assert set_status(first, 'WAITING', 'IN_PROGRESS').status_code == 409
+    assert APIClient().post(start).status_code in (401, 403)
+    assert admin_client.post(start).status_code == 204
+    assert admin_client.post(start).status_code == 204
+    assert production_status() == 'IN_PROGRESS'
+    assert set_status(first, 'WAITING', 'IN_PROGRESS').status_code == 204
+    assert set_status(first, 'WAITING', 'DONE').status_code == 409
+    assert set_status(first, 'IN_PROGRESS', 'DONE').status_code == 204
+    assert production_status() == 'IN_PROGRESS'
+    assert set_status(second, 'WAITING', 'DONE').status_code == 204
+    assert production_status() == 'DONE'
+    assert set_status(first, 'DONE', 'WAITING').status_code == 204
+    assert production_status() == 'IN_PROGRESS'
+    assert admin_client.patch(item_url(first), {'expected_status': 'WAITING', 'expected_revision': 0, 'status': 'UNKNOWN'}, format='json').status_code == 400
+    assert admin_client.patch(item_url(first), {'expected_status': 'WAITING', 'expected_revision': 0, 'status': 'DONE'}, format='json').status_code == 409
+    other = _order(email='other@example.cz', order_number='TRK-2026-7005')
+    assert admin_client.patch(f'/api/v1/admin/production/orders/{other.id}/items/{first.id}', {'expected_status': 'WAITING', 'expected_revision': 0, 'status': 'DONE'}, format='json').status_code == 404
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PAID
+    assert not mailoutbox
+
+
+def test_editing_quantity_and_placement_resets_only_affected_production_item(admin_client, product_type, cut, color, print_area):
+    order = _order(status=OrderStatus.NEW)
+    item = build_order_item(order, {
+        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
+        'cut': cut, 'color': color, 'size': 'M', 'quantity': 2,
+        'placements': [{'print_area': print_area, 'url': 'https://files.example/design.png', 'x': 0, 'y': 0, 'width': 10, 'height': 10}],
+    })
+    order.production_started = True
+    order.save(update_fields=['production_started'])
+    item.production_status = 'DONE'
+    item.save(update_fields=['production_status'])
+    item_url = f'/api/v1/admin/orders/{order.id}/items/{item.id}'
+    assert admin_client.patch(item_url, {'quantity': 3}, format='json').status_code == 200
+    item.refresh_from_db()
+    assert item.production_status == 'WAITING'
+    assert item.production_revision == 1
+    item.production_status = 'DONE'
+    item.save(update_fields=['production_status'])
+    placement = item.design_placements.get()
+    assert admin_client.patch(f'{item_url}/placements/{placement.id}', {'x': 1}, format='json').status_code == 200
+    item.refresh_from_db()
+    assert item.production_status == 'WAITING'
+    assert item.production_revision == 2

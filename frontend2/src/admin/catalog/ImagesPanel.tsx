@@ -213,16 +213,17 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
             onSubmit={(event) => void upload(event)}
           >
             <h3>Nahrát fotografii</h3>
-            <label>
-              Soubor fotografie{" "}
-              <input
-                name="file"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                required
-                disabled={write.isPending}
-              />
-            </label>
+            <TextField
+              label="Soubor fotografie"
+              name="file"
+              type="file"
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { accept: "image/jpeg,image/png,image/webp" },
+              }}
+              required
+              disabled={write.isPending}
+            />
             <p>JPG, PNG nebo WEBP, nejvýše 10 MB. Skutečný obsah souboru ověřuje server.</p>
             <ImageFields colors={colors.data} disabled={write.isPending} />
             <Button type="submit" variant="contained" disabled={write.isPending}>

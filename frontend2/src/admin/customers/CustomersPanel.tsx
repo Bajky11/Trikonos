@@ -1,19 +1,10 @@
+import { DataTable } from "../../components/DataTable";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  MenuItem,
-  Pagination,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from "@mui/material";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
+import { Button, MenuItem, Paper, TableCell, TableRow, TextField } from "@mui/material";
 import {
   adminCustomersExportConsentsRetrieve,
   getAdminAuthMeRetrieveQueryKey,
@@ -89,8 +80,11 @@ export function CustomersPanel({ search }: { search: string }) {
   useCustomerReadError(csv.error);
   return (
     <Paper className="admin-panel" variant="outlined">
-      <h2>Zákazníci</h2>
-      <div className="admin-catalog-toolbar">
+      <div className="admin-catalog-toolbar dictionary-toolbar">
+        <div className="account-heading">
+          <h2>Zákazníci</h2>
+          <p>Zákazníci vznikají při objednání. Ruční založení ani smazání není dostupné.</p>
+        </div>
         <TextField
           label="Hledání zákazníků"
           type="search"
@@ -127,6 +121,7 @@ export function CustomersPanel({ search }: { search: string }) {
           ))}
         </TextField>
         <Button
+          variant="outlined"
           disabled={csv.isPending}
           onClick={() => {
             if (
@@ -153,84 +148,78 @@ export function CustomersPanel({ search }: { search: string }) {
               });
           }}
         >
-          Exportovat souhlasící e-maily (CSV)
+          Export e-mailů (CSV)
         </Button>
       </div>
-      {exportError && <p role="alert">{exportError}</p>}
-      {exportMessage && <p role="status">{exportMessage}</p>}
-      <p>
-        Součet cen zahrnuje známé ceny všech objednávek, včetně nezaplacených a zrušených. Nejde o
-        skutečně uhrazené částky. Souhlas je jen aktuální hodnota bez historie a auditních údajů.
-      </p>
-      <CatalogFeedback query={customers} label="Zákazníci" />
+      {(exportError || exportMessage || customers.isPending || customers.isError) && (
+        <div className="admin-panel-body customer-list-info">
+          {exportError && <p role="alert">{exportError}</p>}
+          {exportMessage && <p role="status">{exportMessage}</p>}
+          <CatalogFeedback query={customers} label="Zákazníci" />
+        </div>
+      )}
       {customers.isSuccess && (
         <>
-          <TableContainer>
-            <Table aria-label="Zákazníci">
-              <TableHead>
-                <TableRow>
-                  {[
-                    "Kontakt",
-                    "Firma",
-                    "Souhlas",
-                    "Objednávky",
-                    "Součet cen",
-                    "Poslední objednávka",
-                  ].map((label) => (
-                    <TableCell key={label}>{label}</TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {customers.data.results.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell>
+          <DataTable
+            label="Zákazníci"
+            columns={[
+              { label: "Kontakt" },
+              { label: "Firma" },
+              { label: "Souhlas" },
+              { label: "Objednávky" },
+              { label: "Součet cen" },
+              { label: "Poslední objednávka" },
+            ]}
+            page={page}
+            pageCount={Math.ceil(customers.data.count / 20)}
+            paginationLabel="Stránkování zákazníků"
+            onPageChange={(value) =>
+              setParams((current) => {
+                const next = new URLSearchParams(current);
+                next.set("page", String(value));
+                return next;
+              })
+            }
+            empty={
+              !customers.data.results.length ? "Žádný zákazník neodpovídá hledání." : undefined
+            }
+          >
+            {customers.data.results.map((customer) => (
+              <TableRow key={customer.id}>
+                <TableCell>
+                  <div className="customer-contact">
+                    <strong>
+                      {[customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
+                        "Bez jména"}
+                    </strong>
+                    {customer.phone && (
+                      <span>
+                        <PhoneOutlinedIcon aria-hidden="true" fontSize="small" />
+                        {customer.phone}
+                      </span>
+                    )}
+                    <span>
+                      <EmailOutlinedIcon aria-hidden="true" fontSize="small" />
                       <Link to={`/admin/klienti/${customer.id}${params.size ? `?${params}` : ""}`}>
                         {customer.email}
                       </Link>
-                      <br />
-                      {customer.firstName} {customer.lastName}
-                      <br />
-                      {customer.phone}
-                    </TableCell>
-                    <TableCell>{customer.companyName || "—"}</TableCell>
-                    <TableCell>{customer.marketingConsent ? "Ano" : "Ne"}</TableCell>
-                    <TableCell>{customer.ordersCount}</TableCell>
-                    <TableCell>
-                      {customer.totalSpent == null
-                        ? "Není stanoveno"
-                        : money(customer.totalSpent / 100)}
-                    </TableCell>
-                    <TableCell>
-                      {customer.lastOrderAt ? dateTime(customer.lastOrderAt) : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {!customers.data.results.length && (
-            <p role="status">Žádný zákazník neodpovídá hledání.</p>
-          )}
-          {customers.data.count > 20 && (
-            <Pagination
-              aria-label="Stránkování zákazníků"
-              page={page}
-              count={Math.ceil(customers.data.count / 20)}
-              onChange={(_, value) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.set("page", String(value));
-                  return next;
-                })
-              }
-            />
-          )}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>{customer.companyName || "—"}</TableCell>
+                <TableCell>{customer.marketingConsent ? "Ano" : "Ne"}</TableCell>
+                <TableCell>{customer.ordersCount}</TableCell>
+                <TableCell>
+                  {customer.totalSpent == null
+                    ? "Není stanoveno"
+                    : money(customer.totalSpent / 100)}
+                </TableCell>
+                <TableCell>{customer.lastOrderAt ? dateTime(customer.lastOrderAt) : "—"}</TableCell>
+              </TableRow>
+            ))}
+          </DataTable>
         </>
       )}
-      <p>
-        Zákazníci vznikají při objednání. Toto API nenabízí ruční založení ani smazání zákazníka.
-      </p>
     </Paper>
   );
 }

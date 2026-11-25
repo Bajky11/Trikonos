@@ -1,26 +1,31 @@
-import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
+  Alert,
   Button,
+  Checkbox,
+  ListItemText,
   MenuItem,
   Paper,
-  Table,
-  TableBody,
   TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
   TextField,
 } from "@mui/material";
-import {
-  adminPrintAreasList,
-  useAdminProductionPlacementsList,
-  useAdminProductionSummaryList,
-} from "../../api/generated/api";
-import { allPages } from "../catalog/api";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { useAdminProductionSummaryList } from "../../api/generated/api";
+import { DataTable } from "../../components/DataTable";
 import { CatalogFeedback } from "../../components/Products";
+import { AdminDateFilter } from "../AdminDateFilter";
 import { orderStatuses } from "../orders/labels";
-import { orderAssetUrl } from "../orders/files";
+import { ProductionOrders, useProductionOrders } from "./ProductionOrders";
+import "./production.css";
+
+const defaultStatuses = "PAID,PROCESSING";
+const number = new Intl.NumberFormat("cs-CZ");
+const dateLabel = (value: string) => value.split("-").reverse().map(Number).join(". ");
 
 function validDate(value: string) {
   if (!value) return true;
@@ -31,18 +36,18 @@ function validDate(value: string) {
 
 export function ProductionPanel() {
   const [params, setParams] = useSearchParams();
-  const statuses = (params.get("status") || "PAID,PROCESSING").split(",").filter(Boolean);
-  const createdFrom = params.get("createdFrom") || "",
-    createdTo = params.get("createdTo") || "",
-    printArea = params.get("printArea") || "";
-  const valid =
-    statuses.length > 0 &&
-    statuses.every((status) => Object.hasOwn(orderStatuses, status)) &&
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [materialOpen, setMaterialOpen] = useState(false);
+  const statuses = (params.get("status") ?? defaultStatuses).split(",").filter(Boolean);
+  const createdFrom = params.get("createdFrom") || "";
+  const createdTo = params.get("createdTo") || "";
+  const validStatuses =
+    statuses.length > 0 && statuses.every((status) => Object.hasOwn(orderStatuses, status));
+  const validDates =
     validDate(createdFrom) &&
     validDate(createdTo) &&
-    (!createdFrom || !createdTo || createdFrom <= createdTo) &&
-    (!printArea ||
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(printArea));
+    (!createdFrom || !createdTo || createdFrom <= createdTo);
+  const valid = validStatuses && validDates;
   const filter = {
     status: statuses.join(","),
     createdFrom: createdFrom || undefined,
@@ -52,40 +57,88 @@ export function ProductionPanel() {
     query: { enabled: valid, retry: false, refetchOnWindowFocus: false, staleTime: 0 },
     request: { cache: "no-store" },
   });
-  const placements = useAdminProductionPlacementsList(
-    { ...filter, printArea: printArea || undefined },
-    {
-      query: { enabled: valid, retry: false, refetchOnWindowFocus: false, staleTime: 0 },
-      request: { cache: "no-store" },
-    },
-  );
-  const areas = useQuery({
-    queryKey: ["/api/v1/admin/print-areas", "production-options"],
-    queryFn: ({ signal }) =>
-      allPages((page) => adminPrintAreasList({ page, pageSize: 100 }, { signal })),
-    retry: false,
-  });
+  const orders = useProductionOrders(filter, valid);
   const update = (key: string, value: string) =>
     setParams((current) => {
       const next = new URLSearchParams(current);
-      if (value) next.set(key, value);
+      if (value || key === "status") next.set(key, value);
       else next.delete(key);
       return next;
     });
+  const reset = () =>
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      ["status", "createdFrom", "createdTo"].forEach((key) => next.delete(key));
+      return next;
+    });
+  const fetching = summary.isFetching || orders.isFetching;
+  const customFilter = filter.status !== defaultStatuses || Boolean(createdFrom || createdTo);
+  const period =
+    createdFrom && createdTo
+      ? `${dateLabel(createdFrom)} – ${dateLabel(createdTo)}`
+      : createdFrom
+        ? `od ${dateLabel(createdFrom)}`
+        : createdTo
+          ? `do ${dateLabel(createdTo)}`
+          : "bez omezení";
   return (
-    <Paper className="admin-panel" variant="outlined">
-      <h2>Výroba</h2>
-      <div className="print-controls">
-        <p>
-          Výchozí stav: zaplacené a ve výrobě. Oba přehledy používají stejný explicitní filtr stavů
-          a data vytvoření objednávky.
-        </p>
-        <div className="admin-catalog-toolbar">
+    <div className="production-page">
+      <section className="production-toolbar print-controls" aria-label="Nástroje výroby">
+        <div className="production-actions production-toolbar-buttons">
+          <Button
+            size="small"
+            startIcon={<FilterListIcon />}
+            aria-expanded={filtersOpen}
+            aria-controls="production-filters"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            {customFilter ? "Filtry · upravené" : "Filtry"}
+          </Button>
+          <Button
+            size="small"
+            startIcon={<Inventory2OutlinedIcon />}
+            disabled={!valid}
+            aria-expanded={valid && materialOpen}
+            aria-controls={valid ? "potrebny-material" : undefined}
+            onClick={() => setMaterialOpen(!materialOpen)}
+          >
+            Materiál
+          </Button>
+          <Button
+            size="small"
+            startIcon={<RefreshIcon />}
+            disabled={!valid || fetching}
+            onClick={() => {
+              void summary.refetch();
+              void orders.refetch();
+            }}
+          >
+            Obnovit
+          </Button>
+          <Button
+            size="small"
+            startIcon={<PrintOutlinedIcon />}
+            disabled={!valid || !summary.isSuccess || !orders.isSuccess || fetching}
+            onClick={() => window.print()}
+          >
+            Tisk přehledu
+          </Button>
+        </div>
+        <div id="production-filters" className="production-filters" hidden={!filtersOpen}>
           <TextField
             select
-            label="Stavy pro výrobu"
+            label="Stav objednávky"
             value={statuses}
-            slotProps={{ select: { multiple: true } }}
+            error={!validStatuses}
+            slotProps={{
+              select: {
+                multiple: true,
+                renderValue: (selected) =>
+                  (selected as string[])
+                    .map((status) => orderStatuses[status] ?? status)
+                    .join(", "),
+              },
+            }}
             onChange={(event) => {
               const value = event.target.value;
               update("status", typeof value === "string" ? value : (value as string[]).join(","));
@@ -93,153 +146,101 @@ export function ProductionPanel() {
           >
             {Object.entries(orderStatuses).map(([value, label]) => (
               <MenuItem key={value} value={value}>
-                {label}
+                <Checkbox checked={statuses.includes(value)} tabIndex={-1} disableRipple />
+                <ListItemText primary={label} />
               </MenuItem>
             ))}
           </TextField>
-          <TextField
+          <AdminDateFilter
             label="Vytvořeno od"
-            type="date"
             value={createdFrom}
-            onChange={(event) => update("createdFrom", event.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={(value) => update("createdFrom", value)}
           />
-          <TextField
+          <AdminDateFilter
             label="Vytvořeno do"
-            type="date"
             value={createdTo}
-            onChange={(event) => update("createdTo", event.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={(value) => update("createdTo", value)}
           />
-          <TextField
-            select
-            label="Tisková plocha (jen podklady)"
-            value={printArea}
-            onChange={(event) => update("printArea", event.target.value)}
-          >
-            <MenuItem value="">Všechny plochy</MenuItem>
-            {(areas.data ?? []).map((area) => (
-              <MenuItem value={area.id} key={area.id}>
-                {area.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Button onClick={reset} disabled={!customFilter}>
+            Výchozí filtry
+          </Button>
         </div>
-        <CatalogFeedback query={areas} label="Tiskové plochy" />
-        <Button
-          disabled={!valid || summary.isFetching || placements.isFetching}
-          onClick={() => {
-            void summary.refetch();
-            void placements.refetch();
-          }}
-        >
-          Obnovit výrobní přehled
-        </Button>
-        <Button
-          disabled={
-            !valid ||
-            !summary.isSuccess ||
-            !placements.isSuccess ||
-            summary.isFetching ||
-            placements.isFetching
-          }
-          onClick={() => window.print()}
-        >
-          Vytisknout výrobní přehled
-        </Button>
-      </div>
+      </section>
       {!valid ? (
-        <p role="alert">
-          Zkontrolujte stavy a filtry: datum musí být platné, od nesmí být po do a tisková plocha
-          musí mít platné ID.
-        </p>
+        <Alert severity="warning">
+          {!validStatuses
+            ? "Vyberte alespoň jeden platný stav objednávky."
+            : "Zkontrolujte období: data musí být platná a datum od nesmí být po datu do."}
+        </Alert>
       ) : (
         <>
-          <p>
-            Filtr stavů: {statuses.map((status) => orderStatuses[status]).join(", ")}; období:{" "}
-            {createdFrom || "bez omezení"} — {createdTo || "bez omezení"}
-          </p>
-          <h3>Souhrn oděvů k výrobě</h3>
-          <CatalogFeedback query={summary} label="Souhrn výroby" />
-          {summary.isSuccess && (
-            <>
-              <TableContainer>
-                <Table aria-label="Souhrn výroby">
-                  <TableHead>
-                    <TableRow>
-                      {["Typ", "Střih", "Barva", "Velikost", "Počet kusů"].map((label) => (
-                        <TableCell key={label}>{label}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {summary.data.map((row, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{row.productType}</TableCell>
-                        <TableCell>{row.cut}</TableCell>
-                        <TableCell>{row.color}</TableCell>
-                        <TableCell>{row.size}</TableCell>
-                        <TableCell>{row.quantity}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              {!summary.data.length && (
-                <p role="status">Pro vybrané filtry nejsou oděvy k výrobě.</p>
+          <header className="production-print-title">
+            <h2>Výrobní přehled</h2>
+            <p>
+              Stav objednávky: {statuses.map((status) => orderStatuses[status]).join(", ")} ·
+              Vytvořeno: {period}
+            </p>
+          </header>
+          <Paper
+            component="section"
+            variant="outlined"
+            id="potrebny-material"
+            className={`production-material${materialOpen ? "" : " production-collapsed"}`}
+            aria-labelledby="production-material-title"
+          >
+            <div className="production-section-heading">
+              <div>
+                <h2 id="production-material-title">
+                  <Inventory2OutlinedIcon fontSize="small" /> Potřebný materiál
+                </h2>
+                <p>
+                  Textil pro vybrané objednávky včetně hotových položek, bez odečtu skladových
+                  zásob.
+                </p>
+              </div>
+              {summary.isSuccess && summary.data.length > 0 && (
+                <span className="production-material-total">
+                  <strong>
+                    {number.format(summary.data.reduce((total, row) => total + row.quantity, 0))}
+                  </strong>{" "}
+                  ks celkem
+                </span>
               )}
-            </>
-          )}
-          <h3>Podklady vlastního potisku</h3>
-          <p>
-            Filtr tiskové plochy se vztahuje jen na podklady, ne na souhrn oděvů. API zde nevrací
-            počty kusů, souřadnice ani ID objednávky — úplný výrobní list otevřete přes dohledání
-            objednávky.
-          </p>
-          <CatalogFeedback query={placements} label="Výrobní podklady" />
-          {placements.isSuccess && (
-            <>
-              <TableContainer>
-                <Table aria-label="Výrobní podklady">
-                  <TableHead>
-                    <TableRow>
-                      {["Objednávka", "Položka", "Plocha", "Rozměry", "Podklad"].map((label) => (
-                        <TableCell key={label}>{label}</TableCell>
-                      ))}
+            </div>
+            <CatalogFeedback query={summary} label="Souhrn výroby" />
+            {summary.isSuccess &&
+              (summary.data.length ? (
+                <DataTable
+                  label="Souhrn výroby"
+                  columns={[
+                    { label: "Typ" },
+                    { label: "Střih" },
+                    { label: "Barva" },
+                    { label: "Velikost" },
+                    { label: "Kusů", align: "right", compact: true },
+                  ]}
+                >
+                  {summary.data.map((row, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{row.productType}</TableCell>
+                      <TableCell>{row.cut}</TableCell>
+                      <TableCell>{row.color}</TableCell>
+                      <TableCell>{row.size}</TableCell>
+                      <TableCell align="right">
+                        <strong>{number.format(row.quantity)}</strong>
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {placements.data.map((row, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Link to={`/admin/objednavky?q=${encodeURIComponent(row.orderNumber)}`}>
-                            {row.orderNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{row.itemLabel}</TableCell>
-                        <TableCell>{row.printArea}</TableCell>
-                        <TableCell>
-                          {row.width} × {row.height} mm; {row.rotationDeg}°
-                        </TableCell>
-                        <TableCell>
-                          {orderAssetUrl(row.url) && (
-                            <a href={orderAssetUrl(row.url)} target="_blank" rel="noreferrer">
-                              Otevřít podklad
-                            </a>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              {!placements.data.length && (
-                <p role="status">Pro vybrané filtry nejsou podklady vlastního potisku.</p>
-              )}
-            </>
-          )}
+                  ))}
+                </DataTable>
+              ) : (
+                <p className="production-empty" role="status">
+                  Pro vybrané filtry není potřeba žádný textil.
+                </p>
+              ))}
+          </Paper>
+          <ProductionOrders query={orders} />
         </>
       )}
-    </Paper>
+    </div>
   );
 }

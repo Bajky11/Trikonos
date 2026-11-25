@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Button, Checkbox, FormControlLabel, MenuItem, TextField } from "@mui/material";
 import { CatalogFeedback } from "../../components/Products";
-import { useCatalogMutation } from "../catalog/api";
+import { allPages, useCatalogMutation } from "../catalog/api";
 import { catalogError, formText, parsePrice } from "../catalog/forms";
 import { lookupApis, useProductTypes } from "./api";
 import type { LookupInput, LookupItem, LookupKind } from "./api";
@@ -17,32 +17,37 @@ export function LookupForm({
   onSaved: () => void;
 }) {
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const types = useProductTypes(kind === "print-areas");
   const save = useCatalogMutation(kind, (input: LookupInput) =>
     lookupApis[kind].save(initial?.id, input),
   );
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (save.isPending) return;
+    if (save.isPending || submitting) return;
     const data = new FormData(event.currentTarget);
     const price = kind === "product-types" ? parsePrice(formText(data, "price")) : 0;
-    const position = Number(formText(data, "position"));
     const widthMm = Number(formText(data, "widthMm"));
     const heightMm = Number(formText(data, "heightMm"));
     const integer = (value: number, min: number) =>
       Number.isInteger(value) && value >= min && value <= 2147483647;
     if (
       price === null ||
-      !integer(position, 0) ||
       (kind === "print-areas" && (!integer(widthMm, 1) || !integer(heightMm, 1)))
     ) {
       setError(
-        "Zadejte nezápornou cenu s nejvýše dvěma desetinnými místy, celé pořadí a kladné celé rozměry v mm.",
+        "Zadejte nezápornou cenu s nejvýše dvěma desetinnými místy a kladné celé rozměry v mm.",
       );
       return;
     }
     setError("");
+    setSubmitting(true);
     try {
+      const items = initial
+        ? []
+        : await allPages((page) => lookupApis[kind].list({ page, pageSize: 100 }));
+      const position =
+        initial?.position ?? Math.max(0, ...items.map((item) => item.position ?? 0)) + 10;
       await save.mutateAsync({
         name: formText(data, "name").trim(),
         position,
@@ -57,6 +62,8 @@ export function LookupForm({
       onSaved();
     } catch (error) {
       setError(catalogError(error));
+    } finally {
+      setSubmitting(false);
     }
   };
   return (
@@ -143,15 +150,6 @@ export function LookupForm({
           />
         </>
       )}
-      <TextField
-        label="Pořadí"
-        name="position"
-        type="number"
-        defaultValue={initial?.position ?? 0}
-        required
-        disabled={save.isPending}
-        slotProps={{ htmlInput: { min: 0, max: 2147483647, step: 1 } }}
-      />
       <FormControlLabel
         control={
           <Checkbox
@@ -173,7 +171,7 @@ export function LookupForm({
         type="submit"
         variant="contained"
         disabled={
-          save.isPending || (kind === "print-areas" && (!types.isSuccess || !types.data.length))
+          submitting || save.isPending || (kind === "print-areas" && (!types.isSuccess || !types.data.length))
         }
       >
         {save.isPending ? "Ukládání…" : "Uložit"}

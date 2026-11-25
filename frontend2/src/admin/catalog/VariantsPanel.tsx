@@ -1,3 +1,4 @@
+import { DataTable } from "../../components/DataTable";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useIsMutating } from "@tanstack/react-query";
@@ -10,11 +11,7 @@ import {
   DialogTitle,
   FormControlLabel,
   MenuItem,
-  Pagination,
-  Table,
-  TableBody,
   TableCell,
-  TableHead,
   TableRow,
   TextField,
 } from "@mui/material";
@@ -181,52 +178,54 @@ export function VariantsPanel({ motifId }: { motifId: string }) {
         <>
           {variants.data && (
             <>
-              <Table aria-label="Povolené kombinace">
-                <TableHead>
-                  <TableRow>
-                    {["Typ oblečení", "Střih", "Barva", "Velikost", "Povolena", "Akce"].map(
-                      (name) => (
-                        <TableCell key={name}>{name}</TableCell>
-                      ),
-                    )}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {variants.data.results.map((variant) => (
-                    <TableRow key={variant.id}>
-                      <TableCell>
-                        {lookupName(lookups.data.productTypes, variant.productTypeId)}
-                      </TableCell>
-                      <TableCell>{lookupName(lookups.data.cuts, variant.cutId)}</TableCell>
-                      <TableCell>{lookupName(lookups.data.colors, variant.colorId)}</TableCell>
-                      <TableCell>{variant.size}</TableCell>
-                      <TableCell>{variant.isActive ? "Ano" : "Ne"}</TableCell>
-                      <TableCell>
-                        <Button disabled={busy} onClick={() => setEditing(variant)}>
-                          Upravit
-                        </Button>
-                        <Button
-                          color="error"
-                          disabled={busy}
-                          onClick={() => {
-                            setError("");
-                            setDeleting(variant.id);
-                          }}
-                        >
-                          Smazat
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {!variants.data.count && <p role="status">Motiv zatím nemá žádné kombinace.</p>}
-              <Pagination
-                disabled={busy}
-                count={Math.max(1, Math.ceil(variants.data.count / 20))}
+              <DataTable
+                label="Povolené kombinace"
+                columns={[
+                  { label: "Typ oblečení" },
+                  { label: "Střih" },
+                  { label: "Barva" },
+                  { label: "Velikost" },
+                  { label: "Povolena" },
+                  { label: "Akce", compact: true, align: "center" },
+                ]}
                 page={page}
-                onChange={(_, value) => setPage(value)}
-              />
+                pageCount={Math.ceil(variants.data.count / 20)}
+                onPageChange={setPage}
+                paginationDisabled={busy}
+                empty={!variants.data.count ? "Motiv zatím nemá žádné kombinace." : undefined}
+              >
+                {variants.data.results.map((variant) => (
+                  <TableRow key={variant.id}>
+                    <TableCell>
+                      {lookupName(lookups.data.productTypes, variant.productTypeId)}
+                    </TableCell>
+                    <TableCell>{lookupName(lookups.data.cuts, variant.cutId)}</TableCell>
+                    <TableCell>{lookupName(lookups.data.colors, variant.colorId)}</TableCell>
+                    <TableCell>{variant.size}</TableCell>
+                    <TableCell>{variant.isActive ? "Ano" : "Ne"}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                      <Button
+                        variant="outlined"
+                        disabled={busy}
+                        onClick={() => setEditing(variant)}
+                      >
+                        Upravit
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        disabled={busy}
+                        onClick={() => {
+                          setError("");
+                          setDeleting(variant.id);
+                        }}
+                      >
+                        Smazat
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DataTable>
             </>
           )}
           <VariantForm
