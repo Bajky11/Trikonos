@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Accordion, AccordionDetails, AccordionSummary, Button } from "@mui/material";
 import ExpandMore from "@mui/icons-material/ExpandMore";
@@ -13,6 +13,7 @@ import { ApiError } from "../api/http";
 import { CatalogFeedback, CatalogLink, ProductArt, ProductCard } from "../components/Products";
 import { useShop } from "../components/ShopContext";
 import { useTitle } from "../useTitle";
+import { GarmentPreview } from "../components/GarmentPreview";
 
 function VariantChoice({
   label,
@@ -63,11 +64,9 @@ function ProductDetail({
   const [type, setType] = useState("");
   const [cut, setCut] = useState("");
   const [size, setSize] = useState("");
-  const [color, setColor] = useState("");
+  const [colorChoice, setColor] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [image, setImage] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const variants = product.variants.filter(
     (variant) =>
       options.productTypes.some((item) => item.id === variant.productTypeId) &&
@@ -78,19 +77,35 @@ function ProductDetail({
   const types = options.productTypes.filter((item) =>
     variants.some((variant) => variant.productTypeId === item.id),
   );
-  const productType = types.find((item) => item.id === type) ?? types[0];
+  const defaultVariants = variants.filter((variant) => variant.colorId === product.defaultColorId);
+  const productType =
+    types.find((item) => item.id === type) ??
+    types.find((item) => defaultVariants.some((variant) => variant.productTypeId === item.id)) ??
+    types[0];
   const cuts = options.cuts.filter((item) =>
     variants.some(
       (variant) => variant.productTypeId === productType?.id && variant.cutId === item.id,
     ),
   );
-  const cutId = cuts.find((item) => item.id === cut)?.id ?? cuts[0]?.id;
+  const cutId =
+    cuts.find((item) => item.id === cut)?.id ??
+    cuts.find((item) =>
+      defaultVariants.some(
+        (variant) => variant.productTypeId === productType?.id && variant.cutId === item.id,
+      ),
+    )?.id ??
+    cuts[0]?.id;
   const forCut = variants.filter(
     (variant) => variant.productTypeId === productType?.id && variant.cutId === cutId,
   );
   const colors = options.colors.filter((item) =>
     forCut.some((variant) => variant.colorId === item.id),
   );
+  const selectedColor =
+    colors.find((item) => item.id === colorChoice) ??
+    colors.find((item) => item.id === product.defaultColorId) ??
+    colors[0];
+  const color = selectedColor?.id ?? "";
   const sizes = options.sizes.filter((item) =>
     forCut.some((variant) => variant.colorId === color && variant.size === item.value),
   );
@@ -98,70 +113,82 @@ function ProductDetail({
     (variant) => variant.colorId === color && variant.size === size,
   );
   const unitPrice = product.price + (productType?.price ?? 0);
-  const coloredImages = color ? product.images.filter((photo) => photo.colorId === color) : [];
-  const images = !color
-    ? product.images
-    : coloredImages.length
-      ? coloredImages
-      : product.images.filter((photo) => !photo.colorId);
-  const activeImage = Math.min(image, Math.max(0, images.length - 1));
-  useEffect(() => {
-    if (
-      images.length < 2 ||
-      paused ||
-      hovered ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    const interval = window.setInterval(() => {
-      if (!document.hidden) setImage((index) => (index + 1) % images.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [paused, hovered, images.length]);
+  const matchingGarment = product.images.filter(
+    (photo) =>
+      photo.productTypeId === productType?.id && photo.cutId === cutId && !!photo.productTypeId,
+  );
+  const generic = product.images.filter((photo) => !photo.productTypeId);
+  const exact = matchingGarment.filter((photo) => photo.colorId && photo.colorId === color);
+  const colored = generic.filter((photo) => photo.colorId && photo.colorId === color);
+  const garmentPhotos = matchingGarment.filter((photo) => !photo.colorId);
+  const designImage = product.designImageUrl || undefined;
+  const preferredPhotos = [...exact, ...colored, ...garmentPhotos];
+  // A null slide is the live composition, not a stored product photograph.
+  const preferred = new Set(preferredPhotos);
+  const slides = [
+    null,
+    ...preferredPhotos,
+    ...product.images.filter((photo) => !preferred.has(photo)),
+  ];
+  const background = options.garmentMockups?.find(
+    (item) => item.productTypeId === productType?.id && item.cutId === cutId,
+  )?.url;
+  const previewLabel = `Ilustrační náhled – ${product.name}${selectedColor ? `, ${selectedColor.name}` : ""}`;
+  const activeImage = Math.min(image, slides.length - 1);
   return (
     <div className="product-layout">
-      <div
-        className="product-preview"
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setHovered(false);
-        }}
-      >
+      <div className="product-preview">
         <div className="product-gallery-main">
-          {!images.length && <ProductArt name={product.name} />}
-          {images.map((photo, index) => (
+          {slides.map((photo, index) => (
             <div
               key={index}
               className={`product-slide ${index === activeImage ? "active" : ""}`}
               aria-hidden={index !== activeImage}
             >
-              <ProductArt src={photo.url} name={photo.altText || product.name} />
+              {photo ? (
+                <ProductArt src={photo.url} name={photo.altText || product.name} />
+              ) : (
+                <GarmentPreview
+                  design={designImage}
+                  background={background}
+                  color={selectedColor?.hexValue}
+                  label={previewLabel}
+                />
+              )}
             </div>
           ))}
         </div>
-        {images.length > 1 && (
+        {slides.length > 1 && (
           <>
             <div className="product-thumbnails" role="group" aria-label="Vybrat obrázek">
-              {images.map((photo, index) => (
+              {slides.map((photo, index) => (
                 <button
                   key={index}
-                  aria-label={`${photo.altText || "Náhled"}, obrázek ${index + 1}`}
+                  aria-label={
+                    photo
+                      ? `${photo.altText || "Fotografie"}, obrázek ${index + 1}`
+                      : "Zobrazit automatický náhled"
+                  }
                   aria-pressed={activeImage === index}
                   onClick={() => setImage(index)}
                 >
-                  <ProductArt src={photo.url} />
+                  {photo ? (
+                    <ProductArt src={photo.url} />
+                  ) : (
+                    <GarmentPreview
+                      design={designImage}
+                      background={background}
+                      color={selectedColor?.hexValue}
+                      label=""
+                    />
+                  )}
                 </button>
               ))}
             </div>
             <div className="product-gallery-controls">
               <span>
-                {activeImage + 1} / {images.length}
+                {activeImage + 1} / {slides.length}
               </span>
-              <button className="plain-button" onClick={() => setPaused((value) => !value)}>
-                {paused ? "Spustit střídání" : "Pozastavit střídání"}
-              </button>
             </div>
           </>
         )}
@@ -189,7 +216,7 @@ function ProductDetail({
                 motifId: product.id,
                 ...selectedVariant,
                 name: product.name,
-                previewUrl: images[activeImage]?.url ?? undefined,
+                previewUrl: preferredPhotos[0]?.url ?? designImage,
                 quantity,
                 unitPrice,
               });

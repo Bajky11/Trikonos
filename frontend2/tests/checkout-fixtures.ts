@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import type {
+  ConfigResponse,
   OrderCreate,
   OrderCreateResponse,
   OrderCustomerDetail,
@@ -51,6 +52,8 @@ export const checkoutCustom = {
 export async function mockCheckout(page: Page) {
   const state = {
     termsReady: true,
+    packetaHomeDelivery: undefined as ConfigResponse["packetaHomeDelivery"],
+    carriers: [{ id: carrierId, name: "Packeta", code: "PACKETA" }],
     price: 69900,
     shippingKnown: true,
     failFirstOrder: false,
@@ -61,6 +64,7 @@ export async function mockCheckout(page: Page) {
     route.fulfill({
       json: {
         ...config,
+        packetaHomeDelivery: state.packetaHomeDelivery,
         termsUrl: state.termsReady ? "https://shop.example/terms" : "",
         paymentMethods: [
           { value: "BANK_TRANSFER", label: "Převodem" },
@@ -77,7 +81,7 @@ export async function mockCheckout(page: Page) {
   );
   await page.route("**/api/v1/catalog/options", (route) =>
     route.fulfill({
-      json: { ...options, carriers: [{ id: carrierId, name: "Packeta", code: "PACKETA" }] },
+      json: { ...options, carriers: state.carriers },
     }),
   );
   await page.route("**/api/v1/cart/validate", (route) => {
@@ -157,7 +161,7 @@ export async function mockCheckout(page: Page) {
       paymentMethod: body.paymentMethod,
       deliveryType: body.delivery.deliveryType,
       carrierName: body.delivery.carrierId ? "Packeta" : null,
-      pickupPointName: "",
+      pickupPointName: body.delivery.pickupPointName ?? "",
       trackingNumber: "",
       billing,
       shipping: body.shipping.sameAsBilling

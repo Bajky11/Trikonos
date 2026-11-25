@@ -25,4 +25,8 @@ export interface MotifDetail {
   readonly images: readonly MotifImage[];
   readonly category: MotifCategoryRef;
   readonly variants: readonly MotifVariantRef[];
+  /** @nullable */
+  readonly designImageUrl: string | null;
+  /** @nullable */
+  readonly defaultColorId: string | null;
 }

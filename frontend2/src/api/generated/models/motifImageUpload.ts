@@ -3,6 +3,10 @@
  */
 
 export interface MotifImageUpload {
+  /** @nullable */
+  productTypeId?: string | null;
+  /** @nullable */
+  cutId?: string | null;
   file: Blob | File;
   altText?: string;
   /** @nullable */

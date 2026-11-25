@@ -6,14 +6,24 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orders.models import DeliveryType, PaymentMethod
+from shipping.models import PacketaConfig
 
 from .emails import send_templated_email
 from .exceptions import ContactUnavailableError
 
 
+# Packeta CZ Home Delivery: https://docs.packeta.com/docs/destination-country/cz/cz-home-delivery
+PACKETA_CZ_HD_WIDGET_CARRIER_ID = '106'
+
+
 class ChoiceOptionSerializer(serializers.Serializer):
     value = serializers.CharField()
     label = serializers.CharField()
+
+
+class PacketaHomeDeliverySerializer(serializers.Serializer):
+    api_key = serializers.CharField()
+    carrier_id = serializers.CharField()
 
 
 class ConfigResponseSerializer(serializers.Serializer):
@@ -26,10 +36,11 @@ class ConfigResponseSerializer(serializers.Serializer):
     topbar_text = serializers.CharField()
     payment_methods = ChoiceOptionSerializer(many=True)
     delivery_types = ChoiceOptionSerializer(many=True)
+    packeta_home_delivery = PacketaHomeDeliverySerializer(required=False)
 
 
 class ConfigView(APIView):
-    """Statická konfigurace obchodu, bez vlastní DB tabulky."""
+    """Veřejná konfigurace obchodu a pokladny."""
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -42,13 +53,13 @@ class ConfigView(APIView):
             'instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky '
             '(`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro '
             'uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - '
-            'hodnoty se mění jen ručně přes env proměnné na backendu.'
+            'hodnoty se mění jen při změně nastavení obchodu nebo dopravy.'
         ),
         responses={200: ConfigResponseSerializer},
     )
     def get(self, request):
         shop = settings.SHOP_CONFIG
-        return Response({
+        config = {
             'shop_name': shop['NAME'],
             'contact_email': shop['CONTACT_EMAIL'],
             'contact_phone': shop['CONTACT_PHONE'],
@@ -62,7 +73,15 @@ class ConfigView(APIView):
             'delivery_types': [
                 {'value': value, 'label': label} for value, label in DeliveryType.choices
             ],
-        })
+        }
+        api_key = shop.get('PACKETA_WIDGET_API_KEY', '').strip()
+        if api_key:
+            carrier_id = PacketaConfig.objects.filter(pk=1).values_list('home_delivery_address_id', flat=True).first()
+            if not (carrier_id and carrier_id.isascii() and carrier_id.isdecimal() and int(carrier_id) > 0):
+                # The checkout widget does not need shipment creation to be configured.
+                carrier_id = PACKETA_CZ_HD_WIDGET_CARRIER_ID
+            config['packeta_home_delivery'] = {'api_key': api_key, 'carrier_id': carrier_id}
+        return Response(config)
 
 
 class ContactSerializer(serializers.Serializer):

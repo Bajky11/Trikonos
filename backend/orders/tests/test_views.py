@@ -1,7 +1,6 @@
 import pytest
 from rest_framework.test import APIClient
 from accounts.models import User
-from catalog.models import MotifVariant
 from orders.models import Order, OrderItem
 from django.core.files.uploadedfile import SimpleUploadedFile
 from io import BytesIO
@@ -62,7 +61,6 @@ def test_cart_validate_personal_pickup_is_free_without_carrier(motif, product_ty
 
 
 def test_cart_preview_ignores_client_price_and_supports_anonymous_and_session_csrf(motif, product_type, cut, color):
-    MotifVariant.objects.get_or_create(motif=motif, product_type=product_type, cut=cut, color=color, size='M')
     client = APIClient(enforce_csrf_checks=True)
     body = _cart_body(motif, product_type, cut, color)
     body['items'][0]['unitPrice'] = 1
@@ -83,8 +81,6 @@ def test_cart_preview_ignores_client_price_and_supports_anonymous_and_session_cs
 
 
 def test_cart_preview_reports_unavailable_variant_and_rejects_deleted_reference(motif, product_type, cut, color):
-    MotifVariant.objects.get_or_create(motif=motif, product_type=product_type, cut=cut, color=color, size='M')
-    MotifVariant.objects.filter(motif=motif, size='L').delete()
     client = APIClient()
     body = _cart_body(motif, product_type, cut, color)
     body['items'].append({**body['items'][0], 'size': 'L'})

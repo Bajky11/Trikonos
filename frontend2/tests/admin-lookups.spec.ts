@@ -18,12 +18,20 @@ test("paginates and searches real lookup data, handles duplicates and refreshes 
     if (/\/admin\/(colors|cuts)/.test(request.url()) && request.method() !== "GET")
       tokens.push(request.headers()["x-csrftoken"]);
   });
+  const openClothing = async () => {
+    await page.getByRole("link", { name: "Oblečení", exact: true }).click();
+    await page.getByRole("button", { name: "Přidat oblečení" }).click();
+    for (const [label, name] of [
+      ["Typ oblečení", "Tričko"],
+      ["Střih", "Pánské"],
+    ]) {
+      await page.getByRole("combobox", { name: label, exact: true }).click();
+      await page.getByRole("option", { name, exact: true }).click();
+    }
+  };
   await page.goto("/admin/produkty");
-  await page.getByRole("button", { name: "Varianty", exact: true }).click();
-  await page.getByRole("dialog").getByRole("combobox", { name: "Barva", exact: true }).click();
-  await expect(page.getByRole("option", { name: "Bílá", exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
+  await openClothing();
+  await expect(page.getByRole("checkbox", { name: "Bílá", exact: true })).toBeVisible();
   await page
     .getByRole("navigation", { name: "Administrace" })
     .getByRole("link", { name: "Číselníky" })
@@ -53,17 +61,9 @@ test("paginates and searches real lookup data, handles duplicates and refreshes 
   await expect(dialog).toHaveCount(0);
   await page.getByRole("searchbox").fill("Sněhová");
   await expect(page.getByRole("row", { name: /Sněhová/ })).toContainText("#AABBCC");
-  await page
-    .getByRole("navigation", { name: "Administrace" })
-    .getByRole("link", { name: "Produkty" })
-    .click();
-  await page.getByRole("searchbox").fill("");
-  await page.getByRole("button", { name: "Varianty", exact: true }).click();
-  await page.getByRole("dialog").getByRole("combobox", { name: "Barva", exact: true }).click();
-  await expect(page.getByRole("option", { name: "Sněhová", exact: true })).toBeVisible();
-  await expect(page.getByRole("option", { name: "Bílá", exact: true })).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
+  await openClothing();
+  await expect(page.getByRole("checkbox", { name: "Sněhová", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Bílá", exact: true })).toHaveCount(0);
   await page
     .getByRole("navigation", { name: "Administrace" })
     .getByRole("link", { name: "Číselníky" })
@@ -183,6 +183,7 @@ test("preserves category URLs, explains IN_USE, stores exact type prices and pri
   await expect(
     page.getByText("Velikosti jsou pevný seznam backendu", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByText("12 let – 158 cm", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Přidat" })).toHaveCount(0);
   await page.getByRole("link", { name: "← Zpět na web" }).click();
   await page

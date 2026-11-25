@@ -17,6 +17,7 @@ import { useTitle } from "../useTitle";
 import { useLogout } from "../auth/session";
 import type { Me } from "../api/generated/models";
 import { ProductsPanel } from "../admin/catalog/ProductsPanel";
+import { GarmentOfferPanel } from "../admin/catalog/GarmentOfferPanel";
 import { DictionariesPanel } from "../admin/lookups/DictionariesPanel";
 import { OrdersPanel } from "../admin/orders/OrdersPanel";
 import { ProductionPanel } from "../admin/production/ProductionPanel";
@@ -32,7 +33,8 @@ const sections = [
   ["objednavky", "Objednávky"],
   ["vyroba", "Výroba"],
   ["svoz", "Svoz Packety"],
-  ["produkty", "Produkty"],
+  ["produkty", "Motivy"],
+  ["obleceni", "Oblečení"],
   ["sezony", "Sezóny"],
   ["klienti", "Klienti"],
   ["uzivatele", "Účty"],
@@ -131,6 +133,7 @@ export function AdminPage({ section: explicitSection }: { section?: string }) {
         </Paper>
       )}
       {section === "produkty" && <ProductsPanel />}
+      {section === "obleceni" && <GarmentOfferPanel />}
       {section === "klienti" && <CustomersPanel />}
       {section === "uzivatele" && <UsersPanel />}
       {section === "heslo" && <Navigate to="/admin/uzivatele#heslo" replace />}

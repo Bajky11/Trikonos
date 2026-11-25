@@ -3,35 +3,42 @@
   padding-inline: var(--admin-inset);
 }
 
-.orders-active-filters {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
+.orders-toolbar .admin-section-actions {
+  margin-inline-start: auto;
 }
 
 .orders-filters {
   padding-block: 12px;
   border-block-start: 1px solid var(--border);
-  background: color-mix(in srgb, var(--sage) 22%, var(--surface));
 }
 
 .orders-primary-filters,
-.orders-advanced-filters:not([hidden]) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+.orders-period,
+.orders-active-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
+}
+
+.orders-period {
+  flex: 2 1 280px;
+}
+
+.orders-primary-filters > .MuiTextField-root,
+.orders-period > .MuiTextField-root {
+  flex: 1 1 130px;
 }
 
 .orders-primary-filters > .MuiButton-root {
-  justify-self: start;
   white-space: nowrap;
 }
 
-.orders-primary-filters .MuiInputBase-root,
-.orders-advanced-filters .MuiInputBase-root {
-  background: var(--surface);
+.orders-advanced-filters:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .orders-advanced-filters:not([hidden]),
@@ -75,27 +82,4 @@
 .orders-status[data-tone="danger"] {
   background: #fbeae8;
   color: #842f26;
-}
-
-@media (min-width: 480px) {
-  .orders-primary-filters,
-  .orders-advanced-filters:not([hidden]) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 900px) {
-  .orders-advanced-filters:not([hidden]) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1100px) {
-  .orders-primary-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-  }
-
-  .orders-advanced-filters:not([hidden]) {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }

@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import CharField, Count, Exists, OuterRef, Q
+from django.db.models import CharField, Count, Exists, OuterRef, Prefetch, Q
 from django.db.models.functions import Cast
 from django.utils.translation import gettext as _
 from django.utils.decorators import method_decorator
@@ -113,6 +113,10 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             )
         )
         params = self.request.query_params
+        if self.action == 'list':
+            queryset = queryset.prefetch_related(Prefetch(
+                'items', queryset=OrderItem.objects.select_related('motif', 'product_type', 'cut', 'color'),
+            ))
 
         status_param = params.get('status')
         if status_param:

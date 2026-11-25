@@ -12,8 +12,31 @@ from core.emails import send_templated_email
 from core.exceptions import UnsupportedFileTypeError, _extract_errors
 from core.uploads import JPG, PDF, WEBP, detect_kind, get_image_dimensions, sanitize_svg
 from orders.models import Order, OrderStatus, PaymentMethod, PaymentStatus
+from shipping.models import PacketaConfig
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.mark.parametrize(('api_key', 'carrier_id', 'expected'), [
+    ('public-widget-key', '123', '123'),
+    ('', '106', None),
+    ('public-widget-key', None, '106'),
+    ('public-widget-key', '', '106'),
+    ('public-widget-key', 'invalid', '106'),
+])
+def test_config_only_exposes_public_packeta_widget_settings(settings, api_key, carrier_id, expected):
+    settings.SHOP_CONFIG = {**settings.SHOP_CONFIG, 'PACKETA_WIDGET_API_KEY': api_key}
+    if carrier_id is not None:
+        PacketaConfig.objects.create(api_password='private-shipment-password', home_delivery_address_id=carrier_id)
+
+    response = APIClient().get('/api/v1/config')
+
+    assert response.status_code == 200
+    assert response.json().get('packetaHomeDelivery') == (
+        {'apiKey': api_key, 'carrierId': expected} if expected is not None else None
+    )
+    assert b'private-shipment-password' not in response.content
+    assert PacketaConfig.objects.filter(pk=1).values_list('home_delivery_address_id', flat=True).first() == carrier_id
 
 
 @pytest.fixture
@@ -352,13 +375,12 @@ def test_top_motifs_requires_admin_login():
 def test_top_motifs_excludes_custom_items_and_cancelled_orders(
     admin_client, motif, product_type, cut, color, print_area,
 ):
-    from catalog.models import Motif, MotifVariant
+    from catalog.models import Motif
     from orders.services import build_order_item
 
     # unit_price = motif.price + product_type.price (300 + 500 = 800) * 10 pieces
     # ranks higher by quantity but lower by revenue than `motif` below.
     cheap_motif = Motif.objects.create(name='Hory', slug='hory', price=300, category=motif.category)
-    MotifVariant.objects.create(motif=cheap_motif, product_type=product_type, cut=cut, color=color, size='M')
 
     order = _order(email='x@example.cz', status=OrderStatus.NEW, total=0, created_at=timezone.now())
     build_order_item(order, {

@@ -2,6 +2,7 @@ from django.db import models
 
 from core.models import SimpleLookup
 from .category import Category
+from .color import Color
 
 
 class Motif(SimpleLookup):
@@ -14,7 +15,10 @@ class Motif(SimpleLookup):
     # Element shape: {"url": "...", "altText": "...", "position": 0, "colorId": "uuid or null"}.
     # "colorId" refers to Color but is validated in clean(), not a real FK (JSONField can't do that).
     images = models.JSONField(default=list, blank=True)
+    design_image = models.ImageField(upload_to='motif-designs', max_length=255, blank=True)
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='motifs')
+    garment_exclusions = models.JSONField(default=list, blank=True)
+    default_color = models.ForeignKey(Color, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

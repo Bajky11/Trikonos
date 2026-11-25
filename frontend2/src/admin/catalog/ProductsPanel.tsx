@@ -27,27 +27,59 @@ import { AdminSectionHeader } from "../AdminSectionHeader";
 import { catalogMutationKey, useAdminCategories, useCatalogMutation } from "./api";
 import { catalogError } from "./forms";
 import { MotifForm } from "./MotifForm";
-import { VariantsPanel } from "./VariantsPanel";
 import { ImagesPanel } from "./ImagesPanel";
 
-type Editor =
-  | { mode: "motif"; id?: string }
-  | { mode: "variants" | "images"; id: string; name: string };
+type Editor = { id?: string; duplicate?: boolean };
 
-function EditMotif({ id, onSaved }: { id?: string; onSaved: () => void }) {
+function EditMotif({
+  id,
+  duplicate,
+  busy,
+  onDuplicate,
+  onClose,
+  onSaved,
+}: {
+  id?: string;
+  duplicate?: boolean;
+  busy: boolean;
+  onDuplicate: () => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const categories = useAdminCategories();
   const detail = useAdminMotifsRetrieve(id ?? "", {
     query: { enabled: !!id, refetchOnWindowFocus: false },
   });
-  if (!categories.isSuccess) return <CatalogFeedback query={categories} label="Kategorie" />;
-  if (id && !detail.isSuccess) return <CatalogFeedback query={detail} label="Detail motivu" />;
+  if (!categories.data || (id && !detail.data)) {
+    return (
+      <>
+        <DialogContent>
+          {!categories.data && <CatalogFeedback query={categories} label="Kategorie" />}
+          {id && !detail.data && <CatalogFeedback query={detail} label="Detail motivu" />}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Zavřít</Button>
+        </DialogActions>
+      </>
+    );
+  }
   return (
     <MotifForm
-      key={id ?? "new"}
       initial={id ? detail.data : undefined}
       categories={categories.data}
+      duplicate={duplicate}
+      busy={busy}
+      onDuplicate={id && !duplicate ? onDuplicate : undefined}
+      onClose={onClose}
       onSaved={onSaved}
-    />
+    >
+      {id && !duplicate && (
+        <section className="motif-editor-section" aria-labelledby="motif-photos-heading">
+          <h3 id="motif-photos-heading">Fotografie hotového produktu (volitelné)</h3>
+          <ImagesPanel motifId={id} busy={busy} />
+        </section>
+      )}
+    </MotifForm>
   );
 }
 
@@ -62,7 +94,7 @@ export function ProductsPanel() {
   const [active, setActive] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
   useEffect(() => {
-    if (motifId) setEditor({ mode: "motif", id: motifId });
+    if (motifId) setEditor({ id: motifId });
   }, [motifId]);
   const closeEditor = () => {
     setEditor(null);
@@ -101,7 +133,7 @@ export function ProductsPanel() {
   const edit = (id?: string) => {
     setMessage("");
     if (id) client.removeQueries({ queryKey: getAdminMotifsRetrieveQueryKey(id), exact: true });
-    setEditor({ mode: "motif", ...(id ? { id } : {}) });
+    setEditor({ id });
   };
   return (
     <>
@@ -202,26 +234,6 @@ export function ProductsPanel() {
                       </Button>
                       <Button
                         variant="text"
-                        onClick={() =>
-                          setEditor({ mode: "variants", id: product.id, name: product.name })
-                        }
-                      >
-                        Varianty
-                      </Button>
-                      <Button
-                        variant="text"
-                        onClick={() => {
-                          client.removeQueries({
-                            queryKey: getAdminMotifsRetrieveQueryKey(product.id),
-                            exact: true,
-                          });
-                          setEditor({ mode: "images", id: product.id, name: product.name });
-                        }}
-                      >
-                        Fotografie
-                      </Button>
-                      <Button
-                        variant="text"
                         color="error"
                         onClick={() => {
                           setError("");
@@ -241,40 +253,28 @@ export function ProductsPanel() {
       <Dialog
         open={editor !== null}
         onClose={busy ? undefined : closeEditor}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
+        className="motif-editor"
       >
         <DialogTitle>
-          {editor?.mode === "variants" || editor?.mode === "images"
-            ? `${editor.mode === "variants" ? "Varianty" : "Fotografie"}: ${editor.name}`
-            : editor?.id
-              ? "Upravit motiv"
-              : "Nový motiv"}
+          {editor?.duplicate ? "Duplikovat motiv" : editor?.id ? "Upravit motiv" : "Nový motiv"}
         </DialogTitle>
-        <DialogContent>
-          {editor?.mode === "variants" ? (
-            <VariantsPanel key={editor.id} motifId={editor.id} />
-          ) : editor?.mode === "images" ? (
-            <ImagesPanel key={editor.id} motifId={editor.id} />
-          ) : (
-            editor && (
-              <EditMotif
-                key={editor.id ?? "new"}
-                id={editor.id}
-                onSaved={() => {
-                  closeEditor();
-                  setMessage("Motiv byl uložen.");
-                  setPage(1);
-                }}
-              />
-            )
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={busy} onClick={closeEditor}>
-            Zavřít
-          </Button>
-        </DialogActions>
+        {editor && (
+          <EditMotif
+            key={`${editor.id ?? "new"}:${editor.duplicate ? "copy" : "edit"}`}
+            id={editor.id}
+            duplicate={editor.duplicate}
+            busy={busy}
+            onDuplicate={() => setEditor({ id: editor.id, duplicate: true })}
+            onClose={closeEditor}
+            onSaved={() => {
+              closeEditor();
+              setMessage("Motiv byl uložen.");
+              setPage(1);
+            }}
+          />
+        )}
       </Dialog>
       <Dialog open={deleting !== null} onClose={busy ? undefined : () => setDeleting(null)}>
         <DialogTitle>Smazat motiv?</DialogTitle>

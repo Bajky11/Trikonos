@@ -1,14 +1,21 @@
 import { TextField } from "@mui/material";
 import { ApiError } from "../api/http";
+import type { DeliveryLocation } from "./PacketaAddressPicker";
 
 export function AddressFields({
   prefix,
   company = false,
   hideOptional = false,
+  location,
+  onLocationChange,
+  recipientOptional = false,
 }: {
   prefix: "billing" | "shipping";
   company?: boolean;
   hideOptional?: boolean;
+  location?: DeliveryLocation;
+  onLocationChange?: (location: DeliveryLocation) => void;
+  recipientOptional?: boolean;
 }) {
   return (
     <>
@@ -20,7 +27,8 @@ export function AddressFields({
               : "Jméno a příjmení příjemce"
           }
           name={`${prefix}.fullName`}
-          required={prefix !== "billing"}
+          required={prefix !== "billing" && !recipientOptional}
+          helperText={recipientOptional ? "Pokud se liší od kontaktních údajů." : undefined}
           slotProps={{
             htmlInput: {
               maxLength: 255,
@@ -55,18 +63,30 @@ export function AddressFields({
         label="Ulice a číslo domu"
         name={`${prefix}.street`}
         required
+        value={location?.street}
+        onChange={(event) =>
+          location && onLocationChange?.({ ...location, street: event.target.value })
+        }
         slotProps={{ htmlInput: { maxLength: 255, autoComplete: `${prefix} street-address` } }}
       />
       <TextField
         label="Obec"
         name={`${prefix}.city`}
         required
+        value={location?.city}
+        onChange={(event) =>
+          location && onLocationChange?.({ ...location, city: event.target.value })
+        }
         slotProps={{ htmlInput: { maxLength: 255, autoComplete: `${prefix} address-level2` } }}
       />
       <TextField
         label="PSČ"
         name={`${prefix}.zip`}
         required
+        value={location?.zip}
+        onChange={(event) =>
+          location && onLocationChange?.({ ...location, zip: event.target.value })
+        }
         slotProps={{
           htmlInput: {
             pattern: "[0-9]{3} ?[0-9]{2}",

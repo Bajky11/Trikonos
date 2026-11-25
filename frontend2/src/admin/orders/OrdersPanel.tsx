@@ -13,15 +13,16 @@ import { catalogError } from "../catalog/forms";
 import { CatalogFeedback } from "../../components/Products";
 import { money } from "../../data/catalog";
 import { orderStatuses, paymentStatuses, paymentMethods, shipmentStatuses } from "./labels";
+import { StatusBadge } from "./OrderStatusBadge";
+import { OrdersLedger, ledgerColumns } from "./OrdersLedger";
+import { OrderPeriodFilter } from "./OrderPeriodFilter";
 import "./orders.css";
 
 type SelectFilter = [key: string, label: string, values: Record<string, string>];
 
-const primaryFilters: SelectFilter[] = [
-  ["status", "Stav objednávky", orderStatuses],
-  ["paymentStatus", "Stav platby", paymentStatuses],
-];
+const primaryFilters: SelectFilter[] = [["status", "Stav objednávky", orderStatuses]];
 const advancedFilters: SelectFilter[] = [
+  ["paymentStatus", "Stav platby", paymentStatuses],
   ["paymentMethod", "Platba", paymentMethods],
   ["shipmentStatus", "Stav zásilky", shipmentStatuses],
   ["hasCustom", "Vlastní potisk", { true: "S vlastním potiskem", false: "Bez vlastního potisku" }],
@@ -102,26 +103,6 @@ function FilterSelect({
   );
 }
 
-const statusTones: Record<string, string> = {
-  QUOTE_REQUESTED: "warning",
-  NEW: "info",
-  PENDING: "warning",
-  FAILED: "danger",
-  PAID: "success",
-  PROCESSING: "info",
-  SHIPPED: "info",
-  DELIVERED: "success",
-  CANCELLED: "danger",
-};
-
-function StatusBadge({ value = "", labels }: { value?: string; labels: Record<string, string> }) {
-  return (
-    <span className="orders-status" data-tone={statusTones[value]}>
-      {(labels[value] ?? value) || "—"}
-    </span>
-  );
-}
-
 export function OrdersPanel({ overview = false }: { overview?: boolean }) {
   const [params, setParams] = useSearchParams();
   const [exporting, setExporting] = useState(false);
@@ -180,9 +161,10 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
     { query: { retry: false, refetchOnWindowFocus: false }, request: { cache: "no-store" } },
   );
   return (
-    <Paper className="admin-panel orders-panel" variant="outlined">
+    <Paper className="admin-panel orders-panel" variant={overview ? "outlined" : "elevation"}>
       <AdminSectionHeader
-        title={overview ? "Poslední objednávky" : "Objednávky"}
+        className={overview ? undefined : "orders-toolbar"}
+        title={overview ? "Poslední objednávky" : undefined}
         search={
           overview
             ? undefined
@@ -239,7 +221,7 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
                 component={Link}
                 to="/admin/objednavky/nova"
               >
-                Ručně založit objednávku
+                Nová objednávka
               </Button>
             </>
           )
@@ -248,6 +230,15 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
       {!overview && (
         <section className="orders-filters" aria-label="Filtry objednávek">
           <div className="orders-primary-filters">
+            <OrderPeriodFilter
+              from={params.get("createdFrom") || ""}
+              to={params.get("createdTo") || ""}
+              onChange={(from, to) =>
+                setParams((current) =>
+                  withFilter(withFilter(current, "createdFrom", from), "createdTo", to),
+                )
+              }
+            />
             {primaryFilters.map((filter) => (
               <FilterSelect
                 key={filter[0]}
@@ -256,11 +247,6 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
                 onChange={(value) => update(filter[0], value)}
               />
             ))}
-            <FilterSelect
-              filter={orderingFilter}
-              value={filtersForRequest.ordering}
-              onChange={(value) => update("ordering", value === defaultOrdering ? "" : value)}
-            />
             <Button
               variant="outlined"
               startIcon={<TuneIcon />}
@@ -275,6 +261,11 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
           <div id={advancedId} className="orders-advanced-filters" hidden={!showAdvanced}>
             {showAdvanced && (
               <>
+                <FilterSelect
+                  filter={orderingFilter}
+                  value={filtersForRequest.ordering}
+                  onChange={(value) => update("ordering", value === defaultOrdering ? "" : value)}
+                />
                 {advancedFilters.map((filter) => (
                   <FilterSelect
                     key={filter[0]}
@@ -335,17 +326,21 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
           <DataTable
             label="Objednávky"
             density="compact"
-            columns={[
-              { label: "Číslo", compact: true },
-              { label: "Jméno", minWidth: 90 },
-              { label: "Příjmení", minWidth: 100 },
-              { label: "E-mail", minWidth: 155 },
-              { label: "Vytvořeno", compact: true },
-              { label: "Částka", align: "right", compact: true },
-              { label: "Stav objednávky", compact: true },
-              { label: "Platba", compact: true },
-              { label: "Zásilka", compact: true },
-            ]}
+            columns={
+              overview
+                ? [
+                    { label: "Číslo", compact: true },
+                    { label: "Jméno", minWidth: 90 },
+                    { label: "Příjmení", minWidth: 100 },
+                    { label: "E-mail", minWidth: 155 },
+                    { label: "Vytvořeno", compact: true },
+                    { label: "Částka", align: "right", compact: true },
+                    { label: "Stav objednávky", compact: true },
+                    { label: "Platba", compact: true },
+                    { label: "Zásilka", compact: true },
+                  ]
+                : ledgerColumns
+            }
             page={overview ? undefined : page}
             pageCount={Math.ceil(orders.data.count / pageSize)}
             alwaysShowPagination
@@ -373,42 +368,50 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
               ) : undefined
             }
           >
-            {orders.data.results.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell component="th" scope="row">
-                  <Link
-                    className="data-table-nowrap"
-                    to={`/admin/objednavky/${order.id}${params.size ? `?${params}` : ""}`}
-                  >
-                    {order.orderNumber}
-                  </Link>
-                  {order.hasCustom && <span className="data-table-secondary">Vlastní potisk</span>}
-                </TableCell>
-                <TableCell className="data-table-wrap">{order.customerFirstName || "—"}</TableCell>
-                <TableCell className="data-table-wrap">{order.customerLastName || "—"}</TableCell>
-                <TableCell className="data-table-wrap">{order.customerEmail || "—"}</TableCell>
-                <TableCell className="data-table-nowrap">
-                  <time dateTime={order.createdAt}>
-                    {date.format(new Date(order.createdAt))}
-                    <span className="data-table-secondary">
-                      {time.format(new Date(order.createdAt))}
-                    </span>
-                  </time>
-                </TableCell>
-                <TableCell align="right" className="data-table-nowrap">
-                  {order.total == null ? "K nacenění" : money(order.total / 100)}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge value={order.status} labels={orderStatuses} />
-                </TableCell>
-                <TableCell>
-                  <StatusBadge value={order.paymentStatus} labels={paymentStatuses} />
-                </TableCell>
-                <TableCell>
-                  <StatusBadge value={order.shipmentStatus} labels={shipmentStatuses} />
-                </TableCell>
-              </TableRow>
-            ))}
+            {!overview ? (
+              <OrdersLedger orders={orders.data.results} params={params} />
+            ) : (
+              orders.data.results.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell component="th" scope="row">
+                    <Link
+                      className="data-table-nowrap"
+                      to={`/admin/objednavky/${order.id}${params.size ? `?${params}` : ""}`}
+                    >
+                      {order.orderNumber}
+                    </Link>
+                    {order.hasCustom && (
+                      <span className="data-table-secondary">Vlastní potisk</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="data-table-wrap">
+                    {order.customerFirstName || "—"}
+                  </TableCell>
+                  <TableCell className="data-table-wrap">{order.customerLastName || "—"}</TableCell>
+                  <TableCell className="data-table-wrap">{order.customerEmail || "—"}</TableCell>
+                  <TableCell className="data-table-nowrap">
+                    <time dateTime={order.createdAt}>
+                      {date.format(new Date(order.createdAt))}
+                      <span className="data-table-secondary">
+                        {time.format(new Date(order.createdAt))}
+                      </span>
+                    </time>
+                  </TableCell>
+                  <TableCell align="right" className="data-table-nowrap">
+                    {order.total == null ? "K nacenění" : money(order.total / 100)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={order.status} labels={orderStatuses} />
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={order.paymentStatus} labels={paymentStatuses} />
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={order.shipmentStatus} labels={shipmentStatuses} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </DataTable>
           {overview && (
             <Button component={Link} to="/admin/objednavky">

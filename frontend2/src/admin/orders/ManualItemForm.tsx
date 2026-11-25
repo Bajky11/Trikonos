@@ -26,6 +26,8 @@ export function ManualItemForm({
     [slug, setSlug] = useState(""),
     [variant, setVariant] = useState("");
   const [productType, setProductType] = useState(""),
+    [cutId, setCutId] = useState(""),
+    [colorId, setColorId] = useState(""),
     [upload, setUpload] = useState<DesignUploadResponse | null>(null),
     [error, setError] = useState("");
   const options = useCatalogOptionsRetrieve();
@@ -43,6 +45,10 @@ export function ManualItemForm({
     mutationFn: (file: File) => withCsrf(() => uploadsDesignsCreate({ file })),
   });
   const type = options.data?.productTypes.find((value) => value.id === productType);
+  const offer = options.data?.garmentVariants ?? [];
+  const forType = offer.filter((value) => value.productTypeId === productType);
+  const forCut = forType.filter((value) => value.cutId === cutId);
+  const forColor = forCut.filter((value) => value.colorId === colorId);
   const busy = disabled || uploadMutation.isPending;
   return (
     <section aria-label="Přidání položky ruční objednávky">
@@ -94,6 +100,7 @@ export function ManualItemForm({
               !type ||
               !area ||
               !size ||
+              !forColor.some((value) => value.size === size) ||
               !upload ||
               [width, height, x, y, rotationDeg].some((value) => !Number.isSafeInteger(value)) ||
               width <= 0 ||
@@ -202,36 +209,68 @@ export function ManualItemForm({
                 disabled={busy}
                 onChange={(event) => {
                   setProductType(event.target.value);
+                  setCutId("");
+                  setColorId("");
                   setUpload(null);
                 }}
               >
                 <MenuItem value="">Vyberte typ</MenuItem>
-                {options.data?.productTypes.map((type) => (
-                  <MenuItem key={type.id} value={type.id}>
-                    {type.name}
-                  </MenuItem>
-                ))}
+                {options.data?.productTypes
+                  .filter(
+                    (type) =>
+                      type.printAreas.length &&
+                      offer.some((value) => value.productTypeId === type.id),
+                  )
+                  .map((type) => (
+                    <MenuItem key={type.id} value={type.id}>
+                      {type.name}
+                    </MenuItem>
+                  ))}
               </TextField>
               {(
                 [
-                  ["cutId", "Střih", options.data?.cuts ?? []],
-                  ["colorId", "Barva", options.data?.colors ?? []],
+                  [
+                    "cutId",
+                    "Střih",
+                    options.data?.cuts.filter((cut) =>
+                      forType.some((value) => value.cutId === cut.id),
+                    ) ?? [],
+                  ],
+                  [
+                    "colorId",
+                    "Barva",
+                    options.data?.colors.filter((color) =>
+                      forCut.some((value) => value.colorId === color.id),
+                    ) ?? [],
+                  ],
                   [
                     "size",
                     "Velikost",
-                    options.data?.sizes.map((size) => ({ id: size.value, name: size.label })) ?? [],
+                    options.data?.sizes
+                      .filter((size) => forColor.some((value) => value.size === size.value))
+                      .map((size) => ({ id: size.value, name: size.label })) ?? [],
                   ],
                   ["printAreaId", "Plocha vlastního potisku", type?.printAreas ?? []],
                 ] as const
               ).map(([name, label, values]) => (
                 <TextField
-                  key={`${name}-${productType}`}
+                  key={`${name}-${productType}-${name === "size" ? `${cutId}-${colorId}` : ""}`}
                   select
                   name={name}
                   label={label}
-                  defaultValue=""
+                  {...(name === "cutId"
+                    ? {
+                        value: cutId,
+                        onChange: (event) => {
+                          setCutId(event.target.value);
+                          setColorId("");
+                        },
+                      }
+                    : name === "colorId"
+                      ? { value: colorId, onChange: (event) => setColorId(event.target.value) }
+                      : { defaultValue: "" })}
                   required
-                  disabled={busy}
+                  disabled={busy || !values.length}
                 >
                   <MenuItem value="">Vyberte</MenuItem>
                   {values.map((value) => (

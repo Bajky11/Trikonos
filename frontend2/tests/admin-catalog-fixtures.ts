@@ -1,13 +1,6 @@
 import type { Page } from "@playwright/test";
-import type {
-  AdminMotifDetail,
-  AdminMotifImage,
-  AdminMotifVariant,
-} from "../src/api/generated/models";
-import type {
-  AdminMotifsCreateMutationBody,
-  AdminMotifVariantsCreateMutationBody,
-} from "../src/api/generated/api";
+import type { AdminMotifDetail, AdminMotifImage, GarmentOffer } from "../src/api/generated/models";
+import type { AdminMotifsCreateMutationBody } from "../src/api/generated/api";
 import { categories } from "./api-fixtures";
 
 export function existingMotif(): AdminMotifDetail {
@@ -20,10 +13,13 @@ export function existingMotif(): AdminMotifDetail {
     isActive: true,
     position: 0,
     images: [],
+    designImageUrl: null,
+    defaultColorId: null,
     description: "",
     ordersCount: 1,
     createdAt: "2026-11-15T12:00:00Z",
     updatedAt: "2026-11-15T12:00:00Z",
+    garmentExclusions: [],
   };
 }
 
@@ -31,11 +27,12 @@ export async function mockAdminCatalog(
   page: Page,
   initial: AdminMotifDetail[] = [],
   inUse = false,
+  initialOffer: GarmentOffer["variants"] = [],
 ) {
   let records: (Omit<AdminMotifDetail, "images"> & { images: AdminMotifImage[] })[] = initial.map(
     (item) => ({ ...structuredClone(item), images: structuredClone([...(item.images ?? [])]) }),
   );
-  let variants: AdminMotifVariant[] = [];
+  let offer: GarmentOffer = { revision: "initial", variants: initialOffer };
   let sequence = 100;
   const id = () => `20000000-0000-0000-0000-${String(sequence++).padStart(12, "0")}`;
   const responsePage = <T>(results: T[]) => ({
@@ -44,10 +41,18 @@ export async function mockAdminCatalog(
     next: null,
     previous: null,
   });
+  await page.route("**/api/v1/admin/garment-offer", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as GarmentOffer;
+      offer = { revision: id(), variants: body.variants };
+    }
+    return route.fulfill({ json: offer });
+  });
 
   await page.route(/\/api\/v1\/admin\/motifs(?:\?.*)?$/, (route) => {
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as AdminMotifsCreateMutationBody;
+      const source = records.find((item) => item.id === body.copyRestrictionsFrom);
       const category = categories.find((item) => item.id === body.category)!;
       const item: AdminMotifDetail = {
         ...body,
@@ -55,9 +60,15 @@ export async function mockAdminCatalog(
         slug: body.slug ?? "auto-slug",
         category: { id: category.id, name: category.name },
         images: [],
+        designImageUrl: null,
+        defaultColorId:
+          body.defaultColorId === undefined
+            ? (source?.defaultColorId ?? null)
+            : body.defaultColorId,
         ordersCount: 0,
         createdAt: "2026-11-15T12:00:00Z",
         updatedAt: "2026-11-15T12:00:00Z",
+        garmentExclusions: body.garmentExclusions ?? source?.garmentExclusions ?? [],
       };
       records.push({ ...item, images: [] });
       return route.fulfill({ status: 201, json: item });
@@ -89,53 +100,27 @@ export async function mockAdminCatalog(
     }
     if (route.request().method() === "PATCH") {
       const body = route.request().postDataJSON() as AdminMotifsCreateMutationBody;
-      const category = categories.find((category) => category.id === body.category)!;
+      const category = categories.find((category) => category.id === body.category);
       Object.assign(item, body, {
-        slug: body.slug ?? "unexpected-regenerated-slug",
-        category: { id: category.id, name: category.name },
+        slug: body.slug ?? item.slug,
+        ...(category ? { category: { id: category.id, name: category.name } } : {}),
       });
     }
     return route.fulfill({ json: item });
   });
-  await page.route(/\/api\/v1\/admin\/motif-variants(?:\?.*)?$/, (route) => {
-    if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON() as AdminMotifVariantsCreateMutationBody;
-      const duplicate = variants.some(
-        (item) =>
-          item.motifId === body.motifId &&
-          item.productTypeId === body.productTypeId &&
-          item.cutId === body.cutId &&
-          item.colorId === body.colorId &&
-          item.size === body.size,
-      );
-      if (duplicate)
-        return route.fulfill({
-          status: 409,
-          json: { error: { code: "DUPLICATE_VARIANT", message: "Duplicate" } },
-        });
-      const item = { ...body, id: id() };
-      variants.push(item);
-      return route.fulfill({ status: 201, json: item });
-    }
-    return route.fulfill({
-      json: responsePage(
-        variants.filter(
-          (item) => item.motifId === new URL(route.request().url()).searchParams.get("motif"),
-        ),
-      ),
-    });
-  });
-  await page.route(/\/api\/v1\/admin\/motif-variants\/[0-9a-f-]+$/, (route) => {
-    const currentId = new URL(route.request().url()).pathname.split("/").at(-1);
-    if (route.request().method() === "DELETE") {
-      variants = variants.filter((item) => item.id !== currentId);
-      return route.fulfill({ status: 204 });
-    }
-    const item = variants.find((item) => item.id === currentId)!;
-    Object.assign(item, route.request().postDataJSON());
-    return route.fulfill({ json: item });
-  });
 
+  await page.route(/\/api\/v1\/admin\/motifs\/[0-9a-f-]+\/design-image$/, (route) => {
+    const currentId = new URL(route.request().url()).pathname.split("/").at(-2);
+    records = records.map((record) =>
+      record.id === currentId
+        ? {
+            ...record,
+            designImageUrl: route.request().method() === "POST" ? "/media/design.png" : null,
+          }
+        : record,
+    );
+    return route.fulfill({ status: 204 });
+  });
   await page.route(/\/api\/v1\/admin\/motifs\/[0-9a-f-]+\/images(?:\/[^/?]+)?$/, (route) => {
     const parts = new URL(route.request().url()).pathname.split("/");
     const item = records.find((record) => record.id === parts[5])!;
@@ -198,7 +183,17 @@ export async function mockAdminCatalog(
             ...publicItem(item),
             description: item.description,
             images: item.images,
-            variants: variants.filter((variant) => variant.motifId === item.id && variant.isActive),
+            defaultColorId: item.defaultColorId,
+            variants: offer.variants.filter(
+              (row) =>
+                !item.garmentExclusions.some(
+                  (rule) =>
+                    rule.productTypeId === row.productTypeId &&
+                    rule.cutId === row.cutId &&
+                    (!rule.colorId || rule.colorId === row.colorId) &&
+                    (!rule.size || rule.size === row.size),
+                ),
+            ),
           },
         })
       : route.fulfill({ status: 404, json: {} });

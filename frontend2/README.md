@@ -144,10 +144,20 @@ Prázdný katalog/nedostupné varianty jsou platný stav.
 - `/pokladna` sbírá kontakt, fakturační a případnou odlišnou doručovací adresu,
   firmu/IČO/DIČ, poznámku, povinný souhlas s podmínkami a nepovinný marketingový souhlas.
   První krok je omezený na adresy v ČR, platbu převodem nebo při převzetí a na osobní
-  odběr nebo doručení na adresu. Výdejní místa Packety, INVOICE a online brána jsou odložené.
+  odběr, doručení na adresu nebo doručení na výdejní místo či Z-BOX Zásilkovny.
+  INVOICE a online brána jsou odložené.
 - Dopravci a podporované metody vycházejí z veřejných options/config. Cenu dopravy,
   množstevní slevy i dobírku počítá `/cart/validate`, nikoli frontend. Neznámá cena
   dopravy blokuje odeslání. U osobního odběru posíláme žádného dopravce, cena dopravy je 0.
+- Pro **doručení na adresu Zásilkovnou** nastav na backendu `PACKETA_WIDGET_API_KEY`
+  (veřejný klíč widgetu, ne API heslo pro expedici). Při výběru dopravce s kódem `PACKETA`
+  widget použije české doručení na adresu (`106`), pokud v **Administraci → Svoz Packety**
+  není nastavené jiné platné `ID dopravce pro doručení na adresu`. Výchozí ID platí jen
+  pro widget a nenastavuje expedici. Výběr adresy nepřepisuje fakturační adresu; ruční
+  zadání zůstává dostupné. Pro odeslání objednávky musí mít dopravce nastavenou cenu dopravy.
+- Volba **Z-BOX nebo výdejní místo** používá stejný veřejný klíč a zobrazuje české body
+  Zásilkovny povolené pro účet. Pro objednání nastav samostatnou cenu `PICKUP_POINT`.
+  Backend před uložením objednávky ověří vybrané místo u Packety, ale zásilku nezakládá.
 - **Schválené obchodní podmínky zatím nejsou připravené.** Ve frontendu je odeslání
   zablokované, dokud backendový config nevrací platnou `termsUrl`. Tu nastavuje
   `SHOP_TERMS_URL`; nepřidávej zástupný odkaz jen pro odblokování. Podmínky ani právní

@@ -3,6 +3,7 @@
  */
 import type { AdminMotifCategoryRef } from "./adminMotifCategoryRef.ts";
 import type { AdminMotifImage } from "./adminMotifImage.ts";
+import type { GarmentExclusion } from "./garmentExclusion.ts";
 
 export interface AdminMotifDetail {
   readonly id: string;
@@ -31,4 +32,9 @@ export interface AdminMotifDetail {
   readonly ordersCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly garmentExclusions: readonly GarmentExclusion[];
+  /** @nullable */
+  readonly designImageUrl: string | null;
+  /** @nullable */
+  readonly defaultColorId: string | null;
 }

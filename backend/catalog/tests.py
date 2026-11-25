@@ -14,7 +14,7 @@ from orders.models import Order, OrderStatus
 from orders.services import build_order_item
 
 from .views import MotifViewSet
-from .models import Category, Color, Motif, MotifVariant, PrintArea, ProductType
+from .models import Category, Color, Motif, PrintArea, ProductType
 
 pytestmark = pytest.mark.django_db
 
@@ -354,7 +354,9 @@ def test_reorder_motifs_rejects_unknown_id(admin_client, motif):
 # ---------------------------------------------------------------------------
 
 def _sell(motif, product_type, cut, color, *, quantity, created_at=None):
-    MotifVariant.objects.get_or_create(motif=motif, product_type=product_type, cut=cut, color=color, size='M')
+    from catalog.models import GarmentVariant
+
+    GarmentVariant.objects.get_or_create(product_type=product_type, cut=cut, color=color, size='M')
     customer = Customer.objects.create(email=f'{motif.slug}-{quantity}@example.cz')
     order = Order.objects.create(
         order_number=f'TRK-2026-{motif.slug}-{quantity}', customer=customer, status=OrderStatus.NEW,
@@ -737,19 +739,6 @@ def test_update_print_area_keeping_its_own_name_succeeds(admin_client, print_are
     assert print_area.width_mm == 150
 
 
-def test_updating_motif_variant_to_a_duplicate_combination_returns_409(admin_client, motif, product_type, cut, color):
-    other_color = Color.objects.create(name='Bílá', hex_value='#FFFFFF')
-    MotifVariant.objects.create(motif=motif, product_type=product_type, cut=cut, color=other_color, size='M')
-    variant_to_update = motif.variants.get(color=color, size='M')
-
-    response = admin_client.patch(
-        f'/api/v1/admin/motif-variants/{variant_to_update.id}', {'colorId': str(other_color.id)}, format='json',
-    )
-
-    assert response.status_code == 409
-    assert response.data['error']['code'] == 'DUPLICATE_VARIANT'
-
-
 # ---------------------------------------------------------------------------
 # No N+1 queries on list endpoints
 # ---------------------------------------------------------------------------
@@ -770,7 +759,8 @@ def test_catalog_options_query_count_does_not_grow_with_product_type_count(djang
         pt = ProductType.objects.create(name=f'Typ {i}')
         PrintArea.objects.create(product_type=pt, name='Přední strana', width_mm=300, height_mm=400)
 
-    with django_assert_max_num_queries(6):
+    # Includes one fixed query for shared garment mockups.
+    with django_assert_max_num_queries(7):
         response = APIClient().get('/api/v1/catalog/options')
 
     assert response.status_code == 200
@@ -805,48 +795,11 @@ def test_simple_lookup_str_is_name(category):
     assert str(category) == category.name
 
 
-def test_motif_variant_str(motif, product_type, cut, color):
-    variant = motif.variants.get(product_type=product_type, cut=cut, color=color, size='M')
-    assert str(variant) == f'{motif.name} / {product_type.name} / {cut.name} / {color.name} / M'
-
-
-def test_admin_can_list_motif_variants_for_a_motif(admin_client, motif, product_type, cut, color):
-    response = admin_client.get('/api/v1/admin/motif-variants', {'motif': str(motif.id)})
-
+def test_admin_can_exclude_a_size_and_it_stops_being_orderable(admin_client, motif, product_type, cut, color):
+    response = admin_client.patch(f'/api/v1/admin/motifs/{motif.pk}', {'garmentExclusions': [{
+        'productTypeId': str(product_type.id), 'cutId': str(cut.id), 'size': 'M',
+    }]}, format='json')
     assert response.status_code == 200
-    assert len(response.data['results']) == 1
-
-
-def test_listing_motif_variants_without_motif_param_returns_400(admin_client):
-    response = admin_client.get('/api/v1/admin/motif-variants')
-    assert response.status_code == 400
-
-
-def test_admin_can_create_motif_variant(admin_client, motif, product_type, cut, color):
-    response = admin_client.post('/api/v1/admin/motif-variants', {
-        'motifId': str(motif.id), 'productTypeId': str(product_type.id),
-        'cutId': str(cut.id), 'colorId': str(color.id), 'size': 'L',
-    }, format='json')
-
-    assert response.status_code == 201
-    assert MotifVariant.objects.filter(motif=motif, size='L').exists()
-
-
-def test_duplicate_motif_variant_returns_409(admin_client, motif, product_type, cut, color):
-    response = admin_client.post('/api/v1/admin/motif-variants', {
-        'motifId': str(motif.id), 'productTypeId': str(product_type.id),
-        'cutId': str(cut.id), 'colorId': str(color.id), 'size': 'M',
-    }, format='json')
-
-    assert response.status_code == 409
-    assert response.data['error']['code'] == 'DUPLICATE_VARIANT'
-
-
-def test_admin_can_delete_motif_variant_and_it_stops_being_orderable(admin_client, motif, product_type, cut, color):
-    variant = MotifVariant.objects.get(motif=motif, product_type=product_type, cut=cut, color=color, size='M')
-
-    response = admin_client.delete(f'/api/v1/admin/motif-variants/{variant.id}')
-    assert response.status_code == 204
 
     cart_response = admin_client.post('/api/v1/cart/validate', {'items': [{
         'isCustom': False, 'motifId': str(motif.id), 'productTypeId': str(product_type.id),

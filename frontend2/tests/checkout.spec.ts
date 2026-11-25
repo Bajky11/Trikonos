@@ -19,6 +19,129 @@ async function choose(page: Page, label: string, name: string) {
     .check();
 }
 
+test("uses the Packeta HD widget only for Packeta and saves the selected shipping address", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockStoreApi(page);
+  const state = await mockCheckout(page);
+  state.packetaHomeDelivery = { apiKey: "public-widget-key", carrierId: "106" };
+  state.carriers.push({ id: "another-carrier", name: "Jiný dopravce", code: "OTHER" });
+  await page.route("https://hd.widget.packeta.com/v6/", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: `<button onclick='parent.postMessage(JSON.stringify({packetaWidgetMessage:true,address:{
+        country:"cz",street:"Českomoravská",houseNumber:"2408/1a",city:"Praha",postcode:"190 00"
+      }}), "*")'>Potvrdit adresu</button>`,
+    }),
+  );
+  await page.addInitScript((item) => {
+    localStorage.setItem("trikonos-cart-v2", JSON.stringify([item]));
+  }, checkoutCatalog);
+  await page.goto("/pokladna");
+  await fillCustomer(page);
+
+  const picker = page.getByRole("button", { name: "Vybrat adresu v Zásilkovně" });
+  await choose(page, "Způsob doručení", "Osobní odběr");
+  await expect(picker).toHaveCount(0);
+  await choose(page, "Způsob doručení", "Doručení na adresu");
+  await choose(page, "Dopravce", "Jiný dopravce");
+  await expect(picker).toHaveCount(0);
+  await choose(page, "Dopravce", "Packeta");
+  await picker.click();
+  await page.getByRole("button", { name: "Zavřít a pokračovat ručně" }).click();
+  const differentAddress = page.getByRole("checkbox", { name: "Doručit na jinou adresu" });
+  await expect(differentAddress).not.toBeChecked();
+
+  await picker.click();
+  const iframe = page.locator('iframe[title="Výběr doručovací adresy Zásilkovny"]');
+  await expect(iframe).toHaveAttribute("src", /layout=hd/);
+  await expect(iframe).toHaveAttribute("src", /carrierId=106/);
+  await page.evaluate(() => window.postMessage({ packetaWidgetMessage: true, address: null }, "*"));
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await iframe.contentFrame().getByRole("button", { name: "Potvrdit adresu" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(differentAddress).toBeChecked();
+  const shipping = page.getByRole("group", { name: "Doručovací adresa", exact: true });
+  await expect(shipping.getByRole("textbox", { name: "Ulice a číslo domu" })).toHaveValue(
+    "Českomoravská 2408/1a",
+  );
+  await expect(shipping.getByRole("textbox", { name: "PSČ" })).toHaveValue("19000");
+  await choose(page, "Způsob platby", "Bankovní převod");
+  await page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" }).check();
+  await page.getByRole("button", { name: "Objednat s povinností platby" }).click();
+  await expect(page).toHaveURL(/\/objednavka$/);
+  expect(state.posts).toHaveLength(1);
+  expect(state.posts[0]).toMatchObject({
+    delivery: { deliveryType: "HOME_DELIVERY", carrierId },
+    billing: { street: "Horní 12", city: "Vrchlabí", zip: "54301" },
+    shipping: {
+      sameAsBilling: false,
+      fullName: "Jana Nováková",
+      street: "Českomoravská 2408/1a",
+      city: "Praha",
+      zip: "19000",
+      country: "CZ",
+    },
+  });
+});
+
+test("selects a Packeta Z-BOX and submits the pickup ID instead of a home delivery address", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockStoreApi(page);
+  const state = await mockCheckout(page);
+  state.packetaHomeDelivery = { apiKey: "public-widget-key", carrierId: "106" };
+  await page.route("https://widget.packeta.com/v6/", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: `<button onclick='parent.postMessage({packetaWidgetMessage:true,packetaSelectedData:{
+        id:"12345",name:"Z-BOX Vrchlabí",country:"cz",group:"zbox",pickupPointType:"internal"
+      }}, "*")'>Potvrdit Z-BOX</button>`,
+    }),
+  );
+  await page.addInitScript((item) => {
+    localStorage.setItem("trikonos-cart-v2", JSON.stringify([item]));
+  }, checkoutCatalog);
+  await page.goto("/pokladna");
+  await fillCustomer(page);
+  await choose(page, "Způsob doručení", "Z-BOX nebo výdejní místo");
+  await choose(page, "Způsob platby", "Bankovní převod");
+  const summary = page.getByRole("region", { name: "Shrnutí objednávky" });
+  await expect(summary).toContainText("778 Kč");
+  const submit = page.getByRole("button", { name: "Objednat s povinností platby" });
+  await expect(submit).toBeDisabled();
+  const choosePickup = page.getByRole("button", { name: "Vybrat Z-BOX nebo výdejní místo" });
+  await expect(choosePickup).toHaveClass(/\bMuiButton-contained\b/);
+  await choosePickup.click();
+  const map = page.locator('iframe[title="Mapa Z-BOXů a výdejních míst Zásilkovny"]');
+  await expect(map).toHaveAttribute("src", /vendors=cz%2C.*zbox/);
+  await map.contentFrame().getByRole("button", { name: "Potvrdit Z-BOX" }).click();
+  const selection = page.getByRole("status").filter({ hasText: "Vybrané místo Zásilkovny" });
+  await expect(selection).toContainText("Z-BOX Vrchlabí");
+  const changePickup = page.getByRole("button", { name: "Změnit vybrané místo" });
+  await expect(changePickup).toHaveClass(/\bMuiButton-outlined\b/);
+  await changePickup.click();
+  await expect(map).toBeVisible();
+  await page.getByRole("button", { name: "Zavřít mapu" }).click();
+  await expect(selection).toContainText("Z-BOX Vrchlabí");
+  await expect(summary).toContainText("Z-BOX Vrchlabí");
+  await page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" }).check();
+  await submit.click();
+  await expect(page).toHaveURL(/\/objednavka$/);
+  await expect(page.getByText("Doručení: Packeta · Z-BOX Vrchlabí")).toBeVisible();
+  expect(state.posts[0]).toMatchObject({
+    delivery: {
+      deliveryType: "PICKUP_POINT",
+      carrierId,
+      pickupPointId: "12345",
+      pickupPointName: "Z-BOX Vrchlabí",
+    },
+    shipping: { sameAsBilling: true },
+  });
+});
+
 test("creates an order from the cart on mobile only after required details and consent", async ({
   page,
 }) => {

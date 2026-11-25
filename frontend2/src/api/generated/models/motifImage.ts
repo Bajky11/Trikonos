@@ -7,4 +7,8 @@ export interface MotifImage {
   altText?: string;
   /** @nullable */
   colorId?: string | null;
+  /** @nullable */
+  productTypeId?: string | null;
+  /** @nullable */
+  cutId?: string | null;
 }

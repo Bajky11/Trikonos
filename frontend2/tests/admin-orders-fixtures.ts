@@ -150,6 +150,12 @@ export async function mockAdminOrders(page: Page, count = 21) {
       paymentStatus: order.paymentStatus,
       shipmentStatus: order.shipmentStatus,
       hasCustom: true,
+      items: order.items.map(({ placements: _placements, ...item }) => item),
+      carrier: order.carrier,
+      deliveryType: order.deliveryType,
+      paymentMethod: order.paymentMethod,
+      note: order.note,
+      trackingNumber: order.trackingNumber,
     };
     const pageNumber = Number(params.get("page") || 1);
     return route.fulfill({

@@ -284,6 +284,7 @@ SHOP_CONFIG = {
     'INSTAGRAM_URL': os.environ.get('SHOP_INSTAGRAM_URL', ''),
     'BANK_ACCOUNT': os.environ.get('SHOP_BANK_ACCOUNT', ''),
     'TERMS_URL': os.environ.get('SHOP_TERMS_URL', ''),
+    'PACKETA_WIDGET_API_KEY': os.environ.get('PACKETA_WIDGET_API_KEY', ''),
     'TOPBAR_TEXT': os.environ.get('SHOP_TOPBAR_TEXT', ''),
     'NOTIFY_EMAIL': os.environ.get('SHOP_NOTIFY_EMAIL', ''),
 }

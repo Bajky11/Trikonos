@@ -73,8 +73,28 @@ def test_mixed_order_list_is_unique_and_filters_preserve_total_item_count(admin_
         assert response.data['results'][0]['has_custom'] is True
         assert response.data['results'][0]['customer_first_name'] == 'Jana Marie'
         assert response.data['results'][0]['customer_last_name'] == 'Nováková Svobodová'
+        row = response.data['results'][0]
+        assert len(row['items']) == 2
+        assert row['carrier']['name'] == 'Zásilkovna'
+        assert row['payment_method'] == PaymentMethod.BANK_TRANSFER
+        assert row['items'][0]['color']['name'] == color.name
+        assert row['items'][0]['cut']['name'] == cut.name
+        assert 'placements' not in row['items'][0]
         assert 'no-store' in response['Cache-Control']
     assert admin_client.get('/api/v1/admin/orders', {'hasCustom': 'false'}).data['count'] == 0
+
+
+def test_order_list_prefetches_items_without_per_order_queries(admin_client, motif, product_type, cut, color, packeta_carrier, django_assert_num_queries):
+    for index in range(4):
+        _order(motif=motif, product_type=product_type, cut=cut, color=color,
+               packeta_carrier=packeta_carrier, email=f'list{index}@example.cz',
+               order_number=f'TRK-LIST-{index}', note='Poznámka k výrobě', tracking_number=f'Z{index}')
+    # Pagination count, annotated orders with customer/carrier, and one item query.
+    with django_assert_num_queries(3):
+        response = admin_client.get('/api/v1/admin/orders')
+    assert response.status_code == 200
+    assert response.data['count'] == 4
+    assert all(row['items'] and row['note'] == 'Poznámka k výrobě' and row['tracking_number'] for row in response.data['results'])
 
 
 def test_admin_shipping_changes_reprice_and_rollback_on_missing_rate(admin_client, motif, product_type, cut, color, packeta_carrier):

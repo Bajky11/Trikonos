@@ -152,7 +152,9 @@ export function OrderReceiptPage() {
               Doručení:{" "}
               {detail.data.deliveryType === "PERSONAL_PICKUP"
                 ? "Osobní odběr"
-                : `${detail.data.carrierName ?? "Na adresu"} · ${detail.data.shipping.street}, ${detail.data.shipping.city}`}
+                : detail.data.deliveryType === "PICKUP_POINT"
+                  ? `${detail.data.carrierName ?? "Výdejní místo"} · ${detail.data.pickupPointName}`
+                  : `${detail.data.carrierName ?? "Na adresu"} · ${detail.data.shipping.street}, ${detail.data.shipping.city}`}
             </Typography>
             {detail.data.paymentStatus === "PAID" && <p>Platba je evidovaná jako uhrazená.</p>}
             {!quoted &&

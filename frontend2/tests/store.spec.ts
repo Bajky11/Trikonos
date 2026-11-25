@@ -1,8 +1,93 @@
 import { expect, test } from "@playwright/test";
 import type { Request } from "@playwright/test";
-import { mockStoreApi, mockAuthApi } from "./api-fixtures";
+import { mockStoreApi, mockAuthApi, motifs, options } from "./api-fixtures";
 
 test.beforeEach(async ({ page }) => mockStoreApi(page));
+
+test("opens on the default color and keeps the dynamic preview before the photos", async ({
+  page,
+}) => {
+  const [white, black] = options.colors;
+  const variant = options.garmentVariants[0]!;
+  const { productTypeId, cutId } = variant;
+  const png = "/media/design.png";
+  const blank = "/media/blank.png";
+  const whitePng =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC";
+  const magentaPng =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z/AfAAQAAf8iCjrwAAAAAElFTkSuQmCC";
+  await page.route("**/media/*.png", (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(route.request().url().endsWith(png) ? magentaPng : whitePng, "base64"),
+    }),
+  );
+  await page.route("**/api/v1/catalog/options", (route) =>
+    route.fulfill({
+      json: {
+        ...options,
+        garmentMockups: [{ productTypeId, cutId, url: blank }],
+      },
+    }),
+  );
+  await page.route("**/api/v1/motifs/motiv-1", (route) =>
+    route.fulfill({
+      json: {
+        ...motifs[0],
+        designImageUrl: png,
+        defaultColorId: black!.id,
+        variants: [white!, black!].map((color) => ({ ...variant, colorId: color.id })),
+        images: [
+          {
+            url: "/media/finished.png",
+            altText: "Hotové černé tričko",
+            productTypeId,
+            cutId,
+            colorId: black!.id,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/produkt/motiv-1");
+  const preview = page.getByRole("img", { name: /Ilustrační náhled/ });
+  await expect(preview.locator("image").first()).toHaveAttribute("href", new RegExp(`${blank}$`));
+  await expect(preview.locator("image").last()).toHaveAttribute("href", new RegExp(`${png}$`));
+  await expect(page.getByRole("radio", { name: "Černá", exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "Zobrazit automatický náhled" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const pixels = async () => {
+    const screenshot = await preview.screenshot({ animations: "disabled" });
+    return page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(image, 0, 0);
+      return [0.25, 0.5].map((x) =>
+        Array.from(ctx.getImageData(image.width * x, image.height * 0.44, 1, 1).data).slice(0, 3),
+      );
+    }, screenshot.toString("base64"));
+  };
+  await expect.poll(pixels).toEqual([
+    [0, 0, 0],
+    [255, 0, 255],
+  ]);
+  await page.getByRole("button", { name: "Hotové černé tričko, obrázek 2" }).click();
+  await expect(page.getByRole("img", { name: "Hotové černé tričko" })).toBeVisible();
+  await page.getByRole("radio", { name: "Bílá", exact: true }).check();
+  await expect(preview.locator("feFlood")).toHaveAttribute("flood-color", white!.hexValue);
+  await expect.poll(pixels).toEqual([
+    [255, 255, 255],
+    [255, 0, 255],
+  ]);
+  await expect(page.getByRole("img", { name: "Hotové černé tričko" })).toHaveCount(0);
+});
 
 test("home, default artwork, gallery, seasonal panels and FAQ", async ({ page }) => {
   const errors: string[] = [];
@@ -100,7 +185,7 @@ test("admin search and navigation across all routes", async ({ page }) => {
   await expect(page.getByRole("status")).toContainText("Žádná objednávka");
   for (const [route, heading] of [
     ["objednavky", "Objednávky"],
-    ["produkty", "Produkty"],
+    ["produkty", "Motivy"],
     ["klienti", "Klienti"],
     ["sezony", "Sezóny"],
     ["ciselniky", "Číselníky"],

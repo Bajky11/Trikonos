@@ -1,7 +1,7 @@
 import pytest
 from django.core.cache import cache
 
-from catalog.models import Category, Color, Cut, MotifVariant, PrintArea, ProductType, Motif
+from catalog.models import Category, Color, Cut, GarmentVariant, PrintArea, ProductType, Motif
 from shipping.models import Carrier
 
 
@@ -32,7 +32,9 @@ def product_type(db):
 
 
 @pytest.fixture
-def print_area(db, product_type):
+def print_area(db, product_type, cut, color):
+    GarmentVariant.objects.get_or_create(product_type=product_type, cut=cut, color=color, size='M')
+    GarmentVariant.objects.get_or_create(product_type=product_type, cut=cut, color=color, size='L')
     return PrintArea.objects.create(product_type=product_type, name='Přední strana', width_mm=300, height_mm=400)
 
 
@@ -48,10 +50,8 @@ def color(db):
 
 @pytest.fixture
 def motif(db, category, product_type, cut, color):
-    motif = Motif.objects.create(name='Bitcoin', slug='bitcoin', price=59900, category=category)
-    # Every existing test that builds a catalog order item combines this
-    # motif with the product_type/cut/color fixtures at size M - without a
-    # matching MotifVariant row, orders.services._validate_and_price_item
-    # would now reject that combination with 422 VARIANT_NOT_AVAILABLE.
-    MotifVariant.objects.create(motif=motif, product_type=product_type, cut=cut, color=color, size='M')
+    motif = Motif.objects.create(
+        name='Bitcoin', slug='bitcoin', price=59900, category=category,
+    )
+    GarmentVariant.objects.get_or_create(product_type=product_type, cut=cut, color=color, size='M')
     return motif

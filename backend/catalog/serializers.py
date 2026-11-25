@@ -1,6 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from .availability import offered_garments, VARIANT_FIELDS
 from .models import Category, Motif
 
 
@@ -35,7 +36,7 @@ class MotifListSerializer(serializers.ModelSerializer):
 
     def get_main_image(self, obj) -> str | None:
         images = obj.images or []
-        return images[0]['url'] if images else None
+        return images[0]['url'] if images else obj.design_image.url if obj.design_image else None
 
 
 class MotifVariantRefSerializer(serializers.Serializer):
@@ -49,6 +50,8 @@ class MotifImageSerializer(serializers.Serializer):
     url = serializers.CharField()
     alt_text = serializers.CharField(required=False, allow_blank=True)
     color_id = serializers.UUIDField(required=False, allow_null=True)
+    product_type_id = serializers.UUIDField(required=False, allow_null=True)
+    cut_id = serializers.UUIDField(required=False, allow_null=True)
 
 
 @extend_schema_field(MotifImageSerializer(many=True))
@@ -57,6 +60,8 @@ class MotifImagesField(serializers.JSONField):
 
 
 class MotifDetailSerializer(serializers.ModelSerializer):
+    default_color_id = serializers.UUIDField(read_only=True, allow_null=True)
+    design_image_url = serializers.ImageField(source='design_image', read_only=True, allow_null=True)
     category = MotifCategoryRefSerializer(read_only=True)
     currency = serializers.SerializerMethodField()
     variants = serializers.SerializerMethodField()
@@ -64,19 +69,16 @@ class MotifDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Motif
-        fields = ['id', 'slug', 'name', 'description', 'price', 'currency', 'images', 'category', 'variants']
+        fields = ['id', 'slug', 'name', 'description', 'price', 'currency', 'images', 'category', 'variants', 'design_image_url', 'default_color_id']
 
     def get_currency(self, obj) -> str:
         return 'CZK'
 
     @extend_schema_field(MotifVariantRefSerializer(many=True))
     def get_variants(self, obj):
-        """Which productType/cut/color/size combinations are orderable for
-        this motif - admin opts them in via /admin/motif-variants. The
-        configurator uses this to show only buyable combinations instead of
-        letting the customer pick one that /cart/validate will then reject.
-        """
-        return MotifVariantRefSerializer(obj.variants.filter(is_active=True), many=True).data
+        return MotifVariantRefSerializer(
+            offered_garments(obj).order_by(*VARIANT_FIELDS), many=True,
+        ).data
 
 
 class CatalogOptionPrintAreaSerializer(serializers.Serializer):
@@ -115,7 +117,15 @@ class CatalogOptionCarrierSerializer(serializers.Serializer):
     code = serializers.CharField()
 
 
+class GarmentMockupSerializer(serializers.Serializer):
+    product_type_id = serializers.UUIDField()
+    cut_id = serializers.UUIDField()
+    url = serializers.CharField()
+
+
 class CatalogOptionsResponseSerializer(serializers.Serializer):
+    garment_variants = MotifVariantRefSerializer(many=True)
+    garment_mockups = GarmentMockupSerializer(many=True, required=False)
     product_types = CatalogOptionProductTypeSerializer(many=True)
     cuts = CatalogOptionCutSerializer(many=True)
     colors = CatalogOptionColorSerializer(many=True)

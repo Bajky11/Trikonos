@@ -6,6 +6,7 @@ import { mockStoreApi, options, motifs } from "./api-fixtures";
 const areaId = "40000000-0000-0000-0000-000000000001";
 const squareId = "40000000-0000-0000-0000-000000000002";
 const backId = "40000000-0000-0000-0000-000000000003";
+const hoodieId = "50000000-0000-0000-0000-000000000002";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1ioAAAAASUVORK5CYII=",
   "base64",
@@ -16,6 +17,10 @@ async function mockCustomOptions(page: Page) {
     route.fulfill({
       json: {
         ...options,
+        garmentVariants: [
+          ...options.garmentVariants,
+          { ...options.garmentVariants[0]!, productTypeId: hoodieId },
+        ],
         productTypes: [
           {
             ...options.productTypes[0],
@@ -26,7 +31,7 @@ async function mockCustomOptions(page: Page) {
           },
           {
             ...options.productTypes[0],
-            id: "50000000-0000-0000-0000-000000000002",
+            id: hoodieId,
             name: "Mikina",
             printAreas: [{ id: backId, name: "Záda", widthMm: 250, heightMm: 350 }],
           },

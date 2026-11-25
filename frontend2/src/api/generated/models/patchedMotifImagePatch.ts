@@ -3,6 +3,10 @@
  */
 
 export interface PatchedMotifImagePatch {
+  /** @nullable */
+  productTypeId?: string | null;
+  /** @nullable */
+  cutId?: string | null;
   altText?: string;
   /** @nullable */
   colorId?: string | null;

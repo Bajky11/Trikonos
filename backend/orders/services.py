@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
-from catalog.models import MotifVariant
+from catalog.availability import offered_garments
 from core.exceptions import (
     BusinessError,
     InvalidStatusTransitionError,
@@ -130,7 +130,7 @@ def _validate_and_price_item(item_data):
     placements (list of dicts: print_area, url, x, y, width, height,
     rotation_deg). Raises BusinessError (422) on any rule violation, returns
     (item_label, unit_price) on success. Read-only - never writes to the
-    database (the MotifVariant availability check below is a read).
+    database (the garment availability check below is a read).
     """
     is_custom = item_data['is_custom']
     motif = item_data.get('motif')
@@ -165,11 +165,11 @@ def _validate_and_price_item(item_data):
     _require_active(cut, _('Cut'))
     _require_active(color, _('Color'))
 
-    if not is_custom and not MotifVariant.objects.filter(
-        motif=motif, product_type=product_type, cut=cut, color=color, size=size, is_active=True,
+    if not offered_garments(motif).filter(
+        product_type=product_type, cut=cut, color=color, size=size,
     ).exists():
         raise BusinessError(
-            _('This combination is not available for the selected motif.'), code='VARIANT_NOT_AVAILABLE',
+            _('This garment combination is not available.'), code='VARIANT_NOT_AVAILABLE',
         )
 
     for placement in placements:

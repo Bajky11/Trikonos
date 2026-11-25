@@ -4,10 +4,7 @@ from django.utils.text import slugify
 from django.utils.translation import gettext as _
 from rest_framework import serializers
 
-from core.exceptions import DuplicateVariantError
-from orders.models.choices import Size
-
-from .models import Category, Color, Cut, Motif, MotifVariant, PrintArea, ProductType
+from .models import Category, Color, Cut, PrintArea, ProductType
 
 
 class AdminCategorySerializer(serializers.ModelSerializer):
@@ -29,8 +26,6 @@ class AdminCategorySerializer(serializers.ModelSerializer):
         if queryset.exists():
             raise serializers.ValidationError({'slug': _('This slug already exists, pick a different name or slug.')})
         return attrs
-
-
 class AdminColorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Color
@@ -70,7 +65,7 @@ class AdminPrintAreaSerializer(serializers.ModelSerializer):
         # UniqueConstraint(product_type, name) - it would otherwise fire
         # before validate() below with a generic message, making the
         # friendlier duplicate-name error here unreachable dead code. Same
-        # recipe as AdminMotifVariantSerializer/AdminShippingQuantityDiscountSerializer.
+        # recipe as AdminShippingQuantityDiscountSerializer.
         validators = []
 
     def validate(self, attrs):
@@ -90,37 +85,4 @@ class AdminPrintAreaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'name': _('A print area with this name already exists for this product type.'),
             })
-        return attrs
-
-
-class AdminMotifVariantSerializer(serializers.ModelSerializer):
-    motif_id = serializers.PrimaryKeyRelatedField(source='motif', queryset=Motif.objects.all())
-    product_type_id = serializers.PrimaryKeyRelatedField(source='product_type', queryset=ProductType.objects.all())
-    cut_id = serializers.PrimaryKeyRelatedField(source='cut', queryset=Cut.objects.all())
-    color_id = serializers.PrimaryKeyRelatedField(source='color', queryset=Color.objects.all())
-    size = serializers.ChoiceField(choices=Size.choices)
-
-    class Meta:
-        model = MotifVariant
-        fields = ['id', 'motif_id', 'product_type_id', 'cut_id', 'color_id', 'size', 'is_active']
-        # Disables DRF's auto-generated UniqueTogetherValidator (which would
-        # report a duplicate combination as a generic 400) in favour of the
-        # 409 raised in validate() below - same recipe as
-        # AdminShippingQuantityDiscountSerializer.
-        validators = []
-
-    def validate(self, attrs):
-        motif = attrs.get('motif', getattr(self.instance, 'motif', None))
-        product_type = attrs.get('product_type', getattr(self.instance, 'product_type', None))
-        cut = attrs.get('cut', getattr(self.instance, 'cut', None))
-        color = attrs.get('color', getattr(self.instance, 'color', None))
-        size = attrs.get('size', getattr(self.instance, 'size', None))
-
-        duplicate = MotifVariant.objects.filter(
-            motif=motif, product_type=product_type, cut=cut, color=color, size=size,
-        )
-        if self.instance is not None:
-            duplicate = duplicate.exclude(pk=self.instance.pk)
-        if duplicate.exists():
-            raise DuplicateVariantError()
         return attrs

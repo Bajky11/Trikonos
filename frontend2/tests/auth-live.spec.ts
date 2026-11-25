@@ -51,7 +51,7 @@ test("local Docker login, session after reload and CSRF-protected logout", async
   );
   await page
     .getByRole("navigation", { name: "Administrace" })
-    .getByRole("link", { name: "Produkty" })
+    .getByRole("link", { name: "Motivy" })
     .click();
   const motifs = await motifsResponse;
   expect(motifs.status()).toBe(200);
@@ -62,18 +62,9 @@ test("local Docker login, session after reload and CSRF-protected logout", async
     await expect(
       page.getByRole("dialog").getByRole("textbox", { name: "Název motivu" }),
     ).not.toHaveValue("");
-    await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
-    await page.getByRole("button", { name: "Varianty", exact: true }).first().click();
     await expect(
-      page.getByRole("dialog").getByRole("table", { name: "Povolené kombinace" }),
+      page.getByRole("dialog").getByRole("heading", { name: "Oblečení", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("dialog").getByRole("combobox", { name: "Typ oblečení" }),
-    ).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
-  }
-  if (data.count > 0) {
-    await page.getByRole("button", { name: "Fotografie", exact: true }).first().click();
     await expect(page.getByRole("dialog").getByLabel("Soubor fotografie")).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Zavřít", exact: true }).click();
   }

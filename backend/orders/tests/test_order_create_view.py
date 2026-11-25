@@ -16,7 +16,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from customers.models import Customer
 from orders.models import DeliveryType, Order, OrderStatus
-from shipping.models import ShippingPrice
+from shipping.models import Carrier, ShippingPrice
 
 pytestmark = pytest.mark.django_db
 
@@ -58,6 +58,37 @@ def test_public_checkout_ignores_client_supplied_unit_price(motif, product_type,
     assert response.status_code == 201
     assert response.data['items'][0]['unit_price'] == motif.price + product_type.price
     assert response.data['subtotal'] == motif.price + product_type.price
+
+
+@pytest.mark.parametrize('valid', [True, False])
+def test_public_packeta_pickup_validates_before_saving(motif, product_type, cut, color, settings, valid):
+    settings.SHOP_CONFIG = {**settings.SHOP_CONFIG, 'PACKETA_WIDGET_API_KEY': 'public-widget-key'}
+    packeta = Carrier.objects.create(code='PACKETA', name='Zásilkovna')
+    ShippingPrice.objects.create(carrier=packeta, delivery_type=DeliveryType.PICKUP_POINT, price=6900)
+    body = _order_body(motif, product_type, cut, color, delivery={
+        'deliveryType': DeliveryType.PICKUP_POINT, 'carrierId': str(packeta.id),
+        'pickupPointId': '12345', 'pickupPointName': 'Název od klienta',
+    })
+    body['orderId'] = str(uuid.uuid4())
+    with patch('shipping.packeta_pickup.requests.post') as post, patch('shipping.packeta_client.create_packet') as create_packet:
+        post.return_value.json.return_value = {
+            'isValid': valid,
+            'point': {'name': 'Z-BOX', 'address': {'city': 'Vrchlabí', 'street': 'Horní 12'}},
+        }
+        response = APIClient().post('/api/v1/orders', body, format='json')
+        assert post.call_args.kwargs['json']['point'] == {'id': '12345'}
+        assert post.call_args.kwargs['json']['options']['vendors'] == [{'country': 'cz'}, {'country': 'cz', 'group': 'zbox'}]
+        if valid:
+            assert response.status_code == 201
+            order = Order.objects.get(pk=body['orderId'])
+            assert (order.pickup_point_id, order.pickup_point_name, order.shipping_cost) == ('12345', 'Z-BOX – Vrchlabí, Horní 12', 6900)
+            assert not order.carrier_shipment_id
+            assert APIClient().post('/api/v1/orders', body, format='json').status_code == 201
+            post.assert_called_once()
+        else:
+            assert response.status_code == 422
+            assert not Order.objects.filter(pk=body['orderId']).exists()
+        create_packet.assert_not_called()
 
 
 def test_public_checkout_ignores_client_supplied_shipping_cost(motif, product_type, cut, color, carrier):

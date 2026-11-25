@@ -4,6 +4,7 @@ import {
   adminColorsList,
   adminCutsList,
   adminProductTypesList,
+  catalogOptionsRetrieve,
   getAdminCategoriesListQueryKey,
   getAdminAuthMeRetrieveQueryKey,
 } from "../../api/generated/api";
@@ -36,12 +37,19 @@ export function useVariantLookups() {
     // Private namespace, also removed by the existing logout/session cleanup.
     queryKey: ["/api/v1/admin/", "variant-lookups"],
     queryFn: async ({ signal }) => {
-      const [productTypes, cuts, colors] = await Promise.all([
+      const [productTypes, cuts, colors, options] = await Promise.all([
         allPages((page) => adminProductTypesList({ page, pageSize: 100 }, { signal })),
         allPages((page) => adminCutsList({ page, pageSize: 100 }, { signal })),
         allPages((page) => adminColorsList({ page, pageSize: 100 }, { signal })),
+        catalogOptionsRetrieve({ signal }),
       ]);
-      return { productTypes, cuts, colors };
+      return {
+        productTypes,
+        cuts,
+        colors,
+        sizes: options.sizes,
+        mockups: options.garmentMockups ?? [],
+      };
     },
   });
 }
@@ -59,7 +67,8 @@ export const catalogMutationKey = ["admin-catalog-write"];
 export function useCatalogMutation<T, R>(
   resource:
     | "motifs"
-    | "motif-variants"
+    | "garment-offer"
+    | "garment-mockups"
     | "categories"
     | "colors"
     | "cuts"
@@ -76,7 +85,7 @@ export function useCatalogMutation<T, R>(
     onSuccess: () => {
       const prefixes = [`/api/v1/admin/${resource}`, "/api/v1/motifs"];
       if (resource === "motifs") prefixes.push("/api/v1/categories");
-      const lookup = resource !== "motifs" && resource !== "motif-variants";
+      const lookup = resource !== "motifs";
       if (lookup)
         prefixes.push(
           "/api/v1/categories",
@@ -88,7 +97,7 @@ export function useCatalogMutation<T, R>(
             "product-types",
             "print-areas",
             "motifs",
-            "motif-variants",
+            "garment-offer",
           ].map((name) => `/api/v1/admin/${name}`),
         );
       return client.invalidateQueries({

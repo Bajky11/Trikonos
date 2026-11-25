@@ -23,6 +23,7 @@ import { designs } from "../data/catalog";
 import type { CustomCartItem } from "../cart/storage";
 import { useShop } from "./ShopContext";
 import { CatalogFeedback } from "./Products";
+import { GarmentLayer, garmentViewBox } from "./GarmentPreview";
 import {
   fitDesign,
   moveDesign,
@@ -44,7 +45,11 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
       ...type,
       printAreas: type.printAreas.filter((area) => area.widthMm > 0 && area.heightMm > 0),
     }))
-    .filter((type) => type.printAreas.length);
+    .filter(
+      (type) =>
+        type.printAreas.length &&
+        options.garmentVariants.some((variant) => variant.productTypeId === type.id),
+    );
   const [typeId, setTypeId] = useState("");
   const [cutId, setCutId] = useState("");
   const [colorId, setColorId] = useState("");
@@ -68,10 +73,21 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
     null,
   );
   const type = types.find((type) => type.id === typeId) ?? types[0];
-  const cut = options.cuts.find((cut) => cut.id === cutId) ?? options.cuts[0];
-  const color = options.colors.find((color) => color.id === colorId) ?? options.colors[0];
-  const size =
-    options.sizes.find((size) => size.value === sizeValue)?.value ?? options.sizes[0]?.value;
+  const forType = options.garmentVariants.filter((variant) => variant.productTypeId === type?.id);
+  const cuts = options.cuts.filter((cut) => forType.some((variant) => variant.cutId === cut.id));
+  const cut = cuts.find((cut) => cut.id === cutId) ?? cuts[0];
+  const forCut = forType.filter((variant) => variant.cutId === cut?.id);
+  const colors = options.colors.filter((color) =>
+    forCut.some((variant) => variant.colorId === color.id),
+  );
+  const color = colors.find((color) => color.id === colorId) ?? colors[0];
+  const background = options.garmentMockups?.find(
+    (item) => item.productTypeId === type?.id && item.cutId === cut?.id,
+  )?.url;
+  const sizes = options.sizes.filter((size) =>
+    forCut.some((variant) => variant.colorId === color?.id && variant.size === size.value),
+  );
+  const size = sizes.find((size) => size.value === sizeValue)?.value ?? sizes[0]?.value;
   const areas = type?.printAreas ?? [];
   const area = areas.find((area) => area.id === areaId) ?? areas[0];
   const scale = previewScale(types.flatMap((type) => type.printAreas));
@@ -234,29 +250,10 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
           <svg
             ref={svg}
             className="shirt-art"
-            viewBox="0 0 1131 1390"
+            viewBox={garmentViewBox}
             aria-label="Editor umístění potisku"
           >
-            <defs>
-              <filter
-                id={filterId}
-                x="0"
-                y="0"
-                width="100%"
-                height="100%"
-                colorInterpolationFilters="sRGB"
-              >
-                <feFlood floodColor={color?.hexValue ?? "#ffffff"} result="color" />
-                <feBlend in="SourceGraphic" in2="color" mode="multiply" result="tinted" />
-                <feComposite in="tinted" in2="SourceAlpha" operator="in" />
-              </filter>
-            </defs>
-            <image
-              href="/assets/tshirt.png"
-              width="1131"
-              height="1390"
-              filter={`url(#${filterId})`}
-            />
+            <GarmentLayer color={color?.hexValue} background={background} />
             {controls && area && (
               <>
                 <rect className="print-area" {...bounds} />
@@ -384,9 +381,9 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
               label="Střih"
               value={cut?.id ?? ""}
               onChange={(event) => setCutId(event.target.value)}
-              disabled={!options.cuts.length}
+              disabled={!cuts.length}
             >
-              {options.cuts.map((cut) => (
+              {cuts.map((cut) => (
                 <MenuItem key={cut.id} value={cut.id}>
                   {cut.name}
                 </MenuItem>
@@ -399,9 +396,9 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
               label="Barva"
               value={color?.id ?? ""}
               onChange={(event) => setColorId(event.target.value)}
-              disabled={!options.colors.length}
+              disabled={!colors.length}
             >
-              {options.colors.map((color) => (
+              {colors.map((color) => (
                 <MenuItem key={color.id} value={color.id}>
                   {color.name}
                 </MenuItem>
@@ -501,9 +498,9 @@ function CustomEditor({ options }: { options: CatalogOptionsResponse }) {
               label="Velikost"
               value={size ?? ""}
               onChange={(event) => setSizeValue(event.target.value)}
-              disabled={!options.sizes.length}
+              disabled={!sizes.length}
             >
-              {options.sizes.map((size) => (
+              {sizes.map((size) => (
                 <MenuItem key={size.value} value={size.value}>
                   {size.label}
                 </MenuItem>

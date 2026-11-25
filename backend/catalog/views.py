@@ -13,7 +13,8 @@ from rest_framework.views import APIView
 from orders.models import Size
 from shipping.models import Carrier
 
-from .models import Category, Color, Cut, Motif, PrintArea, ProductType
+from .models import Category, Color, Cut, GarmentMockup, Motif, PrintArea, ProductType
+from .availability import offered_garments, VARIANT_FIELDS
 from .serializers import (
     CatalogOptionsResponseSerializer,
     CategorySerializer,
@@ -95,7 +96,7 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
             'galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud '
             'žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací '
             '`productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor '
-            'z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` '
+            'odvozených ze společné nabídky oblečení a pravidel motivu '
             '(jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 '
             '`VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.'
         ),
@@ -203,7 +204,7 @@ class CatalogOptionsView(APIView):
             'zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro '
             'rozměry editoru vlastního potisku i validaci umístění na frontendu, i '
             'když finální kontrolu stejně dělá server). `sizes` je pevný seznam '
-            'S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár '
+            'z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár '
             'minut - mění se jen při úpravě číselníků v administraci.'
         ),
         responses={200: CatalogOptionsResponseSerializer},
@@ -220,6 +221,11 @@ class CatalogOptionsView(APIView):
         carriers = Carrier.objects.filter(is_active=True).order_by('position', 'name')
 
         return Response({
+            'garment_variants': list(offered_garments().order_by(*VARIANT_FIELDS).values(*VARIANT_FIELDS)),
+            'garment_mockups': [
+                {'product_type_id': item.product_type_id, 'cut_id': item.cut_id, 'url': item.image.url}
+                for item in GarmentMockup.objects.filter(product_type__is_active=True, cut__is_active=True)
+            ],
             'product_types': [
                 {
                     'id': product_type.id,

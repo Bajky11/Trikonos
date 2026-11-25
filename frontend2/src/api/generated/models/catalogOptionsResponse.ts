@@ -6,8 +6,12 @@ import type { CatalogOptionColor } from "./catalogOptionColor.ts";
 import type { CatalogOptionCut } from "./catalogOptionCut.ts";
 import type { CatalogOptionProductType } from "./catalogOptionProductType.ts";
 import type { CatalogOptionSize } from "./catalogOptionSize.ts";
+import type { GarmentMockup } from "./garmentMockup.ts";
+import type { MotifVariantRef } from "./motifVariantRef.ts";
 
 export interface CatalogOptionsResponse {
+  garmentVariants: MotifVariantRef[];
+  garmentMockups?: GarmentMockup[];
   productTypes: CatalogOptionProductType[];
   cuts: CatalogOptionCut[];
   colors: CatalogOptionColor[];

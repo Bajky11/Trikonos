@@ -62,6 +62,17 @@ export const config: ConfigResponse = {
 };
 
 export const options: CatalogOptionsResponse = {
+  garmentVariants: [
+    "00000000-0000-0000-0000-000000000003",
+    "00000000-0000-0000-0000-000000000004",
+  ].flatMap((colorId) =>
+    ["M", "L"].map((size) => ({
+      productTypeId: "00000000-0000-0000-0000-000000000001",
+      cutId: "00000000-0000-0000-0000-000000000002",
+      colorId,
+      size,
+    })),
+  ),
   productTypes: [
     { id: "00000000-0000-0000-0000-000000000001", name: "Tričko", price: 10000, printAreas: [] },
   ],
@@ -73,6 +84,11 @@ export const options: CatalogOptionsResponse = {
   sizes: [
     { value: "M", label: "M" },
     { value: "L", label: "L" },
+    { value: "110", label: "4 roky – 110 cm" },
+    { value: "122", label: "6 let – 122 cm" },
+    { value: "134", label: "8 let – 134 cm" },
+    { value: "146", label: "10 let – 146 cm" },
+    { value: "158", label: "12 let – 158 cm" },
   ],
   carriers: [],
 };
@@ -135,6 +151,8 @@ async function mockCatalogApi(page: Page) {
       ...item,
       description: "Motiv z API",
       images: [],
+      designImageUrl: null,
+      defaultColorId: null,
       variants: [
         {
           productTypeId: options.productTypes[0]!.id,

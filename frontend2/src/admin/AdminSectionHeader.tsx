@@ -4,7 +4,7 @@ import { InputAdornment, TextField } from "@mui/material";
 import "./AdminSectionHeader.css";
 
 type Props = {
-  title: string;
+  title?: string;
   titleId?: string;
   level?: 1 | 2;
   className?: string;
@@ -28,7 +28,7 @@ export function AdminSectionHeader({
   const Heading = level === 1 ? "h1" : "h2";
   return (
     <header className={className ? `admin-section-header ${className}` : "admin-section-header"}>
-      <Heading id={titleId}>{title}</Heading>
+      {title && <Heading id={titleId}>{title}</Heading>}
       {search && (
         <TextField
           className="admin-section-search"

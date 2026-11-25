@@ -1,6 +1,6 @@
 import pytest
 
-from catalog.models import MotifVariant, PrintArea, ProductType
+from catalog.models import GarmentVariant, PrintArea, ProductType
 from core.exceptions import BusinessError, InvalidStatusTransitionError, OrderLockedError, ShippingPriceNotConfigured
 from customers.models import Customer
 from orders import services
@@ -142,7 +142,7 @@ def test_placement_out_of_bounds_is_rejected(product_type, cut, color, print_are
 
 
 def test_unlisted_combination_is_rejected(motif, product_type, cut, color):
-    # The `motif` fixture only registers a MotifVariant for size M.
+    # The shared offer only contains size M.
     items = [{
         'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'XL', 'quantity': 1, 'placements': [],
@@ -154,7 +154,7 @@ def test_unlisted_combination_is_rejected(motif, product_type, cut, color):
 
 
 def test_newly_listed_combination_is_accepted(motif, product_type, cut, color):
-    MotifVariant.objects.create(motif=motif, product_type=product_type, cut=cut, color=color, size='XL')
+    GarmentVariant.objects.create(product_type=product_type, cut=cut, color=color, size='XL')
     items = [{
         'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'XL', 'quantity': 1, 'placements': [],
@@ -165,10 +165,8 @@ def test_newly_listed_combination_is_accepted(motif, product_type, cut, color):
     assert order.status == OrderStatus.NEW
 
 
-def test_deactivated_variant_combination_is_rejected(motif, product_type, cut, color):
-    MotifVariant.objects.filter(motif=motif, product_type=product_type, cut=cut, color=color, size='M').update(
-        is_active=False,
-    )
+def test_excluded_variant_is_rejected(motif, product_type, cut, color):
+    motif.garment_exclusions = [{'product_type_id': str(product_type.pk), 'cut_id': str(cut.pk), 'size': 'M'}]
     items = [{
         'is_custom': False, 'motif': motif, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'M', 'quantity': 1, 'placements': [],

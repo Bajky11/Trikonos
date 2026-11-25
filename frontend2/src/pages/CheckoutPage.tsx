@@ -29,6 +29,10 @@ import { CatalogFeedback } from "../components/Products";
 import { AddressFields, address, checkoutError, text } from "../checkout/forms";
 import { PurchaseSteps } from "../checkout/PurchaseSteps";
 import { OrderRadioGroup } from "../checkout/OrderRadioGroup";
+import { PacketaAddressPicker } from "../checkout/PacketaAddressPicker";
+import type { DeliveryLocation } from "../checkout/PacketaAddressPicker";
+import { PacketaPickupPicker } from "../checkout/PacketaPickupPicker";
+import type { PickupPoint } from "../checkout/PacketaPickupPicker";
 import {
   clearCheckout,
   readCheckout,
@@ -51,6 +55,7 @@ const priceKey = (result: CartValidateResponse) =>
 
 const deliveryLabels: Partial<Record<DeliveryTypeEnum, string>> = {
   HOME_DELIVERY: "Doručení na adresu",
+  PICKUP_POINT: "Z-BOX nebo výdejní místo",
   PERSONAL_PICKUP: "Osobní odběr",
 };
 const paymentLabels: Partial<Record<PaymentMethodEnum, string>> = {
@@ -74,6 +79,13 @@ export function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethodEnum | "">("");
   const [selectedCarrier, setSelectedCarrier] = useState("");
   const [differentAddress, setDifferentAddress] = useState(false);
+  const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
+  const [shippingLocation, setShippingLocation] = useState<DeliveryLocation>({
+    street: "",
+    city: "",
+    zip: "",
+  });
+  const [pickedByPacketa, setPickedByPacketa] = useState(false);
   const [showBillingDetails, setShowBillingDetails] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -85,31 +97,41 @@ export function CheckoutPage() {
   const items = lines.flatMap((line) => (line.input ? [line.input] : []));
   const eligible = shop.items.length > 0 && items.length === shop.items.length;
   const termsUrl = safeTermsUrl(config.data?.termsUrl);
-  const deliveryChoices = (config.data?.deliveryTypes ?? []).filter((choice) =>
-    [DeliveryTypeEnum.PERSONAL_PICKUP, DeliveryTypeEnum.HOME_DELIVERY].some(
-      (value) => value === choice.value,
-    ),
+  const carriers = options.data?.carriers ?? [];
+  const packetaCarrier = carriers.find((option) => option.code === "PACKETA");
+  const widgetConfig = config.data?.packetaHomeDelivery;
+  const isPickup = delivery === DeliveryTypeEnum.PICKUP_POINT;
+  const deliveryChoices = (config.data?.deliveryTypes ?? []).filter(
+    (choice) =>
+      choice.value === DeliveryTypeEnum.PERSONAL_PICKUP ||
+      choice.value === DeliveryTypeEnum.HOME_DELIVERY ||
+      (choice.value === DeliveryTypeEnum.PICKUP_POINT && !!packetaCarrier && !!widgetConfig),
   );
   const paymentChoices = (config.data?.paymentMethods ?? []).filter((choice) =>
     [PaymentMethodEnum.BANK_TRANSFER, PaymentMethodEnum.CASH_ON_DELIVERY].some(
       (value) => value === choice.value,
     ),
   );
-  const carriers = options.data?.carriers ?? [];
   const paymentLabel = (value: PaymentMethodEnum) =>
     value === PaymentMethodEnum.CASH_ON_DELIVERY && delivery === DeliveryTypeEnum.PERSONAL_PICKUP
       ? "Při převzetí na prodejně"
       : paymentLabels[value];
-  const carrierId = carriers.length === 1 ? carriers[0]!.id : selectedCarrier;
+  const carrierId = isPickup
+    ? (packetaCarrier?.id ?? "")
+    : carriers.length === 1
+      ? carriers[0]!.id
+      : selectedCarrier;
+  const carrier = carriers.find((option) => option.id === carrierId);
+  const packetaWidget = carrier?.code === "PACKETA" ? widgetConfig : undefined;
   const sameAddress = delivery !== DeliveryTypeEnum.HOME_DELIVERY || !differentAddress;
   const carrierValid =
-    delivery === DeliveryTypeEnum.PERSONAL_PICKUP ||
-    carriers.some((carrier) => carrier.id === carrierId);
+    delivery === DeliveryTypeEnum.PERSONAL_PICKUP || (!!carrier && (!isPickup || !!widgetConfig));
+  const pickupReady = !isPickup || !!pickupPoint;
   const request = {
     items,
     ...(delivery ? { deliveryType: delivery } : {}),
     ...(payment ? { paymentMethod: payment } : {}),
-    ...(delivery === DeliveryTypeEnum.HOME_DELIVERY ? { carrierId } : {}),
+    ...(delivery && delivery !== DeliveryTypeEnum.PERSONAL_PICKUP ? { carrierId } : {}),
   };
   const previewKey = ["checkout-preview", request];
   const preview = useQuery({
@@ -294,7 +316,8 @@ export function CheckoutPage() {
                 !termsUrl ||
                 !delivery ||
                 !payment ||
-                !carrierValid
+                !carrierValid ||
+                !pickupReady
               )
                 return;
               const data = new FormData(event.currentTarget);
@@ -322,6 +345,7 @@ export function CheckoutPage() {
                   const billing = address(data, "billing");
                   const firstName = text(data, "firstName"),
                     lastName = text(data, "lastName");
+                  const shipping = address(data, "shipping");
                   const body: OrderCreate = {
                     orderId: crypto.randomUUID(),
                     items,
@@ -342,10 +366,20 @@ export function CheckoutPage() {
                     },
                     shipping: sameAddress
                       ? { sameAsBilling: true }
-                      : { sameAsBilling: false, ...address(data, "shipping") },
+                      : {
+                          ...shipping,
+                          sameAsBilling: false,
+                          fullName: shipping.fullName || `${firstName} ${lastName}`,
+                          companyName: shipping.fullName
+                            ? shipping.companyName
+                            : billing.companyName,
+                        },
                     delivery: {
                       deliveryType: delivery,
-                      ...(delivery === DeliveryTypeEnum.HOME_DELIVERY ? { carrierId } : {}),
+                      ...(delivery !== DeliveryTypeEnum.PERSONAL_PICKUP ? { carrierId } : {}),
+                      ...(isPickup && pickupPoint
+                        ? { pickupPointId: pickupPoint.id, pickupPointName: pickupPoint.name }
+                        : {}),
                     },
                     paymentMethod: payment,
                     note: text(data, "note"),
@@ -453,6 +487,7 @@ export function CheckoutPage() {
                   disabled={busy}
                   onChange={(value) => {
                     setDelivery(value as DeliveryTypeEnum);
+                    if (value !== DeliveryTypeEnum.PICKUP_POINT) setPickupPoint(null);
                     setError("");
                   }}
                   choices={deliveryChoices.map((choice) => ({
@@ -460,6 +495,17 @@ export function CheckoutPage() {
                     label: deliveryLabels[choice.value as DeliveryTypeEnum] ?? choice.label,
                   }))}
                 />
+                {isPickup && widgetConfig && (
+                  <PacketaPickupPicker
+                    apiKey={widgetConfig.apiKey}
+                    point={pickupPoint}
+                    disabled={busy}
+                    onSelect={(point) => {
+                      setPickupPoint(point);
+                      setError("");
+                    }}
+                  />
+                )}
                 {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
                   <>
                     {carriers.length > 1 ? (
@@ -480,11 +526,28 @@ export function CheckoutPage() {
                         Doručení na adresu není dostupné. Zvolte jiný způsob.
                       </Alert>
                     ) : null}
+                    {packetaWidget && (
+                      <PacketaAddressPicker
+                        config={packetaWidget}
+                        disabled={busy}
+                        onSelect={(location) => {
+                          setShippingLocation(location);
+                          setPickedByPacketa(true);
+                          setDifferentAddress(true);
+                        }}
+                      />
+                    )}
                     <FormControlLabel
                       control={
                         <Checkbox
                           checked={differentAddress}
-                          onChange={(_, checked) => setDifferentAddress(checked)}
+                          onChange={(_, checked) => {
+                            setDifferentAddress(checked);
+                            if (!checked) {
+                              setShippingLocation({ street: "", city: "", zip: "" });
+                              setPickedByPacketa(false);
+                            }
+                          }}
                         />
                       }
                       label="Doručit na jinou adresu"
@@ -492,7 +555,13 @@ export function CheckoutPage() {
                     {!sameAddress && (
                       <fieldset className="checkout-fields checkout-address">
                         <legend>Doručovací adresa</legend>
-                        <AddressFields prefix="shipping" hideOptional />
+                        <AddressFields
+                          prefix="shipping"
+                          hideOptional
+                          location={shippingLocation}
+                          onLocationChange={setShippingLocation}
+                          recipientOptional={pickedByPacketa}
+                        />
                       </fieldset>
                     )}
                   </>
@@ -572,9 +641,8 @@ export function CheckoutPage() {
                   <span>Doručení</span>
                   <strong>
                     {deliveryLabels[delivery]}
-                    {delivery === DeliveryTypeEnum.HOME_DELIVERY && (
-                      <small>{carriers.find((carrier) => carrier.id === carrierId)?.name}</small>
-                    )}
+                    {delivery === DeliveryTypeEnum.HOME_DELIVERY && <small>{carrier?.name}</small>}
+                    {isPickup && <small>{pickupPoint?.name ?? "Místo zatím není vybrané"}</small>}
                   </strong>
                 </p>
               )}
@@ -644,7 +712,7 @@ export function CheckoutPage() {
                 type="submit"
                 variant="contained"
                 startIcon={<LockOutlined />}
-                disabled={busy || !termsUrl || !priced}
+                disabled={busy || !termsUrl || !priced || !pickupReady}
               >
                 {busy
                   ? "Odesílání…"

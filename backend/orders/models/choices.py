@@ -46,3 +46,8 @@ class Size(models.TextChoices):
     L = 'L', 'L'
     XL = 'XL', 'XL'
     XXL = 'XXL', 'XXL'
+    CHILD_110 = '110', '4 roky – 110 cm'
+    CHILD_122 = '122', '6 let – 122 cm'
+    CHILD_134 = '134', '8 let – 134 cm'
+    CHILD_146 = '146', '10 let – 146 cm'
+    CHILD_158 = '158', '12 let – 158 cm'

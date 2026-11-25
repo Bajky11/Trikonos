@@ -8,6 +8,11 @@
  * * `L` - L
  * * `XL` - XL
  * * `XXL` - XXL
+ * * `110` - 4 roky – 110 cm
+ * * `122` - 6 let – 122 cm
+ * * `134` - 8 let – 134 cm
+ * * `146` - 10 let – 146 cm
+ * * `158` - 12 let – 158 cm
  */
 export type SizeEnum = (typeof SizeEnum)[keyof typeof SizeEnum];
 
@@ -17,4 +22,9 @@ export const SizeEnum = {
   L: "L",
   XL: "XL",
   XXL: "XXL",
+  NUMBER_110: "110",
+  NUMBER_122: "122",
+  NUMBER_134: "134",
+  NUMBER_146: "146",
+  NUMBER_158: "158",
 } as const;

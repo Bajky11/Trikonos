@@ -33,8 +33,6 @@ import type {
   AdminCutsListParams,
   AdminDashboardResponse,
   AdminMotifDetail,
-  AdminMotifVariant,
-  AdminMotifVariantsListParams,
   AdminMotifWrite,
   AdminMotifsListParams,
   AdminOrderDetail,
@@ -69,8 +67,10 @@ import type {
   Contact,
   DesignUploadRequest,
   DesignUploadResponse,
+  GarmentOffer,
   Login,
   Me,
+  MockupUpload,
   MotifDetail,
   MotifImageReorder,
   MotifImageUpload,
@@ -85,7 +85,6 @@ import type {
   PaginatedAdminCustomerListList,
   PaginatedAdminCutList,
   PaginatedAdminMotifListList,
-  PaginatedAdminMotifVariantList,
   PaginatedAdminOrderListList,
   PaginatedAdminPrintAreaList,
   PaginatedAdminProductTypeList,
@@ -97,7 +96,6 @@ import type {
   PatchedAdminColor,
   PatchedAdminCustomerUpdate,
   PatchedAdminCut,
-  PatchedAdminMotifVariant,
   PatchedAdminMotifWrite,
   PatchedAdminOrderItemPrice,
   PatchedAdminOrderUpdate,
@@ -3324,89 +3322,234 @@ export function useAdminDashboardRetrieve<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getAdminMotifVariantsListUrl = (params: AdminMotifVariantsListParams) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : String(value));
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/admin/motif-variants?${stringifiedParams}`
-    : `/api/v1/admin/motif-variants`;
+export const getAdminGarmentMockupUpdateUrl = (productTypeId: string, cutId: string) => {
+  return `/api/v1/admin/garment-mockups/${productTypeId}/${cutId}`;
 };
 
-/**
- * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
- * @summary Seznam dostupných kombinací pro motiv
- */
-export const adminMotifVariantsList = async (
-  params: AdminMotifVariantsListParams,
+export const adminGarmentMockupUpdate = async (
+  productTypeId: string,
+  cutId: string,
+  mockupUpload: MockupUpload,
   options?: Parameters<typeof apiFetch>[1],
-): Promise<PaginatedAdminMotifVariantList> => {
-  return apiFetch<PaginatedAdminMotifVariantList>(getAdminMotifVariantsListUrl(params), {
+): Promise<void> => {
+  const formData = new FormData();
+  formData.append(`file`, mockupUpload.file);
+
+  return apiFetch<void>(getAdminGarmentMockupUpdateUrl(productTypeId, cutId), {
+    ...options,
+    method: "PUT",
+    body: formData,
+  });
+};
+
+export const getAdminGarmentMockupUpdateMutationKey = () => ["adminGarmentMockupUpdate"] as const;
+
+export const getAdminGarmentMockupUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminGarmentMockupUpdate>>,
+    TError,
+    AdminGarmentMockupUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminGarmentMockupUpdate>>,
+  TError,
+  AdminGarmentMockupUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminGarmentMockupUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminGarmentMockupUpdate>>,
+    AdminGarmentMockupUpdateMutationVariables
+  > = (props) => {
+    const { productTypeId, cutId, data } = props ?? {};
+
+    return adminGarmentMockupUpdate(productTypeId, cutId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminGarmentMockupUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminGarmentMockupUpdate>>
+>;
+export type AdminGarmentMockupUpdateMutationBody = MockupUpload;
+export type AdminGarmentMockupUpdateMutationError = ErrorType<unknown>;
+export type AdminGarmentMockupUpdateMutationVariables = {
+  productTypeId: string;
+  cutId: string;
+  data: MockupUpload;
+};
+
+export const useAdminGarmentMockupUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminGarmentMockupUpdate>>,
+      TError,
+      AdminGarmentMockupUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminGarmentMockupUpdate>>,
+  TError,
+  AdminGarmentMockupUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminGarmentMockupUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminGarmentMockupDestroyUrl = (productTypeId: string, cutId: string) => {
+  return `/api/v1/admin/garment-mockups/${productTypeId}/${cutId}`;
+};
+
+export const adminGarmentMockupDestroy = async (
+  productTypeId: string,
+  cutId: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminGarmentMockupDestroyUrl(productTypeId, cutId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminGarmentMockupDestroyMutationKey = () => ["adminGarmentMockupDestroy"] as const;
+
+export const getAdminGarmentMockupDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminGarmentMockupDestroy>>,
+    TError,
+    AdminGarmentMockupDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminGarmentMockupDestroy>>,
+  TError,
+  AdminGarmentMockupDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminGarmentMockupDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminGarmentMockupDestroy>>,
+    AdminGarmentMockupDestroyMutationVariables
+  > = (props) => {
+    const { productTypeId, cutId } = props ?? {};
+
+    return adminGarmentMockupDestroy(productTypeId, cutId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminGarmentMockupDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminGarmentMockupDestroy>>
+>;
+
+export type AdminGarmentMockupDestroyMutationError = ErrorType<unknown>;
+export type AdminGarmentMockupDestroyMutationVariables = { productTypeId: string; cutId: string };
+
+export const useAdminGarmentMockupDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminGarmentMockupDestroy>>,
+      TError,
+      AdminGarmentMockupDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminGarmentMockupDestroy>>,
+  TError,
+  AdminGarmentMockupDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminGarmentMockupDestroyMutationOptions(options), queryClient);
+};
+
+export const getAdminGarmentOfferRetrieveUrl = () => {
+  return `/api/v1/admin/garment-offer`;
+};
+
+export const adminGarmentOfferRetrieve = async (
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<GarmentOffer> => {
+  return apiFetch<GarmentOffer>(getAdminGarmentOfferRetrieveUrl(), {
     ...options,
     method: "GET",
   });
 };
 
-export const getAdminMotifVariantsListQueryKey = (params?: AdminMotifVariantsListParams) => {
-  return [`/api/v1/admin/motif-variants`, ...(params ? [params] : [])] as const;
+export const getAdminGarmentOfferRetrieveQueryKey = () => {
+  return [`/api/v1/admin/garment-offer`] as const;
 };
 
-export const getAdminMotifVariantsListQueryOptions = <
-  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+export const getAdminGarmentOfferRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
   TError = ErrorType<unknown>,
->(
-  params: AdminMotifVariantsListParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiFetch>;
-  },
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getAdminMotifVariantsListQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getAdminGarmentOfferRetrieveQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminMotifVariantsList>>> = ({ signal }) =>
-    adminMotifVariantsList(params, { signal, ...requestOptions });
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>> = ({
+    signal,
+  }) => adminGarmentOfferRetrieve({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof adminMotifVariantsList>>,
+    Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type AdminMotifVariantsListQueryResult = NonNullable<
-  Awaited<ReturnType<typeof adminMotifVariantsList>>
+export type AdminGarmentOfferRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>
 >;
-export type AdminMotifVariantsListQueryError = ErrorType<unknown>;
+export type AdminGarmentOfferRetrieveQueryError = ErrorType<unknown>;
 
-/**
- * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
- * @summary Seznam dostupných kombinací pro motiv
- */
-export function useAdminMotifVariantsList<
-  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+export function useAdminGarmentOfferRetrieve<
+  TData = Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
   TError = ErrorType<unknown>,
 >(
-  params: AdminMotifVariantsListParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof adminMotifVariantsList>>,
+          Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
           TError,
-          Awaited<ReturnType<typeof adminMotifVariantsList>>
+          Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>
         >,
         "initialData"
       >;
@@ -3414,24 +3557,19 @@ export function useAdminMotifVariantsList<
   },
   queryClient?: QueryClient,
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
- * @summary Seznam dostupných kombinací pro motiv
- */
-export function useAdminMotifVariantsList<
-  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+export function useAdminGarmentOfferRetrieve<
+  TData = Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
   TError = ErrorType<unknown>,
 >(
-  params: AdminMotifVariantsListParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof adminMotifVariantsList>>,
+          Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
           TError,
-          Awaited<ReturnType<typeof adminMotifVariantsList>>
+          Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>
         >,
         "initialData"
       >;
@@ -3439,41 +3577,31 @@ export function useAdminMotifVariantsList<
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
- * @summary Seznam dostupných kombinací pro motiv
- */
-export function useAdminMotifVariantsList<
-  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+export function useAdminGarmentOfferRetrieve<
+  TData = Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
   TError = ErrorType<unknown>,
 >(
-  params: AdminMotifVariantsListParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiFetch>;
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * Vyžaduje `motif` (UUID) v query - bez něj 400. Vrátí kombinace (typ oblečení/střih/barva/velikost), které jsou pro tento motiv objednatelné; bez odpovídajícího řádku zde `POST /orders` i `POST /cart/validate` tu kombinaci zamítnou (422 `VARIANT_NOT_AVAILABLE`).
- * @summary Seznam dostupných kombinací pro motiv
- */
-export function useAdminMotifVariantsList<
-  TData = Awaited<ReturnType<typeof adminMotifVariantsList>>,
+export function useAdminGarmentOfferRetrieve<
+  TData = Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>,
   TError = ErrorType<unknown>,
 >(
-  params: AdminMotifVariantsListParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof adminMotifVariantsList>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof adminGarmentOfferRetrieve>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiFetch>;
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getAdminMotifVariantsListQueryOptions(params, options);
+  const queryOptions = getAdminGarmentOfferRetrieveQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -3482,46 +3610,42 @@ export function useAdminMotifVariantsList<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getAdminMotifVariantsCreateUrl = () => {
-  return `/api/v1/admin/motif-variants`;
+export const getAdminGarmentOfferUpdateUrl = () => {
+  return `/api/v1/admin/garment-offer`;
 };
 
-/**
- * Duplicitní kombinace (stejný motiv/typ/střih/barva/velikost) vrátí 409 `DUPLICATE_VARIANT`.
- * @summary Povolit kombinaci pro motiv
- */
-export const adminMotifVariantsCreate = async (
-  adminMotifVariant: NonReadonly<AdminMotifVariant>,
+export const adminGarmentOfferUpdate = async (
+  garmentOffer: GarmentOffer,
   options?: Parameters<typeof apiFetch>[1],
-): Promise<AdminMotifVariant> => {
-  return apiFetch<AdminMotifVariant>(getAdminMotifVariantsCreateUrl(), {
+): Promise<GarmentOffer> => {
+  return apiFetch<GarmentOffer>(getAdminGarmentOfferUpdateUrl(), {
     ...options,
-    method: "POST",
+    method: "PUT",
     headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
-    body: JSON.stringify(adminMotifVariant),
+    body: JSON.stringify(garmentOffer),
   });
 };
 
-export const getAdminMotifVariantsCreateMutationKey = () => ["adminMotifVariantsCreate"] as const;
+export const getAdminGarmentOfferUpdateMutationKey = () => ["adminGarmentOfferUpdate"] as const;
 
-export const getAdminMotifVariantsCreateMutationOptions = <
+export const getAdminGarmentOfferUpdateMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+    Awaited<ReturnType<typeof adminGarmentOfferUpdate>>,
     TError,
-    AdminMotifVariantsCreateMutationVariables,
+    AdminGarmentOfferUpdateMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+  Awaited<ReturnType<typeof adminGarmentOfferUpdate>>,
   TError,
-  AdminMotifVariantsCreateMutationVariables,
+  AdminGarmentOfferUpdateMutationVariables,
   TContext
 > => {
-  const mutationKey = getAdminMotifVariantsCreateMutationKey();
+  const mutationKey = getAdminGarmentOfferUpdateMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3529,229 +3653,42 @@ export const getAdminMotifVariantsCreateMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
-    AdminMotifVariantsCreateMutationVariables
+    Awaited<ReturnType<typeof adminGarmentOfferUpdate>>,
+    AdminGarmentOfferUpdateMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return adminMotifVariantsCreate(data, requestOptions);
+    return adminGarmentOfferUpdate(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AdminMotifVariantsCreateMutationResult = NonNullable<
-  Awaited<ReturnType<typeof adminMotifVariantsCreate>>
+export type AdminGarmentOfferUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminGarmentOfferUpdate>>
 >;
-export type AdminMotifVariantsCreateMutationBody = NonReadonly<AdminMotifVariant>;
-export type AdminMotifVariantsCreateMutationError = ErrorType<unknown>;
-export type AdminMotifVariantsCreateMutationVariables = { data: NonReadonly<AdminMotifVariant> };
+export type AdminGarmentOfferUpdateMutationBody = GarmentOffer;
+export type AdminGarmentOfferUpdateMutationError = ErrorType<unknown>;
+export type AdminGarmentOfferUpdateMutationVariables = { data: GarmentOffer };
 
-/**
- * Duplicitní kombinace (stejný motiv/typ/střih/barva/velikost) vrátí 409 `DUPLICATE_VARIANT`.
- * @summary Povolit kombinaci pro motiv
- */
-export const useAdminMotifVariantsCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+export const useAdminGarmentOfferUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+      Awaited<ReturnType<typeof adminGarmentOfferUpdate>>,
       TError,
-      AdminMotifVariantsCreateMutationVariables,
+      AdminGarmentOfferUpdateMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiFetch>;
   },
   queryClient?: QueryClient,
 ): UseMutationResult<
-  Awaited<ReturnType<typeof adminMotifVariantsCreate>>,
+  Awaited<ReturnType<typeof adminGarmentOfferUpdate>>,
   TError,
-  AdminMotifVariantsCreateMutationVariables,
+  AdminGarmentOfferUpdateMutationVariables,
   TContext
 > => {
-  return useMutation(getAdminMotifVariantsCreateMutationOptions(options), queryClient);
-};
-
-export const getAdminMotifVariantsPartialUpdateUrl = (id: string) => {
-  return `/api/v1/admin/motif-variants/${id}`;
-};
-
-/**
- * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
- * @summary Upravit kombinaci (např. deaktivovat)
- */
-export const adminMotifVariantsPartialUpdate = async (
-  id: string,
-  patchedAdminMotifVariant?: NonReadonly<PatchedAdminMotifVariant>,
-  options?: Parameters<typeof apiFetch>[1],
-): Promise<AdminMotifVariant> => {
-  return apiFetch<AdminMotifVariant>(getAdminMotifVariantsPartialUpdateUrl(id), {
-    ...options,
-    method: "PATCH",
-    headers: getHeaders({ "Content-Type": "application/json" }, options?.headers),
-    body: JSON.stringify(patchedAdminMotifVariant),
-  });
-};
-
-export const getAdminMotifVariantsPartialUpdateMutationKey = () =>
-  ["adminMotifVariantsPartialUpdate"] as const;
-
-export const getAdminMotifVariantsPartialUpdateMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
-    TError,
-    AdminMotifVariantsPartialUpdateMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
-  TError,
-  AdminMotifVariantsPartialUpdateMutationVariables,
-  TContext
-> => {
-  const mutationKey = getAdminMotifVariantsPartialUpdateMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
-    AdminMotifVariantsPartialUpdateMutationVariables
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return adminMotifVariantsPartialUpdate(id, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AdminMotifVariantsPartialUpdateMutationResult = NonNullable<
-  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>
->;
-export type AdminMotifVariantsPartialUpdateMutationBody =
-  | NonReadonly<PatchedAdminMotifVariant>
-  | undefined;
-export type AdminMotifVariantsPartialUpdateMutationError = ErrorType<unknown>;
-export type AdminMotifVariantsPartialUpdateMutationVariables = {
-  id: string;
-  data?: NonReadonly<PatchedAdminMotifVariant>;
-};
-
-/**
- * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
- * @summary Upravit kombinaci (např. deaktivovat)
- */
-export const useAdminMotifVariantsPartialUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
-      TError,
-      AdminMotifVariantsPartialUpdateMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiFetch>;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof adminMotifVariantsPartialUpdate>>,
-  TError,
-  AdminMotifVariantsPartialUpdateMutationVariables,
-  TContext
-> => {
-  return useMutation(getAdminMotifVariantsPartialUpdateMutationOptions(options), queryClient);
-};
-
-export const getAdminMotifVariantsDestroyUrl = (id: string) => {
-  return `/api/v1/admin/motif-variants/${id}`;
-};
-
-/**
- * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
- * @summary Smazat kombinaci
- */
-export const adminMotifVariantsDestroy = async (
-  id: string,
-  options?: Parameters<typeof apiFetch>[1],
-): Promise<void> => {
-  return apiFetch<void>(getAdminMotifVariantsDestroyUrl(id), {
-    ...options,
-    method: "DELETE",
-  });
-};
-
-export const getAdminMotifVariantsDestroyMutationKey = () => ["adminMotifVariantsDestroy"] as const;
-
-export const getAdminMotifVariantsDestroyMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
-    TError,
-    AdminMotifVariantsDestroyMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
-  TError,
-  AdminMotifVariantsDestroyMutationVariables,
-  TContext
-> => {
-  const mutationKey = getAdminMotifVariantsDestroyMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
-    AdminMotifVariantsDestroyMutationVariables
-  > = (props) => {
-    const { id } = props ?? {};
-
-    return adminMotifVariantsDestroy(id, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AdminMotifVariantsDestroyMutationResult = NonNullable<
-  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>
->;
-
-export type AdminMotifVariantsDestroyMutationError = ErrorType<unknown>;
-export type AdminMotifVariantsDestroyMutationVariables = { id: string };
-
-/**
- * Které typ/střih/barva/velikost kombinace jsou objednatelné pro daný motiv.
- * @summary Smazat kombinaci
- */
-export const useAdminMotifVariantsDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
-      TError,
-      AdminMotifVariantsDestroyMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiFetch>;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof adminMotifVariantsDestroy>>,
-  TError,
-  AdminMotifVariantsDestroyMutationVariables,
-  TContext
-> => {
-  return useMutation(getAdminMotifVariantsDestroyMutationOptions(options), queryClient);
+  return useMutation(getAdminGarmentOfferUpdateMutationOptions(options), queryClient);
 };
 
 export const getAdminMotifsListUrl = (params?: AdminMotifsListParams) => {
@@ -4318,6 +4255,177 @@ export const useAdminMotifsDestroy = <TError = ErrorType<unknown>, TContext = un
   return useMutation(getAdminMotifsDestroyMutationOptions(options), queryClient);
 };
 
+export const getAdminMotifDesignUpdateUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}/design-image`;
+};
+
+/**
+ * Motivy v katalogu a jejich fotky.
+ */
+export const adminMotifDesignUpdate = async (
+  id: string,
+  mockupUpload: MockupUpload,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  const formData = new FormData();
+  formData.append(`file`, mockupUpload.file);
+
+  return apiFetch<void>(getAdminMotifDesignUpdateUrl(id), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getAdminMotifDesignUpdateMutationKey = () => ["adminMotifDesignUpdate"] as const;
+
+export const getAdminMotifDesignUpdateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifDesignUpdate>>,
+    TError,
+    AdminMotifDesignUpdateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifDesignUpdate>>,
+  TError,
+  AdminMotifDesignUpdateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifDesignUpdateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifDesignUpdate>>,
+    AdminMotifDesignUpdateMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminMotifDesignUpdate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifDesignUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifDesignUpdate>>
+>;
+export type AdminMotifDesignUpdateMutationBody = MockupUpload;
+export type AdminMotifDesignUpdateMutationError = ErrorType<unknown>;
+export type AdminMotifDesignUpdateMutationVariables = { id: string; data: MockupUpload };
+
+/** Motivy v katalogu a jejich fotky. */
+export const useAdminMotifDesignUpdate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifDesignUpdate>>,
+      TError,
+      AdminMotifDesignUpdateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifDesignUpdate>>,
+  TError,
+  AdminMotifDesignUpdateMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifDesignUpdateMutationOptions(options), queryClient);
+};
+
+export const getAdminMotifDesignDestroyUrl = (id: string) => {
+  return `/api/v1/admin/motifs/${id}/design-image`;
+};
+
+/**
+ * Motivy v katalogu a jejich fotky.
+ */
+export const adminMotifDesignDestroy = async (
+  id: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<void> => {
+  return apiFetch<void>(getAdminMotifDesignDestroyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminMotifDesignDestroyMutationKey = () => ["adminMotifDesignDestroy"] as const;
+
+export const getAdminMotifDesignDestroyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminMotifDesignDestroy>>,
+    TError,
+    AdminMotifDesignDestroyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminMotifDesignDestroy>>,
+  TError,
+  AdminMotifDesignDestroyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAdminMotifDesignDestroyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminMotifDesignDestroy>>,
+    AdminMotifDesignDestroyMutationVariables
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminMotifDesignDestroy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminMotifDesignDestroyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminMotifDesignDestroy>>
+>;
+
+export type AdminMotifDesignDestroyMutationError = ErrorType<unknown>;
+export type AdminMotifDesignDestroyMutationVariables = { id: string };
+
+/** Motivy v katalogu a jejich fotky. */
+export const useAdminMotifDesignDestroy = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminMotifDesignDestroy>>,
+      TError,
+      AdminMotifDesignDestroyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminMotifDesignDestroy>>,
+  TError,
+  AdminMotifDesignDestroyMutationVariables,
+  TContext
+> => {
+  return useMutation(getAdminMotifDesignDestroyMutationOptions(options), queryClient);
+};
+
 export const getAdminMotifsImagesCreateUrl = (id: string) => {
   return `/api/v1/admin/motifs/${id}/images`;
 };
@@ -4332,6 +4440,12 @@ export const adminMotifsImagesCreate = async (
   options?: Parameters<typeof apiFetch>[1],
 ): Promise<AdminMotifDetail> => {
   const formData = new FormData();
+  if (motifImageUpload.productTypeId !== undefined && motifImageUpload.productTypeId !== null) {
+    formData.append(`productTypeId`, motifImageUpload.productTypeId);
+  }
+  if (motifImageUpload.cutId !== undefined && motifImageUpload.cutId !== null) {
+    formData.append(`cutId`, motifImageUpload.cutId);
+  }
   formData.append(`file`, motifImageUpload.file);
   if (motifImageUpload.altText !== undefined) {
     formData.append(`altText`, motifImageUpload.altText);
@@ -9378,7 +9492,7 @@ export const getCatalogOptionsRetrieveUrl = () => {
 };
 
 /**
- * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
+ * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
  * @summary Všechny aktivní číselníky jedním voláním (konfigurátor, checkout)
  */
 export const catalogOptionsRetrieve = async (
@@ -9423,7 +9537,7 @@ export type CatalogOptionsRetrieveQueryResult = NonNullable<
 export type CatalogOptionsRetrieveQueryError = ErrorType<unknown>;
 
 /**
- * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
+ * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
  * @summary Všechny aktivní číselníky jedním voláním (konfigurátor, checkout)
  */
 export function useCatalogOptionsRetrieve<
@@ -9447,7 +9561,7 @@ export function useCatalogOptionsRetrieve<
   queryClient?: QueryClient,
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
+ * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
  * @summary Všechny aktivní číselníky jedním voláním (konfigurátor, checkout)
  */
 export function useCatalogOptionsRetrieve<
@@ -9471,7 +9585,7 @@ export function useCatalogOptionsRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
+ * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
  * @summary Všechny aktivní číselníky jedním voláním (konfigurátor, checkout)
  */
 export function useCatalogOptionsRetrieve<
@@ -9487,7 +9601,7 @@ export function useCatalogOptionsRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam S-XXL, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
+ * Jediné volání, které konfigurátor/editor vlastního potisku/checkout potřebuje k vykreslení výběru typu oblečení, střihu, barvy, velikosti a dopravce - místo volání 5 různých endpointů zvlášť. `productTypes` má `price` (příplatek za typ oblečení, připočítaný k `motif.price` - výsledná cena položky je `motif.price + productType.price`) a zanořené `printAreas` (`widthMm`/`heightMm` v milimetrech - používej pro rozměry editoru vlastního potisku i validaci umístění na frontendu, i když finální kontrolu stejně dělá server). `sizes` je pevný seznam z interního číselníku, ne z DB. Vrací jen aktivní záznamy. Bezpečné cachovat na pár minut - mění se jen při úpravě číselníků v administraci.
  * @summary Všechny aktivní číselníky jedním voláním (konfigurátor, checkout)
  */
 export function useCatalogOptionsRetrieve<
@@ -9662,7 +9776,7 @@ export const getConfigRetrieveUrl = () => {
 };
 
 /**
- * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen ručně přes env proměnné na backendu.
+ * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen při změně nastavení obchodu nebo dopravy.
  * @summary Konfigurace obchodu pro hlavičku, patičku a checkout
  */
 export const configRetrieve = async (
@@ -9703,7 +9817,7 @@ export type ConfigRetrieveQueryResult = NonNullable<Awaited<ReturnType<typeof co
 export type ConfigRetrieveQueryError = ErrorType<unknown>;
 
 /**
- * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen ručně přes env proměnné na backendu.
+ * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen při změně nastavení obchodu nebo dopravy.
  * @summary Konfigurace obchodu pro hlavičku, patičku a checkout
  */
 export function useConfigRetrieve<
@@ -9725,7 +9839,7 @@ export function useConfigRetrieve<
   queryClient?: QueryClient,
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen ručně přes env proměnné na backendu.
+ * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen při změně nastavení obchodu nebo dopravy.
  * @summary Konfigurace obchodu pro hlavičku, patičku a checkout
  */
 export function useConfigRetrieve<
@@ -9747,7 +9861,7 @@ export function useConfigRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen ručně přes env proměnné na backendu.
+ * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen při změně nastavení obchodu nebo dopravy.
  * @summary Konfigurace obchodu pro hlavičku, patičku a checkout
  */
 export function useConfigRetrieve<
@@ -9761,7 +9875,7 @@ export function useConfigRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen ručně přes env proměnné na backendu.
+ * Vrací statické texty a hodnoty, které frontend potřebuje na víc místech a nemění se podle uživatele: text horní lišty, kontaktní e-mail a telefon, odkaz na Instagram, číslo bankovního účtu (pro zobrazení platebních instrukcí) a číselníky `paymentMethods`/`deliveryTypes` s českými popisky (`value` = hodnota, kterou posíláš v `POST /orders`, `label` = text pro uživatele). Volej jednou při startu appky, výsledek je bezpečné cachovat - hodnoty se mění jen při změně nastavení obchodu nebo dopravy.
  * @summary Konfigurace obchodu pro hlavičku, patičku a checkout
  */
 export function useConfigRetrieve<
@@ -10019,7 +10133,7 @@ export const getMotifsRetrieveUrl = (slug: string) => {
 };
 
 /**
- * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor odvozených ze společné nabídky oblečení a pravidel motivu (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
  * @summary Detail motivu podle slugu (konfigurátor)
  */
 export const motifsRetrieve = async (
@@ -10067,7 +10181,7 @@ export type MotifsRetrieveQueryResult = NonNullable<Awaited<ReturnType<typeof mo
 export type MotifsRetrieveQueryError = ErrorType<unknown>;
 
 /**
- * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor odvozených ze společné nabídky oblečení a pravidel motivu (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
  * @summary Detail motivu podle slugu (konfigurátor)
  */
 export function useMotifsRetrieve<
@@ -10090,7 +10204,7 @@ export function useMotifsRetrieve<
   queryClient?: QueryClient,
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor odvozených ze společné nabídky oblečení a pravidel motivu (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
  * @summary Detail motivu podle slugu (konfigurátor)
  */
 export function useMotifsRetrieve<
@@ -10113,7 +10227,7 @@ export function useMotifsRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor odvozených ze společné nabídky oblečení a pravidel motivu (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
  * @summary Detail motivu podle slugu (konfigurátor)
  */
 export function useMotifsRetrieve<
@@ -10128,7 +10242,7 @@ export function useMotifsRetrieve<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor z nich nabídne jen ty, co admin opravdu povolil v `/admin/motif-variants` (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
+ * Plný detail pro stránku motivu / konfigurátor. Obsahuje `description`, cenu a **všechny** obrázky motivu (ne jen hlavní) - každý obrázek má `colorId`; frontend podle vybrané barvy ve `/catalog/options` přepne galerii na obrázky s odpovídajícím `colorId` (nebo ukáže výchozí, pokud žádný obrázek tu barvu nemá). `variants` je seznam povolených kombinací `productTypeId`/`cutId`/`colorId`/`size` pro tento motiv - konfigurátor odvozených ze společné nabídky oblečení a pravidel motivu (jiná kombinace by u `/cart/validate`/`POST /orders` skončila 422 `VARIANT_NOT_AVAILABLE`). Vyhledává podle `slug`.
  * @summary Detail motivu podle slugu (konfigurátor)
  */
 export function useMotifsRetrieve<

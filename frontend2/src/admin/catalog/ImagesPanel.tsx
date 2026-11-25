@@ -1,14 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  TextField,
-} from "@mui/material";
+import { Button, MenuItem, TextField } from "@mui/material";
 import {
   adminMotifsImagesCreate,
   adminMotifsImagesDestroy,
@@ -22,39 +14,68 @@ import type {
   PatchedMotifImagePatch,
 } from "../../api/generated/models";
 import { CatalogFeedback, ProductArt } from "../../components/Products";
-import { useAdminColors, useCatalogMutation } from "./api";
+import { useCatalogMutation, useVariantLookups } from "./api";
+import { garmentKey, garmentName, groupGarments } from "./OfferBlocks";
+import { useAdminGarmentOfferRetrieve } from "../../api/generated/api";
+
+type GarmentChoice = { value: string; label: string };
+function photoGarment(data: FormData) {
+  const [productTypeId, cutId] = formText(data, "garment").split(":");
+  return { productTypeId: productTypeId || null, cutId: cutId || null };
+}
 import { catalogError, formText } from "./forms";
 
 function ImageFields({
   image,
   colors,
+  garments,
   disabled,
 }: {
   image?: AdminMotifImage;
   colors: AdminColor[];
+  garments: GarmentChoice[];
   disabled: boolean;
 }) {
   return (
     <>
       <TextField
         name="altText"
-        label="Popisek fotografie"
+        label="Alternativní text"
+        helperText="Stručný popis pro čtečky obrazovky. Nezobrazuje se jako titulek."
         defaultValue={image?.altText ?? ""}
         disabled={disabled}
       />
       <TextField
         name="colorId"
-        label="Barva fotografie"
+        label="Zobrazovat při výběru barvy"
         select
         defaultValue={image?.colorId ?? ""}
         disabled={disabled}
-        helperText="Bez barvy se fotografie zobrazí pro všechny barvy motivu."
+        helperText="Výběr barvy fotografii nepřebarví."
       >
-        <MenuItem value="">Všechny barvy</MenuItem>
+        <MenuItem value="">Bez přiřazené barvy</MenuItem>
         {colors.map((color) => (
           <MenuItem key={color.id} value={color.id}>
             {color.name}
             {!color.isActive && " (neaktivní)"}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        name="garment"
+        select
+        label="Typ a střih"
+        disabled={disabled}
+        defaultValue={
+          image?.productTypeId && image.cutId
+            ? garmentKey({ productTypeId: image.productTypeId, cutId: image.cutId })
+            : ""
+        }
+      >
+        <MenuItem value="">Bez přiřazeného oblečení</MenuItem>
+        {garments.map(({ value, label }) => (
+          <MenuItem key={value} value={value}>
+            {label}
           </MenuItem>
         ))}
       </TextField>
@@ -63,14 +84,39 @@ function ImageFields({
 }
 
 type Action =
-  | { kind: "upload"; file: File; altText: string; colorId?: string }
+  | {
+      kind: "upload";
+      file: File;
+      altText: string;
+      colorId?: string;
+      productTypeId?: string;
+      cutId?: string;
+    }
   | { kind: "edit"; id: string; data: PatchedMotifImagePatch }
   | { kind: "delete"; id: string }
   | { kind: "reorder"; ids: string[] };
 
-export function ImagesPanel({ motifId }: { motifId: string }) {
+export function ImagesPanel({ motifId, busy }: { motifId: string; busy: boolean }) {
   const detail = useAdminMotifsRetrieve(motifId, { query: { refetchOnWindowFocus: false } });
-  const colors = useAdminColors();
+  const lookups = useVariantLookups();
+  const offer = useAdminGarmentOfferRetrieve();
+  const garments = new Map<string, GarmentChoice>();
+  if (lookups.data) {
+    const dictionaries = lookups.data;
+    const pairs = [
+      ...groupGarments(offer.data?.variants ?? []).flatMap((rows) => rows.slice(0, 1)),
+      ...(detail.data?.images ?? []).flatMap((image) =>
+        image.productTypeId && image.cutId
+          ? [{ productTypeId: image.productTypeId, cutId: image.cutId }]
+          : [],
+      ),
+    ];
+    for (const pair of pairs) {
+      const value = garmentKey(pair);
+      garments.set(value, { value, label: garmentName(pair, dictionaries) });
+    }
+  }
+  const garmentChoices = [...garments.values()];
   const [editing, setEditing] = useState<AdminMotifImage | null>(null);
   const [deleting, setDeleting] = useState<AdminMotifImage | null>(null);
   const [error, setError] = useState("");
@@ -83,6 +129,8 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
           file: action.file,
           altText: action.altText,
           colorId: action.colorId,
+          productTypeId: action.productTypeId,
+          cutId: action.cutId,
         });
         break;
       case "edit":
@@ -96,8 +144,9 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
         break;
     }
   });
+  const disabled = busy || write.isPending;
   const run = async (action: Action, success: string) => {
-    if (write.isPending) return false;
+    if (disabled) return false;
     setError("");
     setMessage("");
     try {
@@ -126,6 +175,7 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
       return;
     }
     const colorId = formText(data, "colorId");
+    const { productTypeId, cutId } = photoGarment(data);
     if (
       await run(
         {
@@ -133,6 +183,7 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
           file,
           altText: formText(data, "altText"),
           ...(colorId ? { colorId } : {}),
+          ...(productTypeId && cutId ? { productTypeId, cutId } : {}),
         },
         "Fotografie byla nahrána.",
       )
@@ -148,61 +199,140 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
   };
   return (
     <>
-      <p>
-        První fotografie je hlavní obrázek katalogu. Ukládá se originál a dva náhledy na backendu.
-      </p>
       <CatalogFeedback query={detail} label="Fotografie" />
-      <CatalogFeedback query={colors} label="Barvy" />
+      <CatalogFeedback query={lookups} label="Číselníky" />
+      <CatalogFeedback query={offer} label="Nabídka oblečení" />
       {error && !editing && !deleting && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
-      {detail.isSuccess && colors.isSuccess && (
+      {detail.isSuccess && lookups.data && (
         <>
           {!images.length && <p role="status">Motiv zatím nemá fotografie.</p>}
           <div className="admin-image-grid">
             {images.map((image, index) => (
               <article className="admin-image-card" key={image.id}>
                 <ProductArt src={image.thumbnailSmallUrl || image.url} name={image.altText} />
-                <p>{index === 0 ? "Hlavní fotografie" : `Fotografie ${index + 1}`}</p>
-                <p>{image.altText || "Bez popisku"}</p>
-                <p>
-                  {image.colorId
-                    ? (colors.data.find((color) => color.id === image.colorId)?.name ??
-                      "Neznámá barva")
-                    : "Všechny barvy"}
-                </p>
-                <Button
-                  disabled={write.isPending || index === 0}
-                  aria-label={`Posunout fotografii ${index + 1} doleva`}
-                  onClick={() => move(index, -1)}
-                >
-                  ←
-                </Button>
-                <Button
-                  disabled={write.isPending || index === images.length - 1}
-                  aria-label={`Posunout fotografii ${index + 1} doprava`}
-                  onClick={() => move(index, 1)}
-                >
-                  →
-                </Button>
-                <Button
-                  disabled={write.isPending}
-                  onClick={() => {
-                    setError("");
-                    setEditing(image);
-                  }}
-                >
-                  Upravit popisek a barvu
-                </Button>
-                <Button
-                  color="error"
-                  disabled={write.isPending}
-                  onClick={() => {
-                    setError("");
-                    setDeleting(image);
-                  }}
-                >
-                  Smazat fotografii
-                </Button>
+                <div>
+                  <p>
+                    {index === 0 ? <strong>Hlavní fotografie</strong> : `Fotografie ${index + 1}`}
+                  </p>
+                  {image.altText && <p>{image.altText}</p>}
+                  {image.colorId && (
+                    <p>
+                      {lookups.data?.colors.find((color) => color.id === image.colorId)?.name ??
+                        "Neznámá barva"}
+                    </p>
+                  )}
+                </div>
+                <div className="motif-image-actions">
+                  <Button
+                    disabled={disabled || index === 0 || !!editing || !!deleting}
+                    aria-label={`Posunout fotografii ${index + 1} doleva`}
+                    onClick={() => move(index, -1)}
+                  >
+                    ←
+                  </Button>
+                  <Button
+                    disabled={disabled || index === images.length - 1 || !!editing || !!deleting}
+                    aria-label={`Posunout fotografii ${index + 1} doprava`}
+                    onClick={() => move(index, 1)}
+                  >
+                    →
+                  </Button>
+                  <Button
+                    disabled={disabled || !!editing || !!deleting}
+                    onClick={() => {
+                      setError("");
+                      setEditing(image);
+                    }}
+                  >
+                    Upravit popisek a barvu
+                  </Button>
+                  <Button
+                    color="error"
+                    disabled={disabled || !!editing || !!deleting}
+                    onClick={() => {
+                      setError("");
+                      setDeleting(image);
+                    }}
+                  >
+                    Smazat fotografii
+                  </Button>
+                </div>
+                {editing?.id === image.id && (
+                  <form
+                    className="dialog-form"
+                    aria-label="Upravit fotografii"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const data = new FormData(event.currentTarget);
+                      void run(
+                        {
+                          kind: "edit",
+                          id: image.id,
+                          data: {
+                            altText: formText(data, "altText"),
+                            colorId: formText(data, "colorId") || null,
+                            ...photoGarment(data),
+                          },
+                        },
+                        "Fotografie byla upravena.",
+                      ).then((saved) => {
+                        if (saved) setEditing(null);
+                      });
+                    }}
+                  >
+                    <ImageFields
+                      image={image}
+                      colors={lookups.data!.colors}
+                      garments={garmentChoices}
+                      disabled={disabled}
+                    />
+                    {error && <p role="alert">{error}</p>}
+                    <div className="data-table-actions">
+                      <Button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          setEditing(null);
+                          setError("");
+                        }}
+                      >
+                        Zrušit
+                      </Button>
+                      <Button type="submit" disabled={disabled}>
+                        Uložit fotografii
+                      </Button>
+                    </div>
+                  </form>
+                )}
+                {deleting?.id === image.id && (
+                  <div role="group" aria-label="Smazat fotografii?">
+                    <p>Fotografie se trvale smaže.</p>
+                    {error && <p role="alert">{error}</p>}
+                    <Button
+                      disabled={disabled}
+                      onClick={() => {
+                        setDeleting(null);
+                        setError("");
+                      }}
+                    >
+                      Zrušit
+                    </Button>
+                    <Button
+                      color="error"
+                      disabled={disabled}
+                      onClick={() => {
+                        void run({ kind: "delete", id: image.id }, "Fotografie byla smazána.").then(
+                          (saved) => {
+                            if (saved) setDeleting(null);
+                          },
+                        );
+                      }}
+                    >
+                      Trvale smazat fotografii
+                    </Button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -212,7 +342,6 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
             aria-label="Nahrát fotografii"
             onSubmit={(event) => void upload(event)}
           >
-            <h3>Nahrát fotografii</h3>
             <TextField
               label="Soubor fotografie"
               name="file"
@@ -222,88 +351,28 @@ export function ImagesPanel({ motifId }: { motifId: string }) {
                 htmlInput: { accept: "image/jpeg,image/png,image/webp" },
               }}
               required
-              disabled={write.isPending}
+              disabled={disabled || !!editing || !!deleting}
             />
-            <p>JPG, PNG nebo WEBP, nejvýše 10 MB. Skutečný obsah souboru ověřuje server.</p>
-            <ImageFields colors={colors.data} disabled={write.isPending} />
-            <Button type="submit" variant="contained" disabled={write.isPending}>
+            <details className="motif-editor-details">
+              <summary>Popis a přiřazení fotografie (volitelné)</summary>
+              <div className="motif-editor-fields">
+                <ImageFields
+                  colors={lookups.data.colors}
+                  garments={garmentChoices}
+                  disabled={disabled || !!editing || !!deleting}
+                />
+              </div>
+            </details>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={disabled || !!editing || !!deleting}
+            >
               {write.isPending ? "Ukládání…" : "Nahrát fotografii"}
             </Button>
           </form>
         </>
       )}
-      <Dialog
-        open={editing !== null}
-        onClose={write.isPending ? undefined : () => setEditing(null)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Upravit fotografii</DialogTitle>
-        {editing && (
-          <form
-            key={editing.id}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              void run(
-                {
-                  kind: "edit",
-                  id: editing.id,
-                  data: {
-                    altText: formText(data, "altText"),
-                    colorId: formText(data, "colorId") || null,
-                  },
-                },
-                "Fotografie byla upravena.",
-              ).then((saved) => {
-                if (saved) setEditing(null);
-              });
-            }}
-          >
-            <DialogContent className="dialog-form">
-              <ImageFields image={editing} colors={colors.data ?? []} disabled={write.isPending} />
-              {error && <p role="alert">{error}</p>}
-            </DialogContent>
-            <DialogActions>
-              <Button disabled={write.isPending} onClick={() => setEditing(null)}>
-                Zrušit
-              </Button>
-              <Button type="submit" disabled={write.isPending}>
-                Uložit fotografii
-              </Button>
-            </DialogActions>
-          </form>
-        )}
-      </Dialog>
-      <Dialog
-        open={deleting !== null}
-        onClose={write.isPending ? undefined : () => setDeleting(null)}
-      >
-        <DialogTitle>Smazat fotografii?</DialogTitle>
-        <DialogContent>
-          <p>Trvale se smaže originál i oba náhledy. Tuto akci nelze vrátit.</p>
-          {error && <p role="alert">{error}</p>}
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={write.isPending} onClick={() => setDeleting(null)}>
-            Zrušit
-          </Button>
-          <Button
-            color="error"
-            disabled={write.isPending}
-            onClick={() => {
-              if (deleting)
-                void run({ kind: "delete", id: deleting.id }, "Fotografie byla smazána.").then(
-                  (saved) => {
-                    if (saved) setDeleting(null);
-                  },
-                );
-            }}
-          >
-            Trvale smazat fotografii
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   );
 }

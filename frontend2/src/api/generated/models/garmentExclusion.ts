@@ -3,12 +3,9 @@
  */
 import type { SizeEnum } from "./sizeEnum.ts";
 
-export interface AdminMotifVariant {
-  readonly id: string;
-  motifId: string;
+export interface GarmentExclusion {
   productTypeId: string;
   cutId: string;
-  colorId: string;
-  size: SizeEnum;
-  isActive?: boolean;
+  colorId?: string;
+  size?: SizeEnum;
 }

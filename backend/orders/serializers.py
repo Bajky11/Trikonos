@@ -7,6 +7,7 @@ from catalog.models import Color, Cut, Motif, PrintArea, ProductType
 from core.tokens import resolve_file_token
 from core.exceptions import BusinessError
 from shipping.models import Carrier
+from shipping.packeta_pickup import validate_pickup_point
 
 from . import services
 from .models import DeliveryType, Order, OrderStatus, PaymentMethod, Size
@@ -239,14 +240,21 @@ class OrderCreateSerializer(serializers.Serializer):
             'billing_country': billing.get('country', 'CZ'),
         }
         delivery = validated_data['delivery']
+        carrier = delivery.get('carrier')
+        pickup_point_name = delivery.get('pickup_point_name', '')
+        if not is_admin and delivery['delivery_type'] == DeliveryType.PICKUP_POINT and carrier.code == 'PACKETA':
+            pickup_point_name = validate_pickup_point(
+                delivery['pickup_point_id'],
+                cash_on_delivery=validated_data['payment_method'] == PaymentMethod.CASH_ON_DELIVERY,
+            )
         delivery_data = {
             # .get(), not ['carrier'] - carrier_id is optional (PERSONAL_PICKUP
             # has none), so a request that omits it entirely leaves the key
             # missing from validated_data rather than present-and-None.
-            'carrier': delivery.get('carrier'),
+            'carrier': carrier,
             'delivery_type': delivery['delivery_type'],
             'pickup_point_id': delivery.get('pickup_point_id', ''),
-            'pickup_point_name': delivery.get('pickup_point_name', ''),
+            'pickup_point_name': pickup_point_name,
         }
         items_data = [OrderItemInputSerializer.to_service_item(item) for item in validated_data['items']]
 

@@ -2,6 +2,7 @@ import uuid
 from io import BytesIO
 
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Count, ProtectedError
 from django.utils.translation import gettext as _
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
@@ -9,6 +10,7 @@ from PIL import Image
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from accounts.permissions import IsAdmin
@@ -26,6 +28,7 @@ from .admin_motif_serializers import (
     MotifImageUploadSerializer,
 )
 from .models import Motif
+from .mockups import MockupUploadSerializer, delete_after_commit, save_mockup
 
 THUMBNAIL_MAX_DIMENSIONS = {'small': 400, 'large': 1200}
 _PIL_FORMAT_TO_EXTENSION = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp'}
@@ -129,12 +132,14 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
             return AdminMotifWriteSerializer
         return AdminMotifDetailSerializer
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         motif = serializer.save(images=[])
         return Response(AdminMotifDetailSerializer(motif).data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
         motif = self.get_object()
         serializer = self.get_serializer(motif, data=request.data, partial=True)
@@ -161,12 +166,35 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
             instance.delete()
         except ProtectedError:
             raise InUseError(_('This motif is used in an order and cannot be deleted - try deactivating it instead.'))
+        delete_after_commit(instance.design_image)
 
         for image in images:
             for key in ('path', 'thumbnail_small_path', 'thumbnail_large_path'):
                 path = image.get(key)
                 if path:
                     default_storage.delete(path)
+
+    @extend_schema(operation_id='adminMotifDesignUpdate', request=MockupUploadSerializer, responses={204: None})
+    @action(detail=True, methods=['post'], url_path='design-image', parser_classes=[MultiPartParser])
+    @transaction.atomic
+    def design_image(self, request, pk=None):
+        motif = Motif.objects.select_for_update().get(pk=self.get_object().pk)
+        delete_after_commit(motif.design_image)
+        upload = MockupUploadSerializer(data=request.data)
+        upload.is_valid(raise_exception=True)
+        save_mockup(motif.design_image, upload.validated_data['file'], trim=True)
+        motif.save(update_fields=['design_image', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(operation_id='adminMotifDesignDestroy', responses={204: None})
+    @design_image.mapping.delete
+    @transaction.atomic
+    def delete_design_image(self, request, pk=None):
+        motif = Motif.objects.select_for_update().get(pk=self.get_object().pk)
+        delete_after_commit(motif.design_image)
+        motif.design_image = ''
+        motif.save(update_fields=['design_image', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         tags=_TAG,
@@ -224,6 +252,8 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
             'alt_text': alt_text,
             'position': len(images),
             'color_id': str(color.id) if color else None,
+            **{f'{field}_id': str(serializer.validated_data[field].pk)
+               for field in ('product_type', 'cut') if serializer.validated_data.get(field)},
         })
         motif.images = images
         motif.save(update_fields=['images', 'updated_at'])
@@ -338,6 +368,9 @@ class AdminMotifViewSet(viewsets.ModelViewSet):
                     image['alt_text'] = data['alt_text']
                 if 'color' in data:
                     image['color_id'] = str(data['color'].id) if data['color'] else None
+                for field in ('product_type', 'cut'):
+                    if field in data:
+                        image[f'{field}_id'] = str(data[field].pk) if data[field] else None
                 break
         else:
             raise NotFound(_('Image not found.'))

@@ -88,6 +88,20 @@ class AdminOrderAddressSerializer(serializers.Serializer):
     country = serializers.CharField(default='CZ')
 
 
+class AdminOrderListItemSerializer(serializers.ModelSerializer):
+    motif = MotifRefSerializer(read_only=True, allow_null=True)
+    product_type = ProductTypeRefSerializer(read_only=True)
+    cut = CutRefSerializer(read_only=True)
+    color = ColorRefSerializer(read_only=True)
+
+    class Meta:
+        model = OrderItem
+        fields = [
+            'id', 'is_custom', 'motif', 'custom_text', 'product_type', 'cut', 'color',
+            'size', 'item_label', 'unit_price', 'quantity',
+        ]
+
+
 class AdminOrderListSerializer(serializers.ModelSerializer):
     customer_email = serializers.CharField(source='customer.email', read_only=True)
     customer_first_name = serializers.CharField(source='customer.first_name', read_only=True)
@@ -95,12 +109,15 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
     item_count = serializers.IntegerField(read_only=True)
     has_custom = serializers.BooleanField(read_only=True)
+    items = AdminOrderListItemSerializer(many=True, read_only=True)
+    carrier = CarrierRefSerializer(read_only=True, allow_null=True)
 
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer_email', 'customer_first_name', 'customer_last_name', 'customer_name', 'created_at',
             'item_count', 'total', 'currency', 'status', 'payment_status', 'shipment_status', 'has_custom',
+            'items', 'carrier', 'delivery_type', 'payment_method', 'note', 'tracking_number',
         ]
 
     def get_customer_name(self, obj) -> str:
