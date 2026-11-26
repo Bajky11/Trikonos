@@ -9,7 +9,7 @@ from customers.models import Customer
 from shipping.models import Carrier
 
 from . import services
-from .models import CustomDesignPlacement, DeliveryType, Order, OrderItem, PaymentMethod
+from .models import CustomDesignPlacement, CustomPrintPrice, DeliveryType, Order, OrderItem, PaymentMethod
 
 
 class CustomerRefSerializer(serializers.ModelSerializer):
@@ -174,7 +174,7 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
 class AdminOrderUpdateSerializer(serializers.Serializer):
     """PATCH /orders/{id} - addresses/carrier/delivery/payment method/note.
     trackingNumber is handled separately by the view since it may change in
-    any status; everything else here is locked outside QUOTE_REQUESTED/NEW.
+    any status; everything else here is locked outside status NEW.
     """
     billing = AdminOrderAddressSerializer(required=False)
     shipping = AdminOrderAddressSerializer(required=False)
@@ -277,3 +277,10 @@ class AdminPlacementUpdateSerializer(serializers.Serializer):
     width = serializers.IntegerField(required=False, min_value=1)
     height = serializers.IntegerField(required=False, min_value=1)
     rotation_deg = serializers.IntegerField(required=False)
+
+
+class AdminCustomPrintPriceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomPrintPrice
+        fields = ['price', 'updated_at']
+        read_only_fields = ['updated_at']

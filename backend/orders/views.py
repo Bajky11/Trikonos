@@ -58,14 +58,11 @@ class CartValidateView(APIView):
             'Odpověď má pro každou položku (ve stejném pořadí jako v požadavku) '
             '`valid`, `errors` (lidsky čitelné české hlášky, prázdné když je vše '
             'v pořádku), `itemLabel` (snapshot popisku, null při chybě), '
-            '`unitPrice` (null u vlastního potisku nebo chybné položky), '
-            '`lineTotal` (`unitPrice × quantity`, null když cena chybí). Souhrn: '
-            '`subtotal` je null, pokud je kterákoli položka neplatná NEBO '
-            'nedocenitelná (vlastní potisk) - tedy "null" neznamená chybu, může '
-            'to jen znamenat čekání na ocenění adminem. `requiresQuote` je true, '
-            'pokud košík obsahuje aspoň jednu položku s vlastním potiskem - '
-            'frontend podle toho může zobrazit "cenu potvrdíme e-mailem" ještě '
-            'před odeslením objednávky.\n\n'
+            '`unitPrice` (null jen u neplatné položky - vlastní potisk má cenu '
+            'vždy, stejně jako katalogová položka), `lineTotal` (`unitPrice × '
+            'quantity`, null když cena chybí). Souhrn: `subtotal` je null, '
+            'pokud je kterákoli položka neplatná - tedy "null" vždy znamená '
+            'chybu v některé položce.\n\n'
             'Volej při každém otevření košíku (ceny/aktivita motivů se mohly '
             'mezitím změnit) a znovu těsně před `POST /orders`.\n\n'
             '`carrierId`/`deliveryType` jsou nepovinné - bez nich (zákazník '
@@ -96,7 +93,6 @@ class CartValidateView(APIView):
         line_results = []
         subtotal = 0
         any_unpriced = False
-        requires_quote = False
         total_quantity = 0
 
         for raw_item in serializer.validated_data['items']:
@@ -107,8 +103,6 @@ class CartValidateView(APIView):
             line_results.append(result)
             total_quantity += item['quantity']
 
-            if item['is_custom']:
-                requires_quote = True
             if result['valid']:
                 if result['unit_price'] is None:
                     any_unpriced = True
@@ -131,7 +125,6 @@ class CartValidateView(APIView):
         return Response({
             'items': line_results,
             'subtotal': subtotal,
-            'requires_quote': requires_quote,
             'shipping_cost': shipping_cost,
             'total': total,
         })
@@ -168,11 +161,15 @@ class OrderCreateView(generics.CreateAPIView):
             '- Umístění musí patřit k tiskovému bloku stejného typu oblečení '
             'jako položka a vejít se do jeho rozměrů, jinak 422.\n'
             '- Prázdné `items` → 400.\n\n'
-            '**Stav při vzniku:** obsahuje-li objednávka aspoň jednu vlastní '
-            'položku → `QUOTE_REQUESTED` (čeká na ocenění adminem). Jinak '
-            '`NEW` a rovnou **potvrzená** (`confirmedAt` se nastaví '
-            'automaticky) - zákazník viděl finální cenu přímo v této '
-            'odpovědi, nemá smysl čekat na ruční potvrzení adminem.\n\n'
+            '**Stav při vzniku:** vždy `NEW`. Vlastní potisk má cenu '
+            'spočítanou automaticky (typ oblečení + jednotná cena potisku '
+            'z `/admin/custom-print-price`), stejně jako katalogová '
+            'položka - pokud je tím pádem známa i doprava, objednávka se '
+            'rovnou **potvrdí** (`confirmedAt` se nastaví automaticky), '
+            'protože zákazník viděl finální cenu přímo v této odpovědi a '
+            'nemá smysl čekat na ruční potvrzení adminem. Bez vyřešené '
+            'dopravy (nebo u ruční objednávky od admina) zůstává '
+            'nepotvrzená, dokud admin nezavolá `/confirm`.\n\n'
             '**Dvojité odeslání:** nepovinné `orderId` (UUID vygenerované '
             'na frontendu, např. při otevření checkoutu) - request se '
             'stejným `orderId` podruhé (dvojklik, retry sítě) vrátí tu '

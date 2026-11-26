@@ -6,7 +6,7 @@ from django.conf import settings
 from core.emails import send_templated_email
 from core.exceptions import BusinessError
 
-from .models import OrderStatus, PaymentMethod
+from .models import PaymentMethod
 
 
 def _order_access_url(order):
@@ -20,7 +20,6 @@ def send_order_received_email(order):
         'order_received',
         {
             'order_number': order.order_number,
-            'requires_quote': order.status == OrderStatus.QUOTE_REQUESTED,
             'url': _order_access_url(order),
         },
         subject=f'Objednávka {order.order_number} přijata',

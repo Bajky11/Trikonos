@@ -301,11 +301,12 @@ class OrderCreateSerializer(serializers.Serializer):
             if shipping_cost is not None:
                 services.set_shipping_cost(order, shipping_cost)
         elif order.status == OrderStatus.NEW and order.total is not None:
-            # Catalog order (no custom item), fully priced - the customer
-            # already saw the final number in this same response, so admin
-            # confirmation would be a pointless extra step. A quote
-            # (QUOTE_REQUESTED) or an order admin is creating by hand still
-            # needs an explicit /confirm.
+            # Fully priced (subtotal, including any custom print, plus a
+            # resolved shipping cost) - the customer already saw the final
+            # number in this same response, so admin confirmation would be
+            # a pointless extra step. An order still missing a shipping
+            # cost, or one admin is creating by hand, still needs an
+            # explicit /confirm.
             services.confirm_order(order)
 
         return order
@@ -320,16 +321,12 @@ class OrderCreateResponseItemSerializer(serializers.Serializer):
 class OrderCreateResponseSerializer(serializers.Serializer):
     order_number = serializers.CharField()
     status = serializers.CharField()
-    requires_quote = serializers.SerializerMethodField()
     access_token = serializers.SerializerMethodField()
     subtotal = serializers.IntegerField(allow_null=True)
     shipping_cost = serializers.IntegerField(allow_null=True)
     total = serializers.IntegerField(allow_null=True)
     currency = serializers.CharField()
     items = serializers.SerializerMethodField()
-
-    def get_requires_quote(self, obj) -> bool:
-        return obj.status == OrderStatus.QUOTE_REQUESTED
 
     def get_access_token(self, obj) -> str:
         return self.context['access_token']
@@ -456,7 +453,6 @@ class CartValidateLineResultSerializer(serializers.Serializer):
 class CartValidateResponseSerializer(serializers.Serializer):
     items = CartValidateLineResultSerializer(many=True)
     subtotal = serializers.IntegerField(allow_null=True)
-    requires_quote = serializers.BooleanField()
     shipping_cost = serializers.IntegerField(allow_null=True)
     total = serializers.IntegerField(allow_null=True)
 

@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 from accounts.models import User
-from orders.models import Order, OrderItem
+from orders.models import CustomPrintPrice, Order, OrderItem
 from django.core.files.uploadedfile import SimpleUploadedFile
 from io import BytesIO
 from PIL import Image
@@ -94,7 +94,7 @@ def test_cart_preview_reports_unavailable_variant_and_rejects_deleted_reference(
     assert client.post('/api/v1/cart/validate', body, format='json').status_code == 400
 
 
-def test_design_upload_and_custom_cart_require_session_csrf_and_do_not_create_orders(print_area, cut, color, settings, tmp_path, monkeypatch):
+def test_design_upload_and_custom_cart_require_session_csrf_and_do_not_create_orders(print_area, product_type, cut, color, settings, tmp_path, monkeypatch):
     settings.MEDIA_ROOT = tmp_path
     client = APIClient(enforce_csrf_checks=True)
     user = User.objects.create_user(email='design-admin@example.cz', password='test-only')
@@ -131,9 +131,9 @@ def test_design_upload_and_custom_cart_require_session_csrf_and_do_not_create_or
     valid = client.post('/api/v1/cart/validate', body, format='json', HTTP_X_CSRFTOKEN=token)
     assert valid.status_code == 200
     assert valid.json()['items'][0]['valid'] is True
-    assert valid.json()['items'][0]['unitPrice'] is None
-    assert valid.json()['subtotal'] is None
-    assert valid.json()['requiresQuote'] is True
+    # Custom print is priced automatically, same as a catalog item.
+    assert valid.json()['items'][0]['unitPrice'] == product_type.price
+    assert valid.json()['subtotal'] == product_type.price * 2
     assert not Order.objects.exists()
     monkeypatch.setattr('core.tokens.FILE_TOKEN_MAX_AGE', -1)
     expired = client.post('/api/v1/cart/validate', body, format='json', HTTP_X_CSRFTOKEN=token)
@@ -141,7 +141,8 @@ def test_design_upload_and_custom_cart_require_session_csrf_and_do_not_create_or
     assert expired.json()['error']['code'] == 'INVALID_FILE_TOKEN'
 
 
-def test_cart_validate_custom_item_requires_quote_and_is_unpriced(product_type, cut, color, print_area):
+def test_cart_validate_custom_item_is_priced_like_a_catalog_item(product_type, cut, color, print_area):
+    CustomPrintPrice.objects.create(price=29900)
     file_token = sign_file_token({'url': 'https://files.example/a.png', 'mime_type': 'image/png', 'size': 100})
     body = {
         'items': [{
@@ -157,11 +158,10 @@ def test_cart_validate_custom_item_requires_quote_and_is_unpriced(product_type, 
     response = APIClient().post('/api/v1/cart/validate', body, format='json')
 
     assert response.status_code == 200
-    assert response.data['requires_quote'] is True
-    assert response.data['subtotal'] is None
-    assert response.data['total'] is None
+    assert response.data['subtotal'] == 29900 + product_type.price
+    assert response.data['total'] is None  # shipping not chosen
     assert response.data['items'][0]['valid'] is True
-    assert response.data['items'][0]['unit_price'] is None
+    assert response.data['items'][0]['unit_price'] == 29900 + product_type.price
 
 
 def _png_bytes():

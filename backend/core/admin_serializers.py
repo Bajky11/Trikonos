@@ -42,7 +42,6 @@ class AdminDashboardResponseSerializer(serializers.Serializer):
     revenue_today = serializers.IntegerField()
     revenue_yesterday = serializers.IntegerField()
     new_customers_7d = serializers.IntegerField()
-    pending_quotes = serializers.IntegerField()
     orders_to_process = serializers.IntegerField()
     unpaid_invoices = serializers.IntegerField()
     recent_orders = AdminDashboardRecentOrderSerializer(many=True)

@@ -10,6 +10,7 @@ from .order import Order
 from .order_item import OrderItem
 from .custom_design_placement import CustomDesignPlacement
 from .comgate_payment import ComgatePayment
+from .custom_print_price import CustomPrintPrice
 
 __all__ = [
     'DeliveryType',
@@ -22,4 +23,5 @@ __all__ = [
     'OrderItem',
     'CustomDesignPlacement',
     'ComgatePayment',
+    'CustomPrintPrice',
 ]

@@ -18,6 +18,7 @@ from .admin_serializers import (
     LOCKED_UPDATE_FIELDS,
     AdminConfirmOrderSerializer,
     AdminCreateShipmentSerializer,
+    AdminCustomPrintPriceSerializer,
     AdminOrderDetailSerializer,
     AdminOrderItemPriceSerializer,
     AdminOrderListSerializer,
@@ -29,7 +30,7 @@ from .admin_serializers import (
     AdminShipmentStatusSerializer,
     AdminShippingCostSerializer,
 )
-from .models import Order, OrderItem, OrderStatus, PaymentStatus, ShipmentStatus
+from .models import CustomPrintPrice, Order, OrderItem, OrderStatus, PaymentStatus, ShipmentStatus
 from .serializers import OrderCreateSerializer
 
 _TAG = ['Admin - objednávky']
@@ -80,7 +81,7 @@ _PLACEMENT_ID_PARAM = OpenApiParameter('placement_id', str, OpenApiParameter.PAT
             '- `allowedTransitions` - do kterých stavů lze objednávku z jejího '
             'aktuálního stavu právě teď posunout; prázdné '
             'pole = žádný přechod není momentálně možný.\n'
-            '- `isLocked` - `true` mimo stavy QUOTE_REQUESTED/NEW, kdy nejde '
+            '- `isLocked` - `true` mimo stav NEW, kdy nejde '
             'měnit ceny, dopravu ani adresy (`trackingNumber` lze měnit '
             'kdykoli).\n'
             '- `confirmedAt` - kdy admin objednávku naposledy potvrdil '
@@ -209,7 +210,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'Částečná úprava (PATCH) - pošli jen pole, která měníš. '
             '`billing`/`shipping`/`carrierId`/`deliveryType`/`pickupPointId`/'
             '`pickupPointName`/`paymentMethod`/`note` jdou měnit **jen ve '
-            'stavech QUOTE_REQUESTED a NEW** - jinde vrátí 409 `ORDER_LOCKED`. '
+            'stavu NEW** - jinde vrátí 409 `ORDER_LOCKED`. '
             '`trackingNumber` je výjimka a smí se měnit kdykoli (i na '
             'odeslané/doručené objednávce, pro dodatečnou opravu). Pro ocenění '
             'položek a dopravy použij samostatné endpointy '
@@ -220,7 +221,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         request=AdminOrderUpdateSerializer,
         responses={
             200: AdminOrderDetailSerializer,
-            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu NEW.'),
         },
     )
     @transaction.atomic
@@ -291,13 +292,16 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         tags=_TAG,
         summary='Ocenit položku objednávky',
         description=(
-            '**Hlavní nástroj pro ocenění poptávky** (vlastní potisk čeká na '
-            'cenu od admina). `unitPrice` v haléřích (pošli `null` pro vrácení '
-            'položky zpět do stavu "čeká na ocenění") a/nebo `quantity` '
-            '(1-500) - obě pole nepovinná, pošli jen to, co měníš. Po uložení '
-            'se automaticky přepočítá `subtotal` a `total` celé objednávky a '
-            'vrátí se **celá objednávka**, ne jen položka. Jen ve stavech '
-            'QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Pokud byla '
+            '**Ruční přepsání ceny položky** - katalogová i vlastní položka '
+            'má cenu spočítanou automaticky už při vytvoření objednávky '
+            '(katalogová: motiv + typ oblečení; vlastní potisk: jednotná '
+            'cena z `/admin/custom-print-price` + typ oblečení), tento '
+            'endpoint slouží jen k ruční opravě. `unitPrice` v haléřích '
+            '(pošli `null` pro vrácení položky do stavu "bez ceny") a/nebo '
+            '`quantity` (1-500) - obě pole nepovinná, pošli jen to, co '
+            'měníš. Po uložení se automaticky přepočítá `subtotal` a '
+            '`total` celé objednávky a vrátí se **celá objednávka**, ne jen '
+            'položka. Jen ve stavu NEW, jinak 409 `ORDER_LOCKED`. Pokud byla '
             'objednávka už potvrzená (`confirmedAt` nebylo null), změna ceny '
             'potvrzení zruší (`confirmedAt` → null) - admin musí zavolat '
             '`/confirm` znovu, aby zákazník dostal e-mail s aktuální cenou.'
@@ -307,7 +311,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
         responses={
             200: AdminOrderDetailSerializer,
             404: OpenApiResponse(description='Položka s daným item_id v této objednávce neexistuje.'),
-            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu NEW.'),
         },
     )
     @action(detail=True, methods=['patch'], url_path=r'items/(?P<item_id>[^/.]+)')
@@ -336,14 +340,14 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'blok patří ke stejnému typu oblečení jako položka a že se '
             '(případně nové) rozměry vejdou do bloku - při porušení 422, '
             'stejně jako při `POST /orders`. Jen ve stavech '
-            'QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`.'
+            'NEW, jinak 409 `ORDER_LOCKED`.'
         ),
         parameters=[_ITEM_ID_PARAM, _PLACEMENT_ID_PARAM],
         request=AdminPlacementUpdateSerializer,
         responses={
             200: AdminOrderDetailSerializer,
             404: OpenApiResponse(description='Položka nebo umístění s daným id v této objednávce neexistuje.'),
-            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu NEW.'),
             422: OpenApiResponse(description='Blok jiného typu oblečení, nebo umístění se nevejde do rozměrů bloku.'),
         },
     )
@@ -431,14 +435,14 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'chvíle se cena dopravy při změně počtu kusů nepřepočítává '
             'automaticky (vrať se k automatice přes `DELETE` na stejné '
             'URL). Po uložení se přepočítá `total` celé objednávky. Jen ve '
-            'stavech QUOTE_REQUESTED/NEW, jinak 409 `ORDER_LOCKED`. Stejně '
+            'stavu NEW, jinak 409 `ORDER_LOCKED`. Stejně '
             'jako u ocenění položky, pokud byla objednávka už potvrzená, '
             'tímto se potvrzení zruší a je nutné zavolat `/confirm` znovu.'
         ),
         request=AdminShippingCostSerializer,
         responses={
             200: AdminOrderDetailSerializer,
-            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu NEW.'),
         },
     )
     @extend_schema(
@@ -449,12 +453,12 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'Zruší `shippingCostManual` a dopočítá cenu dopravy znovu podle '
             'aktuálního dopravce, typu doručení a počtu kusů (stejně jako '
             'při vzniku objednávky) - `null`, pokud pro tuto kombinaci není '
-            'nastavená cena. Jen ve stavech QUOTE_REQUESTED/NEW, jinak 409 '
+            'nastavená cena. Jen ve stavu NEW, jinak 409 '
             '`ORDER_LOCKED`.'
         ),
         responses={
             200: AdminOrderDetailSerializer,
-            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu QUOTE_REQUESTED/NEW.'),
+            409: OpenApiResponse(description='ORDER_LOCKED - objednávka není ve stavu NEW.'),
         },
     )
     @action(detail=True, methods=['put', 'delete'], url_path='shipping-cost')
@@ -599,13 +603,12 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
             'instrukcemi (u platby převodem: účet, částka, variabilní '
             'symbol). Vyžaduje, aby `total` nebyl `null` (všechny položky '
             'oceněné + nastavená doprava), jinak 422 `ORDER_NOT_PRICED`. '
-            'U stavu QUOTE_REQUESTED navíc přepne objednávku na NEW. '
             'Nastaví `confirmedAt` na aktuální čas - to je podmínka pro '
             'pozdější přechod NEW → PROCESSING. Nepovinné `message` je osobní '
             'text admina, který se vloží do e-mailu (např. poznámka k '
-            'poptávce). **Je idempotentní** - opakované volání jen znovu '
+            'objednávce). **Je idempotentní** - opakované volání jen znovu '
             'pošle e-mail, nic se tím nerozbije. Potvrzovat lze jen '
-            'editovatelné stavy QUOTE_REQUESTED/NEW; jinak 409 ORDER_LOCKED.'
+            'editovatelný stav NEW; jinak 409 ORDER_LOCKED.'
         ),
         request=AdminConfirmOrderSerializer,
         responses={
@@ -782,3 +785,42 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
     def print_sheet(self, request, pk=None):
         order = self.get_object()
         return Response(AdminOrderDetailSerializer(order, context=self.get_serializer_context()).data)
+
+
+@extend_schema_view(
+    retrieve=extend_schema(
+        tags=_TAG,
+        summary='Zobrazit cenu vlastního potisku',
+        description=(
+            'Jednotná cena (haléře) připočítaná k `productType.price` u '
+            'každé položky s vlastním potiskem (`isCustom: true`) - nahrazuje '
+            'dřívější ruční ocenění adminem, počítá se automaticky hned při '
+            'vytvoření objednávky, bez ohledu na počet umístění/obrázků v '
+            'designu. `price: 0` (výchozí) = vlastní potisk stojí jen jako '
+            'typ oblečení.'
+        ),
+        responses={200: AdminCustomPrintPriceSerializer},
+    ),
+    update=extend_schema(
+        tags=_TAG,
+        summary='Nastavit cenu vlastního potisku',
+        description='Vyžaduje přihlášení do administrace.',
+        request=AdminCustomPrintPriceSerializer,
+        responses={200: AdminCustomPrintPriceSerializer},
+    ),
+)
+@method_decorator(never_cache, name='dispatch')
+class AdminCustomPrintPriceView(viewsets.ViewSet):
+    """GET/PUT /admin/custom-print-price - singleton cena vlastního potisku."""
+    permission_classes = [IsAdmin]
+
+    def retrieve(self, request):
+        serializer = AdminCustomPrintPriceSerializer(CustomPrintPrice.get_solo())
+        return Response(serializer.data)
+
+    def update(self, request):
+        instance = CustomPrintPrice.get_solo()
+        serializer = AdminCustomPrintPriceSerializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

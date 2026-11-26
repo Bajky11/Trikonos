@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from core.exceptions import PacketaApiError
 from customers.models import Customer
-from orders.models import DeliveryType, Order, OrderStatus, PaymentMethod, PaymentStatus, ShipmentStatus
+from orders.models import CustomPrintPrice, DeliveryType, Order, OrderStatus, PaymentMethod, PaymentStatus, ShipmentStatus
 from orders.services import build_order_item
 from shipping.models import Carrier, PacketaConfig, ShippingPrice
 from shipping.packeta_client import CreatedPacket, PacketStatus
@@ -136,7 +136,7 @@ def test_pricing_failure_rolls_back_item_and_confirm_rejects_locked_order(admin_
 
 
 def test_admin_quote_lifecycle_requires_session_csrf_and_respects_separate_payment_state(motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks):
-    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None)
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier, status=OrderStatus.NEW, subtotal=None, total=None)
     item = order.items.first()
     item.unit_price = None
     item.is_custom = True
@@ -793,7 +793,7 @@ def test_delete_on_order_detail_is_not_allowed(admin_client, motif, product_type
 
 def test_update_item_price_via_http_recalculates_total(admin_client, motif, product_type, cut, color, packeta_carrier):
     order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
-                    status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None)
+                    status=OrderStatus.NEW, subtotal=None, total=None)
     item = order.items.get()
 
     response = admin_client.patch(f'/api/v1/admin/orders/{order.id}/items/{item.id}', {'unitPrice': 12345}, format='json')
@@ -819,7 +819,7 @@ def test_update_item_unknown_item_id_returns_404(admin_client, motif, product_ty
 
 def _custom_order_with_placement(motif, product_type, cut, color, packeta_carrier, print_area):
     order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier,
-                    status=OrderStatus.QUOTE_REQUESTED, subtotal=None, total=None, order_number='TRK-2026-CUSTOM')
+                    status=OrderStatus.NEW, subtotal=None, total=None, order_number='TRK-2026-CUSTOM')
     order.items.all().delete()  # drop the default catalog item from the _order helper
     build_order_item(order, {
         'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
@@ -1066,4 +1066,26 @@ def test_export_respects_list_filters(admin_client, motif, product_type, cut, co
 
 def test_export_requires_admin_login():
     response = APIClient().get('/api/v1/admin/orders/export')
+    assert response.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# Custom print price (singleton)
+# ---------------------------------------------------------------------------
+
+def test_can_view_custom_print_price_defaults_to_zero(admin_client):
+    response = admin_client.get('/api/v1/admin/custom-print-price')
+    assert response.status_code == 200
+    assert response.data['price'] == 0
+
+
+def test_admin_can_update_custom_print_price(admin_client):
+    response = admin_client.put('/api/v1/admin/custom-print-price', {'price': 29900}, format='json')
+
+    assert response.status_code == 200
+    assert CustomPrintPrice.get_solo().price == 29900
+
+
+def test_custom_print_price_requires_admin_login():
+    response = APIClient().get('/api/v1/admin/custom-print-price')
     assert response.status_code in (401, 403)

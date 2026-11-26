@@ -4,7 +4,7 @@ from catalog.models import GarmentVariant, PrintArea, ProductType
 from core.exceptions import BusinessError, InvalidStatusTransitionError, OrderLockedError, ShippingPriceNotConfigured
 from customers.models import Customer
 from orders import services
-from orders.models import DeliveryType, Order, OrderStatus, PaymentMethod, PaymentStatus
+from orders.models import CustomPrintPrice, DeliveryType, Order, OrderStatus, PaymentMethod, PaymentStatus
 from shipping.models import CodSurcharge, ShippingPrice, ShippingQuantityDiscount
 
 pytestmark = pytest.mark.django_db
@@ -78,7 +78,8 @@ def test_catalog_item_uses_server_price_and_sets_new_status(motif, product_type,
     assert order.total is None  # shipping_cost not set yet
 
 
-def test_custom_item_requires_quote_and_saves_placements(product_type, cut, color, print_area):
+def test_custom_item_is_priced_automatically_and_saves_placements(product_type, cut, color, print_area):
+    CustomPrintPrice.objects.create(price=29900)
     items = [{
         'is_custom': True, 'motif': None, 'custom_text': 'Logo na záda', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'L', 'quantity': 15,
@@ -90,11 +91,11 @@ def test_custom_item_requires_quote_and_saves_placements(product_type, cut, colo
 
     order = _make_order(items)
 
-    assert order.status == OrderStatus.QUOTE_REQUESTED
-    assert order.subtotal is None
-    assert order.total is None
+    assert order.status == OrderStatus.NEW
     item = order.items.get()
-    assert item.unit_price is None
+    assert item.unit_price == 29900 + product_type.price
+    assert order.subtotal == (29900 + product_type.price) * 15
+    assert order.total is None  # shipping_cost not set yet
     assert item.design_placements.count() == 1
 
 
@@ -355,7 +356,9 @@ def test_shipment_status_rank_of_unknown_value_sorts_first():
     assert services._shipment_status_rank('NOT_A_REAL_STATUS') == -1
 
 
-def test_pricing_and_shipping_completes_total_and_confirm_advances_status(product_type, cut, color, print_area):
+def test_manual_price_override_and_shipping_completes_total_and_confirm_allows_processing(
+    product_type, cut, color, print_area,
+):
     items = [{
         'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'L', 'quantity': 3,
@@ -364,8 +367,9 @@ def test_pricing_and_shipping_completes_total_and_confirm_advances_status(produc
         }],
     }]
     order = _make_order(items)
-    assert order.status == OrderStatus.QUOTE_REQUESTED
+    assert order.status == OrderStatus.NEW
 
+    # Admin manually overrides the automatically computed unit_price.
     item = order.items.get()
     services.update_item_pricing(order, item, unit_price=29900)
     order.refresh_from_db()
@@ -666,11 +670,15 @@ def test_automatic_shipping_cost_ignores_inactive_discount_tier(motif, product_t
     assert order.shipping_cost == 5000  # the only tier is inactive, so no discount applies
 
 
-def test_automatic_shipping_cost_applies_even_while_items_await_a_quote(product_type, cut, color, print_area, carrier):
+def test_automatic_shipping_cost_combines_with_automatic_custom_print_price(
+    product_type, cut, color, print_area, carrier,
+):
     """Shipping only depends on total item quantity, never on unit price -
-    it's priced automatically even for a custom item still awaiting an
-    admin quote, while `total` itself stays NULL until the item is priced.
+    but since a custom item now also gets an automatic unit_price at
+    creation (CustomPrintPrice + product_type.price), the order ends up
+    fully priced (subtotal, shipping_cost and total all set) immediately.
     """
+    CustomPrintPrice.objects.create(price=29900)
     ShippingPrice.objects.create(carrier=carrier, delivery_type=DeliveryType.HOME_DELIVERY, price=5000)
     items = [{
         'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
@@ -682,10 +690,10 @@ def test_automatic_shipping_cost_applies_even_while_items_await_a_quote(product_
 
     order = _make_order(items, delivery_data=_home_delivery(carrier))
 
-    assert order.status == OrderStatus.QUOTE_REQUESTED
+    assert order.status == OrderStatus.NEW
     assert order.shipping_cost == 5000
-    assert order.subtotal is None
-    assert order.total is None  # still unknown - the item itself has no price yet
+    assert order.subtotal == (29900 + product_type.price) * 3
+    assert order.total == order.subtotal + 5000
 
 
 def test_personal_pickup_is_always_free_without_any_configured_price(motif, product_type, cut, color):
@@ -854,7 +862,7 @@ def test_payment_status_paid_requires_total_set(motif, product_type, cut, color,
             'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 100, 'height': 100, 'rotation_deg': 0,
         }],
     }]
-    order = _make_order(items)  # custom item, never priced -> total stays None
+    order = _make_order(items)  # no delivery chosen -> shipping_cost/total stay None
 
     with pytest.raises(BusinessError):
         services.transition_payment_status(order, PaymentStatus.PAID)
@@ -873,33 +881,3 @@ def test_payment_status_cannot_change_on_cancelled_order(motif, product_type, cu
 
     with pytest.raises(InvalidStatusTransitionError):
         services.transition_payment_status(order, PaymentStatus.FAILED)
-
-
-# ---------------------------------------------------------------------------
-# QUOTE_REQUESTED -> NEW must only happen through confirm_order, not the
-# generic status transition.
-# ---------------------------------------------------------------------------
-
-def test_quote_requested_to_new_blocked_via_generic_status_transition(product_type, cut, color, print_area):
-    items = [{
-        'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
-        'cut': cut, 'color': color, 'size': 'L', 'quantity': 1,
-        'placements': [{
-            'print_area': print_area, 'url': 'x', 'x': 0, 'y': 0, 'width': 100, 'height': 100, 'rotation_deg': 0,
-        }],
-    }]
-    order = _make_order(items)
-    item = order.items.get()
-    services.update_item_pricing(order, item, unit_price=10000)
-    services.set_shipping_cost(order, 0)
-    order.refresh_from_db()
-    assert order.status == OrderStatus.QUOTE_REQUESTED
-
-    with pytest.raises(InvalidStatusTransitionError):
-        services.transition_order_status(order, OrderStatus.NEW)
-
-    # /confirm is still the correct, working path for the same transition.
-    services.confirm_order(order)
-    order.refresh_from_db()
-    assert order.status == OrderStatus.NEW
-    assert order.confirmed_at is not None

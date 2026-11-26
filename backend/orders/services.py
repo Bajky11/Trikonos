@@ -29,6 +29,7 @@ from core.exceptions import (
 
 from .models import (
     CustomDesignPlacement,
+    CustomPrintPrice,
     DeliveryType,
     Order,
     OrderItem,
@@ -41,7 +42,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 MAX_ITEM_QUANTITY = 500
-EDITABLE_STATUSES = {OrderStatus.QUOTE_REQUESTED, OrderStatus.NEW}
+EDITABLE_STATUSES = {OrderStatus.NEW}
 
 
 # ---------------------------------------------------------------------------
@@ -184,12 +185,17 @@ def _validate_and_price_item(item_data):
         )
 
     # Admin manual order creation may pass an explicit unit_price (e.g. to
-    # pre-fill a quote); public checkout never sets this key, so it falls
-    # back to motif price + the product type's own surcharge (or None for a
-    # custom item awaiting a quote).
+    # override the automatic one); public checkout never sets this key, so
+    # it falls back to motif price + the product type's own surcharge, or
+    # for a custom item, the flat CustomPrintPrice fee + the product type's
+    # surcharge - never per-placement, the shop charges one flat fee
+    # regardless of how many images/text placements the design has.
     unit_price = item_data.get('unit_price')
     if unit_price is None:
-        unit_price = motif.price + product_type.price if not is_custom else None
+        unit_price = (
+            motif.price + product_type.price if not is_custom
+            else CustomPrintPrice.get_solo().price + product_type.price
+        )
     item_label = build_item_label(is_custom, motif, product_type, cut, color, size)
     return item_label, unit_price
 
@@ -264,9 +270,8 @@ def _apply_automatic_shipping_cost(order, *, total_quantity):
     order's (carrier, delivery_type) pair (shipping.services.
     calculate_shipping_cost) - at order creation time, and again whenever
     item quantity changes (see update_item_pricing). Unlike item pricing,
-    this only depends on total item quantity, not unit prices - it applies
-    even to a QUOTE_REQUESTED order where some items still await admin
-    pricing. No-op once admin has set shipping_cost by hand
+    this only depends on total item quantity, not unit prices. No-op once
+    admin has set shipping_cost by hand
     (shipping_cost_manual) - see set_shipping_cost/reset_shipping_cost.
     An admin-supplied shippingCost on manual order creation is applied by
     the caller (OrderCreateSerializer.create) right after order creation
@@ -319,14 +324,11 @@ def create_order(
     """
     customer = get_or_create_customer(customer_data)
 
-    has_custom_item = any(item['is_custom'] for item in items_data)
-    status = OrderStatus.QUOTE_REQUESTED if has_custom_item else OrderStatus.NEW
-
     order_kwargs = {'id': order_id} if order_id is not None else {}
     order = Order.objects.create(
         order_number=generate_order_number(),
         customer=customer,
-        status=status,
+        status=OrderStatus.NEW,
         currency='CZK',
         payment_method=payment_method,
         note=note or '',
@@ -350,7 +352,7 @@ def create_order(
 
 
 # ---------------------------------------------------------------------------
-# Lock rule - prices/shipping/addresses only change in QUOTE_REQUESTED/NEW.
+# Lock rule - prices/shipping/addresses only change in status NEW.
 # ---------------------------------------------------------------------------
 
 def ensure_order_editable(order):
@@ -451,10 +453,8 @@ def confirm_order(order):
     ensure_order_editable(order)
     if order.total is None:
         raise BusinessError(_('The order does not have a total price set.'), code='ORDER_NOT_PRICED')
-    if order.status == OrderStatus.QUOTE_REQUESTED:
-        order.status = OrderStatus.NEW
     order.confirmed_at = order.confirmed_at or timezone.now()
-    order.save(update_fields=['status', 'confirmed_at', 'updated_at'])
+    order.save(update_fields=['confirmed_at', 'updated_at'])
     return order
 
 
@@ -489,11 +489,6 @@ def _carrier_and_delivery_set(order):
 # gettext_lazy (resolved on access/str(), not at import time) rather than the
 # eager gettext used everywhere else in this module.
 TRANSITIONS = [
-    # QUOTE_REQUESTED -> NEW deliberately has NO entry here - it must only
-    # happen through confirm_order() (POST /orders/{id}/confirm), which
-    # always sets confirmed_at and sends the price e-mail. Going through
-    # the generic /status endpoint would skip both.
-    StatusTransition(OrderStatus.QUOTE_REQUESTED, OrderStatus.CANCELLED),
     StatusTransition(OrderStatus.NEW, OrderStatus.CANCELLED),
     StatusTransition(
         OrderStatus.NEW, OrderStatus.PAID,

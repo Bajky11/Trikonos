@@ -15,7 +15,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from customers.models import Customer
-from orders.models import DeliveryType, Order, OrderStatus
+from orders.models import CustomPrintPrice, DeliveryType, Order, OrderStatus
 from shipping.models import Carrier, ShippingPrice
 
 pytestmark = pytest.mark.django_db
@@ -336,8 +336,13 @@ def test_admin_created_catalog_order_does_not_auto_confirm(motif, product_type, 
     assert order.confirmed_at is None
 
 
-def test_quote_order_does_not_auto_confirm(product_type, cut, color, print_area):
-    """A custom-print order has no price yet - nothing to auto-confirm."""
+def test_custom_print_order_auto_confirms_like_a_catalog_order(product_type, cut, color, print_area):
+    """A custom-print item now has a price the moment the order is created
+    (product_type.price + CustomPrintPrice), same as a catalog item - with
+    PERSONAL_PICKUP delivery (always free), the order ends up fully priced
+    and auto-confirms exactly like a catalog-only order would.
+    """
+    CustomPrintPrice.objects.create(price=29900)
     client = APIClient()
     item = {
         'isCustom': True, 'productTypeId': str(product_type.id), 'cutId': str(cut.id), 'colorId': str(color.id),
@@ -363,5 +368,6 @@ def test_quote_order_does_not_auto_confirm(product_type, cut, color, print_area)
         pytest.skip('file token resolution not under test here')
     order = serializer.save()
 
-    assert order.status == OrderStatus.QUOTE_REQUESTED
-    assert order.confirmed_at is None
+    assert order.status == OrderStatus.NEW
+    assert order.confirmed_at is not None
+    assert order.items.get().unit_price == 29900 + product_type.price

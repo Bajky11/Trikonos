@@ -2,7 +2,6 @@ from django.db import models
 
 
 class OrderStatus(models.TextChoices):
-    QUOTE_REQUESTED = 'QUOTE_REQUESTED', 'Waiting for admin pricing'
     NEW = 'NEW', 'New'
     PAID = 'PAID', 'Paid'
     PROCESSING = 'PROCESSING', 'Processing'

@@ -122,8 +122,7 @@ def test_dashboard_counts_orders_and_revenue_today_and_yesterday(admin_client):
     assert response.data['revenue_yesterday'] == 5000
 
 
-def test_dashboard_pending_quotes_and_orders_to_process(admin_client):
-    _order(email='quote@example.cz', status=OrderStatus.QUOTE_REQUESTED)
+def test_dashboard_orders_to_process(admin_client):
     _order(email='new@example.cz', status=OrderStatus.NEW)
     _order(email='paid@example.cz', status=OrderStatus.PAID)
     _order(email='processing@example.cz', status=OrderStatus.PROCESSING)
@@ -131,7 +130,6 @@ def test_dashboard_pending_quotes_and_orders_to_process(admin_client):
 
     response = admin_client.get('/api/v1/admin/dashboard')
 
-    assert response.data['pending_quotes'] == 1
     assert response.data['orders_to_process'] == 3
 
 

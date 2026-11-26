@@ -50,8 +50,8 @@ def test_production_summary_groups_quantity_by_type_cut_color_size(admin_client,
     assert row['color'] == color.name
 
 
-def test_production_summary_default_statuses_exclude_quote_requested(admin_client, motif, product_type, cut, color, print_area):
-    order = _order(status=OrderStatus.QUOTE_REQUESTED)
+def test_production_summary_default_statuses_exclude_new(admin_client, motif, product_type, cut, color, print_area):
+    order = _order(status=OrderStatus.NEW)
     build_order_item(order, {
         'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'M', 'quantity': 3,
@@ -135,8 +135,8 @@ def test_production_placements_filtered_by_print_area(admin_client, product_type
 
 
 def test_production_placements_filtered_by_status_and_date_range(admin_client, product_type, cut, color, print_area):
-    quote_order = _order(status=OrderStatus.QUOTE_REQUESTED, order_number='TRK-2026-7003')
-    build_order_item(quote_order, {
+    new_order = _order(status=OrderStatus.NEW, order_number='TRK-2026-7003')
+    build_order_item(new_order, {
         'is_custom': True, 'motif': None, 'custom_text': '', 'product_type': product_type,
         'cut': cut, 'color': color, 'size': 'M', 'quantity': 1,
         'placements': [{'print_area': print_area, 'url': 'a.png', 'x': 0, 'y': 0, 'width': 10, 'height': 10, 'rotation_deg': 0}],
@@ -145,14 +145,14 @@ def test_production_placements_filtered_by_status_and_date_range(admin_client, p
     by_status = admin_client.get('/api/v1/admin/production/placements', {'status': 'PAID,PROCESSING'})
     assert by_status.data == []
 
-    by_status_match = admin_client.get('/api/v1/admin/production/placements', {'status': 'QUOTE_REQUESTED'})
+    by_status_match = admin_client.get('/api/v1/admin/production/placements', {'status': 'NEW'})
     assert len(by_status_match.data) == 1
 
     today = timezone.now().date()
     tomorrow = today + timedelta(days=1)
     by_date = admin_client.get(
         '/api/v1/admin/production/placements',
-        {'status': 'QUOTE_REQUESTED', 'createdFrom': str(today), 'createdTo': str(tomorrow)},
+        {'status': 'NEW', 'createdFrom': str(today), 'createdTo': str(tomorrow)},
     )
     assert len(by_date.data) == 1
 

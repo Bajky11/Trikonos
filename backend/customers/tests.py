@@ -126,7 +126,7 @@ def test_frontend_camel_case_customer_update_requires_session_and_csrf(customer)
 def test_history_totals_and_global_consent_export_match_existing_contract(admin_client, customer):
     from orders.models import Order
     Order.objects.create(customer=customer, order_number='TRK-CUSTOMER-CANCELLED', status='CANCELLED', total=12300)
-    Order.objects.create(customer=customer, order_number='TRK-CUSTOMER-QUOTE', status='QUOTE_REQUESTED', total=None)
+    Order.objects.create(customer=customer, order_number='TRK-CUSTOMER-UNPRICED', status='NEW', total=None)
     detail = admin_client.get(f'/api/v1/admin/customers/{customer.id}')
     assert detail.status_code == 200
     assert detail.json()['ordersCount'] == 2

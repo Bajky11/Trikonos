@@ -106,10 +106,10 @@ class AdminDashboardView(APIView):
         summary='Dashboard: karty s přehledem a posledních 10 objednávek',
         description=(
             'Objednávky a tržby (součet `total`, mimo CANCELLED/REFUNDED) dnes a '
-            'včera, noví zákazníci za posledních 7 dní, počet čekajících poptávek '
-            '(`QUOTE_REQUESTED`), počet objednávek k vyřízení (`NEW`+`PAID`+'
-            '`PROCESSING`), počet nezaplacených převodů/faktur. Plus posledních 10 '
-            'objednávek (číslo, zákazník, datum, total, status).'
+            'včera, noví zákazníci za posledních 7 dní, počet objednávek k '
+            'vyřízení (`NEW`+`PAID`+`PROCESSING`), počet nezaplacených '
+            'převodů/faktur. Plus posledních 10 objednávek (číslo, zákazník, '
+            'datum, total, status).'
         ),
         responses={200: AdminDashboardResponseSerializer},
     )
@@ -142,7 +142,6 @@ class AdminDashboardView(APIView):
             'revenue_today': revenue_today,
             'revenue_yesterday': revenue_yesterday,
             'new_customers_7d': Customer.objects.filter(created_at__gte=week_ago).count(),
-            'pending_quotes': Order.objects.filter(status=OrderStatus.QUOTE_REQUESTED).count(),
             'orders_to_process': Order.objects.filter(status__in=_ORDERS_TO_PROCESS_STATUSES).count(),
             'unpaid_invoices': Order.objects.filter(
                 payment_method__in=_UNPAID_PAYMENT_METHODS,
