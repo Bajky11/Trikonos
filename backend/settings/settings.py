@@ -280,6 +280,33 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 COMGATE_TEST_ENABLED = os.environ.get('COMGATE_TEST_ENABLED', 'false') == 'true'
 COMGATE_MERCHANT = os.environ.get('COMGATE_MERCHANT', '').strip()
 COMGATE_SECRET = os.environ.get('COMGATE_SECRET', '').strip()
+
+# POHODA mServer - vydané faktury (see orders/pohoda.py, orders/pohoda_client.py).
+# POHODA_ENABLED=False (default) lets confirmed orders queue an invoice
+# request without ever calling mServer - safe until the integration is
+# actually configured/tested against the client's installation.
+POHODA_ENABLED = os.environ.get('POHODA_ENABLED', 'false') == 'true'
+POHODA_URL = os.environ.get('POHODA_URL', '').strip()
+POHODA_USERNAME = os.environ.get('POHODA_USERNAME', '').strip()
+POHODA_PASSWORD = os.environ.get('POHODA_PASSWORD', '').strip()
+POHODA_ICO = os.environ.get('POHODA_ICO', '').strip()
+POHODA_APPLICATION_NAME = os.environ.get('POHODA_APPLICATION_NAME', 'Trikonoš e-shop').strip()
+# Numbering series / pre-accounting / VAT classification codes come from the
+# client's accountant - left blank by default so the XML omits the element
+# entirely and POHODA falls back to its own agenda default, rather than
+# sending an empty/invalid code.
+POHODA_NUMBERING_SERIES = os.environ.get('POHODA_NUMBERING_SERIES', '').strip()
+POHODA_PRE_ACCOUNTING = os.environ.get('POHODA_PRE_ACCOUNTING', '').strip()
+POHODA_VAT_CLASSIFICATION = os.environ.get('POHODA_VAT_CLASSIFICATION', '').strip()
+# The shop only stores final/gross prices - no VAT rate exists anywhere in
+# the domain model, so a single flat rate is applied to the whole invoice.
+POHODA_VAT_RATE_PERCENT = os.environ.get('POHODA_VAT_RATE_PERCENT', '21').strip()
+POHODA_VAT_RATE_CODE = os.environ.get('POHODA_VAT_RATE_CODE', 'high').strip()
+# Report template id for XML print (PDF) of an issued invoice - installation/
+# customization-specific, must be supplied by the client.
+POHODA_PRINT_REPORT_ID = os.environ.get('POHODA_PRINT_REPORT_ID', '').strip()
+POHODA_CONNECT_TIMEOUT = int(os.environ.get('POHODA_CONNECT_TIMEOUT', '5'))
+POHODA_READ_TIMEOUT = int(os.environ.get('POHODA_READ_TIMEOUT', '30'))
 SHOP_CONFIG = {
     'NAME': os.environ.get('SHOP_NAME', 'Trikonoš.cz'),
     'CONTACT_EMAIL': os.environ.get('SHOP_CONTACT_EMAIL', ''),

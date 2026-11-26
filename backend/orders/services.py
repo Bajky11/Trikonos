@@ -366,11 +366,16 @@ UNSET = object()
 def _unconfirm_if_confirmed(order):
     """A price/quantity/shipping change on an already-confirmed NEW order
     invalidates that confirmation - the customer saw a price that no longer
-    holds, so admin must call /confirm again before NEW -> PROCESSING.
+    holds, so admin must call /confirm again before NEW -> PROCESSING. Also
+    supersedes any active POHODA invoice request for this order - a changed
+    price needs a fresh invoice request once it's reconfirmed, never a
+    resend of the old one under its old amounts.
     """
     if order.confirmed_at is not None:
         order.confirmed_at = None
         order.save(update_fields=['confirmed_at', 'updated_at'])
+        from . import pohoda
+        pohoda.supersede_active_invoice(order)
 
 
 @transaction.atomic

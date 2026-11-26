@@ -620,14 +620,44 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         from .emails import send_order_confirmed_email
+        from . import pohoda
 
         order = self.get_object()
         serializer = AdminConfirmOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message = serializer.validated_data.get('message')
         with transaction.atomic():
+            # Only a genuinely fresh confirmation queues a POHODA invoice
+            # request - a repeat click on an already-confirmed order must
+            # never create a second one (confirm_order() itself is
+            # idempotent and would otherwise make this ambiguous).
+            was_unconfirmed = order.confirmed_at is None
             services.confirm_order(order)
+            if was_unconfirmed:
+                pohoda.create_invoice_request(order)
             transaction.on_commit(lambda: send_order_confirmed_email(order, message=message))
+        order.refresh_from_db()
+        return Response(AdminOrderDetailSerializer(order, context=self.get_serializer_context()).data)
+
+    @extend_schema(
+        tags=_TAG,
+        summary='Znovu zkusit fakturaci POHODA',
+        description=(
+            'Resetuje selhanou část fakturace v POHODĚ zpět na čekající stav, ať ji '
+            'vyzvedne nejbližší běh fonu na pozadí - buď znovu vystavení faktury '
+            '(selhalo vystavení), nebo znovu odeslání PDF e-mailem (vystaveno, ale '
+            'nepodařilo se stáhnout/odeslat PDF). Nikdy nevytvoří nový požadavek na '
+            'fakturu - v POHODĚ nic nového nevzniká.'
+        ),
+        request=None,
+        responses={200: AdminOrderDetailSerializer},
+    )
+    @action(detail=True, methods=['post'], url_path='pohoda-invoice/retry')
+    def pohoda_invoice_retry(self, request, pk=None):
+        from . import pohoda
+
+        order = self.get_object()
+        pohoda.retry_invoice(order)
         order.refresh_from_db()
         return Response(AdminOrderDetailSerializer(order, context=self.get_serializer_context()).data)
 

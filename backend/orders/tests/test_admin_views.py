@@ -560,6 +560,93 @@ def test_confirm_without_total_returns_422(admin_client, motif, product_type, cu
     assert response.data['error']['code'] == 'ORDER_NOT_PRICED'
 
 
+# ---------------------------------------------------------------------------
+# POST /admin/orders/{id}/confirm - POHODA invoice request
+# ---------------------------------------------------------------------------
+
+def test_confirm_queues_exactly_one_pohoda_invoice_request(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    from orders.models import PohodaInvoice
+
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    assert response.status_code == 200
+    assert PohodaInvoice.objects.filter(order=order).count() == 1
+    invoice = PohodaInvoice.objects.get(order=order)
+    assert invoice.status == PohodaInvoice.Status.PENDING
+    assert invoice.total_amount == order.total
+    assert response.data['pohoda_invoice']['status'] == 'PENDING'
+
+
+def test_confirm_twice_does_not_queue_a_second_invoice_request(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    from orders.models import PohodaInvoice
+
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+    with django_capture_on_commit_callbacks(execute=True):
+        second_response = admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    assert second_response.status_code == 200
+    assert PohodaInvoice.objects.filter(order=order).count() == 1
+
+
+def test_price_change_after_confirm_supersedes_invoice_and_reconfirm_creates_a_new_one(
+    admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks,
+):
+    from orders.models import PohodaInvoice
+
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+    item = order.items.get()
+
+    with django_capture_on_commit_callbacks(execute=True):
+        admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+    first_invoice = PohodaInvoice.objects.get(order=order)
+
+    admin_client.patch(f'/api/v1/admin/orders/{order.id}/items/{item.id}', {'unitPrice': 12345}, format='json')
+    order.refresh_from_db()
+    assert order.confirmed_at is None
+    first_invoice.refresh_from_db()
+    assert first_invoice.status == PohodaInvoice.Status.SUPERSEDED
+
+    with django_capture_on_commit_callbacks(execute=True):
+        admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+
+    active_invoices = PohodaInvoice.objects.filter(order=order).exclude(status=PohodaInvoice.Status.SUPERSEDED)
+    assert active_invoices.count() == 1
+    second_invoice = active_invoices.get()
+    assert second_invoice.pk != first_invoice.pk
+    assert second_invoice.request_id != first_invoice.request_id
+
+
+def test_pohoda_invoice_retry_resets_failed_issuance(admin_client, motif, product_type, cut, color, packeta_carrier, django_capture_on_commit_callbacks):
+    from orders.models import PohodaInvoice
+
+    order = _order(motif=motif, product_type=product_type, cut=cut, color=color, packeta_carrier=packeta_carrier)
+    with django_capture_on_commit_callbacks(execute=True):
+        admin_client.post(f'/api/v1/admin/orders/{order.id}/confirm', {}, format='json')
+    invoice = PohodaInvoice.objects.get(order=order)
+    invoice.status = PohodaInvoice.Status.FAILED
+    invoice.attempts = 20
+    invoice.last_error = 'boom'
+    invoice.save()
+
+    response = admin_client.post(f'/api/v1/admin/orders/{order.id}/pohoda-invoice/retry', {}, format='json')
+
+    assert response.status_code == 200
+    invoice.refresh_from_db()
+    assert invoice.status == PohodaInvoice.Status.PENDING
+    assert invoice.attempts == 0
+    assert invoice.last_error == ''
+
+
 def test_list_query_count_does_not_grow_with_order_count(admin_client, motif, product_type, cut, color, packeta_carrier, django_assert_max_num_queries):
     for i in range(10):
         _order(

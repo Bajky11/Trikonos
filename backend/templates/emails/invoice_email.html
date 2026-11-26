@@ -1,0 +1,12 @@
+{% extends "emails/base.html" %}
+{% block preheader %}Faktura {{ invoice_number }} k objednávce {{ order_number }}.{% endblock %}
+{% block content %}
+<p style="margin:0 0 16px;">Dobrý den,</p>
+<p style="margin:0 0 16px;">v příloze zasíláme fakturu
+  <span style="background:#e8eee6; color:#0e584d; font-weight:700; padding:2px 8px;">{{ invoice_number }}</span>
+  k objednávce
+  <span style="background:#e8eee6; color:#0e584d; font-weight:700; padding:2px 8px;">{{ order_number }}</span>.
+</p>
+
+{% include "emails/_button.html" with button_url=url button_label="Zobrazit detail objednávky" %}
+{% endblock %}

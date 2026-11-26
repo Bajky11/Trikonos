@@ -7,7 +7,7 @@ from django.template.loader import render_to_string
 logger = logging.getLogger(__name__)
 
 
-def send_templated_email(template_name, context, subject, recipient_list, *, raise_on_failure=False):
+def send_templated_email(template_name, context, subject, recipient_list, *, raise_on_failure=False, attachments=None):
     """Renders templates/emails/{template_name}.html and .txt and sends
     both as a multipart message - every order/account notification goes
     through this one function.
@@ -18,6 +18,11 @@ def send_templated_email(template_name, context, subject, recipient_list, *, rai
     SMTP outage would otherwise turn into a 500 for an order that was
     already committed, inviting the customer to resubmit and double-order.
     Contact forms use raise_on_failure=True to report an unavailable sender.
+
+    `attachments` is an optional list of (filename, content_bytes, mimetype)
+    tuples (e.g. an invoice PDF) - the POHODA invoice e-mail passes
+    raise_on_failure=True too, since its caller (a background job, not a
+    request/response cycle) needs to know a send failed in order to retry.
     """
     full_context = {
         **context,
@@ -29,6 +34,8 @@ def send_templated_email(template_name, context, subject, recipient_list, *, rai
 
     message = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, recipient_list)
     message.attach_alternative(html_body, 'text/html')
+    for filename, content, mimetype in (attachments or []):
+        message.attach(filename, content, mimetype)
     try:
         sent = message.send()
         if raise_on_failure and sent != 1:

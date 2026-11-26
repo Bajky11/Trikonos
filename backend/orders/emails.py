@@ -86,6 +86,17 @@ def send_order_cancelled_email(order):
     )
 
 
+def send_invoice_email(order, pdf_bytes, invoice_number, *, raise_on_failure=False):
+    send_templated_email(
+        'invoice_email',
+        {'order_number': order.order_number, 'invoice_number': invoice_number, 'url': _order_access_url(order)},
+        subject=f'Faktura k objednávce {order.order_number}',
+        recipient_list=[order.customer.email],
+        attachments=[(f'faktura-{invoice_number}.pdf', pdf_bytes, 'application/pdf')],
+        raise_on_failure=raise_on_failure,
+    )
+
+
 _RESEND_SENDERS = {
     'ORDER_RECEIVED': send_order_received_email,
     'ORDER_CONFIRMED': send_order_confirmed_email,

@@ -1,0 +1,7 @@
+Dobrý den,
+
+v příloze zasíláme fakturu {{ invoice_number }} k objednávce {{ order_number }}.
+
+Detail objednávky: {{ url }}
+
+{{ shop_name }}

@@ -9,7 +9,7 @@ from customers.models import Customer
 from shipping.models import Carrier
 
 from . import services
-from .models import CustomDesignPlacement, CustomPrintPrice, DeliveryType, Order, OrderItem, PaymentMethod
+from .models import CustomDesignPlacement, CustomPrintPrice, DeliveryType, Order, OrderItem, PaymentMethod, PohodaInvoice
 
 
 class CustomerRefSerializer(serializers.ModelSerializer):
@@ -124,6 +124,16 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
         return f'{obj.customer.first_name} {obj.customer.last_name}'.strip()
 
 
+class AdminPohodaInvoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PohodaInvoice
+        fields = [
+            'status', 'pohoda_invoice_number', 'last_error', 'attempts',
+            'pdf_delivery_status', 'pdf_delivery_last_error', 'pdf_delivery_attempts',
+            'pdf_delivered_at', 'created_at',
+        ]
+
+
 class AdminOrderDetailSerializer(serializers.ModelSerializer):
     customer = CustomerRefSerializer(read_only=True)
     carrier = CarrierRefSerializer(read_only=True, allow_null=True)
@@ -133,6 +143,7 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
     shipping = serializers.SerializerMethodField()
     allowed_transitions = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
+    pohoda_invoice = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -143,9 +154,14 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
             'tracking_number', 'carrier_shipment_id', 'shipment_status',
             'payment_method', 'payment_status',
             'billing', 'shipping', 'note', 'items',
-            'allowed_transitions', 'is_locked',
+            'allowed_transitions', 'is_locked', 'pohoda_invoice',
             'confirmed_at', 'created_at', 'updated_at',
         ]
+
+    @extend_schema_field(AdminPohodaInvoiceSerializer(allow_null=True))
+    def get_pohoda_invoice(self, obj):
+        active = obj.pohoda_invoices.exclude(status=PohodaInvoice.Status.SUPERSEDED).first()
+        return AdminPohodaInvoiceSerializer(active).data if active is not None else None
 
     @extend_schema_field(AdminOrderAddressSerializer)
     def get_billing(self, obj):
