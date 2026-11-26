@@ -13,6 +13,7 @@ test("filters and paginates server orders, prices a quote, reconfirms changed pr
   const state = await mockAdminOrders(page);
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto("/admin/objednavky");
+  await page.getByRole("button", { name: "Další filtry", exact: true }).click();
   await page.getByRole("combobox", { name: "Stav objednávky", exact: true }).click();
   await page.getByRole("option", { name: "Čeká na nacenění", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("status")).toBe("QUOTE_REQUESTED");
@@ -78,6 +79,7 @@ test("filters and paginates server orders, prices a quote, reconfirms changed pr
   await page.getByRole("button", { name: "Uložit sledovací číslo" }).click();
   await expect.poll(() => state.order.trackingNumber).toBe("Z123456");
   await page.getByRole("link", { name: "Zpět na objednávky" }).click();
+  await page.getByRole("button", { name: /Další filtry/ }).click();
   await expect(page.getByRole("combobox", { name: "Stav objednávky", exact: true })).toHaveText(
     "Čeká na nacenění",
   );
@@ -93,7 +95,7 @@ test("shows active advanced filters even when collapsed and clears them without 
   await page.goto(
     "/admin/objednavky?status=QUOTE_REQUESTED&hasCustom=true&createdFrom=2026-11-01&ordering=-total&page=2",
   );
-  const toggle = page.getByRole("button", { name: "Další filtry (2)" });
+  const toggle = page.getByRole("button", { name: "Další filtry (3)" });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText(/Zobrazeno/)).toHaveCount(0);
   const filters = page.getByRole("region", { name: "Filtry objednávek" });
@@ -119,14 +121,17 @@ test("shows active advanced filters even when collapsed and clears them without 
   await expect(page.getByRole("combobox", { name: "Řazení" })).toHaveText("Částka sestupně");
 });
 
-test("uses one standard table row per order with only essential columns", async ({
+test("stacks complete item details in one cell of a single order row", async ({
   page,
 }, testInfo) => {
   const state = await mockAdminOrders(page, 1);
+  await page.setViewportSize({ width: 1440, height: 900 });
   state.order.customer.firstName = "Jana Marie";
   state.order.customer.lastName = "Nováková Svobodová";
   state.order.note = "Prosím dodat do pátku.\nBílý potisk na záda.";
   state.order.total = 123400;
+  state.order.trackingNumber = "Z 436 0887 349";
+  state.order.items[0]!.unitPrice = 25000;
   state.order.items = [
     ...state.order.items,
     {
@@ -135,40 +140,57 @@ test("uses one standard table row per order with only essential columns", async 
       itemLabel: "Druhý potisk",
       size: "XL",
       quantity: 3,
+      unitPrice: 10000,
       customText: "Druhý text",
     },
   ];
   await page.goto("/admin/objednavky");
   const table = page.getByRole("table", { name: "Objednávky" });
+  await expect(table.getByText(/Celkem na stránce/)).toHaveCount(0);
   const row = table.getByRole("row").nth(1);
-  await expect(row.getByRole("cell").first()).toContainText("Jana Marie Nováková Svobodová");
   await expect(table.getByRole("row")).toHaveCount(2);
-  await expect(table.getByRole("rowheader")).not.toHaveAttribute("rowspan");
-  await expect(row.getByRole("cell").nth(1)).toContainText("2× Vlastní týmový potisk");
-  await expect(row.getByRole("cell").nth(1)).toContainText("3× Druhý potisk");
+  await expect(table.locator("[rowspan]")).toHaveCount(0);
+  await expect(row.getByRole("listitem")).toHaveCount(2);
+  await expect(row).toContainText("Vlastní týmový potisk");
+  await expect(row).toContainText("500 Kč");
+  await expect(row.getByRole("listitem").nth(0)).toContainText("2×");
+  await expect(row.getByRole("listitem").nth(0).locator("strong")).toHaveText(
+    "Vlastní týmový potisk",
+  );
+  await expect(row.getByRole("listitem").nth(0)).toContainText("Pánské · Bílá · L · 500 Kč");
+  await expect(row.getByRole("listitem").nth(1)).toContainText("3×");
+  await expect(row.getByRole("listitem").nth(1).locator("strong")).toHaveText("Druhý potisk");
+  await expect(row.getByRole("listitem").nth(1)).toContainText("Pánské · Bílá · XL · 300 Kč");
   expect(await table.getByRole("columnheader").allTextContents()).toEqual([
     "Objednávka",
-    "Zákazník",
     "Položky",
     "Platba",
+    "Doprava",
     "Stav",
-    "Celkem",
+    "Poznámka",
+    "Akce",
   ]);
   await expect(page.getByRole("group", { name: "Rychlé pohledy" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Obnovit", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /Detail objednávky|Tisk objednávky/ })).toHaveCount(
-    0,
+  await expect(page.getByRole("link", { name: /Tisk objednávky/ })).toHaveCount(1);
+  await expect(table.getByText(state.order.note!, { exact: true })).toHaveCSS(
+    "white-space",
+    "pre-wrap",
   );
-  await expect(table.getByText(state.order.note!, { exact: true })).toHaveCount(0);
+  await expect(table.getByText(state.order.note!, { exact: true })).toBeVisible();
+  await expect(row.getByRole("rowheader").locator("time")).toHaveAttribute(
+    "datetime",
+    state.order.createdAt,
+  );
   await expect(table.getByRole("table")).toHaveCount(0);
-  await expect(row.getByRole("cell").nth(1).locator("div, table")).toHaveCount(0);
-  await expect(row.getByRole("cell").nth(1)).not.toContainText("Bílá");
-  await expect(table.getByText(/1\s?234 Kč/)).toHaveCount(1);
+  await expect(row).toContainText("Bílá");
+  await expect(row).toContainText("Pánské");
+  await expect(row).toContainText(state.order.trackingNumber!);
+  await expect(table.getByText(/1\s?234 Kč/)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Objednávky", exact: true })).toHaveCount(1);
   const pagination = page.getByRole("navigation", { name: "Stránkování objednávek" });
   await expect(pagination).toBeVisible();
   await expect(pagination.getByRole("button", { name: "Další strana" })).toBeDisabled();
-  await expect(page.getByRole("columnheader", { name: "Celkem", exact: true })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("orders-desktop.png"), fullPage: true });
 });
 
@@ -201,21 +223,22 @@ test("selects whole years and calendar months atomically and preserves other fil
   const state = await mockAdminOrders(page, 1);
   await page.goto("/admin/objednavky?hasCustom=true&page=2");
   const period = page.getByRole("group", { name: "Období objednávek" });
-  await period.getByRole("combobox", { name: "Rok", exact: true }).click();
-  await page.getByRole("option", { name: "2024", exact: true }).click();
+  await period.getByRole("button", { name: "2024", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("createdFrom")).toBe("2024-01-01");
   await expect.poll(() => state.lists.at(-1)?.get("createdTo")).toBe("2024-12-31");
-  await period.getByRole("combobox", { name: "Měsíc", exact: true }).click();
-  await page.getByRole("option", { name: "únor", exact: true }).click();
+  await period.getByRole("button", { name: "únor", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("createdTo")).toBe("2024-02-29");
   expect(state.lists.at(-1)?.get("createdFrom")).toBe("2024-02-01");
   expect(state.lists.at(-1)?.get("hasCustom")).toBe("true");
   expect(state.lists.at(-1)?.get("page")).toBe("1");
-  await expect(period.getByRole("combobox", { name: "Měsíc", exact: true })).toHaveText("únor");
-  await period.getByRole("combobox", { name: "Rok", exact: true }).click();
-  await page.getByRole("option", { name: "Všechny roky", exact: true }).click();
+  await expect(period.getByRole("button", { name: "únor", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await period.getByRole("button", { name: "Všechna období", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("createdFrom")).toBeNull();
   expect(state.lists.at(-1)?.get("createdTo")).toBeNull();
+  await page.getByRole("button", { name: /Další filtry/ }).click();
   await page.getByRole("combobox", { name: "Stav objednávky", exact: true }).click();
   await page.getByRole("option", { name: "Čeká na nacenění", exact: true }).click();
   await expect.poll(() => state.lists.at(-1)?.get("status")).toBe("QUOTE_REQUESTED");
@@ -231,9 +254,9 @@ test("uses standard table scrolling without overflowing the mobile page", async 
   await expect(page.getByRole("link", { name: "TRK-2026-0042", exact: true })).toBeVisible();
   await region.scrollIntoViewIfNeeded();
   await region.evaluate((element) => {
-    element.scrollLeft = 600;
+    element.scrollLeft = element.scrollWidth;
   });
-  await expect(page.getByRole("columnheader", { name: "Celkem", exact: true })).toBeInViewport();
+  await expect(page.getByRole("columnheader", { name: "Akce", exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import { adminGarmentOfferUpdate, useAdminGarmentOfferRetrieve } from "../../api/generated/api";
 import type { GarmentOffer } from "../../api/generated/models";
 import { ApiError } from "../../api/http";
 import { CatalogFeedback } from "../../components/Products";
-import { AdminSectionHeader } from "../AdminSectionHeader";
+import { AdminAppBarActions } from "../AdminAppBarActions";
 import { useCatalogMutation, useVariantLookups } from "./api";
 import { catalogError } from "./forms";
 import {
   blocksFromVariants,
+  newOfferBlock,
   OfferBlocks,
   validateBlocks,
   variantKey,
@@ -27,6 +28,7 @@ function Editor({ initial, reload }: { initial: GarmentOffer; reload: () => Prom
   const desired = variantsFromBlocks(blocks);
   const old = new Set(base.variants.map(variantKey));
   const changed = desired.size !== old.size || [...desired.keys()].some((key) => !old.has(key));
+  const locked = write.isPending || conflict;
 
   async function save() {
     try {
@@ -49,32 +51,46 @@ function Editor({ initial, reload }: { initial: GarmentOffer; reload: () => Prom
 
   return (
     <>
+      <AdminAppBarActions
+        buttons={[
+          <Button
+            key="new"
+            variant="outlined"
+            disabled={!lookups.data || locked}
+            onClick={() => {
+              const block = newOfferBlock();
+              setBlocks((current) => [...current, block]);
+            }}
+          >
+            Přidat oblečení
+          </Button>,
+          <Button
+            key="save"
+            variant="contained"
+            disabled={(!changed && !validateBlocks(blocks)) || !lookups.isSuccess || locked}
+            onClick={() => {
+              const validation = validateBlocks(blocks);
+              setError(validation);
+              setMessage("");
+              if (!validation) setConfirm(true);
+            }}
+          >
+            Uložit nabídku
+          </Button>,
+        ]}
+      />
       <CatalogFeedback query={lookups} label="Číselníky" />
       {lookups.data && (
         <OfferBlocks
           blocks={blocks}
           onChange={setBlocks}
           lookups={lookups.data}
-          disabled={write.isPending || conflict}
+          disabled={locked}
         />
       )}
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
       {conflict && <Button onClick={() => void reload()}>Načíst aktuální nabídku</Button>}
-      <Button
-        variant="contained"
-        disabled={
-          (!changed && !validateBlocks(blocks)) || !lookups.isSuccess || write.isPending || conflict
-        }
-        onClick={() => {
-          const validation = validateBlocks(blocks);
-          setError(validation);
-          setMessage("");
-          if (!validation) setConfirm(true);
-        }}
-      >
-        Uložit nabídku
-      </Button>
       <Dialog open={confirm} onClose={write.isPending ? undefined : () => setConfirm(false)}>
         <DialogTitle>Změnit společnou nabídku?</DialogTitle>
         <DialogContent>Změna platí pro nové objednávky z katalogu i vlastní potisk.</DialogContent>
@@ -95,11 +111,7 @@ export function GarmentOfferPanel() {
   const offer = useAdminGarmentOfferRetrieve();
   const [revision, setRevision] = useState(0);
   return (
-    <Paper className="admin-panel garment-offer-panel" variant="outlined">
-      <AdminSectionHeader title="Společná nabídka oblečení" />
-      <p>
-        Pro každý typ a střih vyberte barvy a velikosti. Velikosti platí pro všechny vybrané barvy.
-      </p>
+    <div className="garment-offer-panel">
       <CatalogFeedback query={offer} label="Společná nabídka" />
       {offer.data && (
         <Editor
@@ -111,6 +123,6 @@ export function GarmentOfferPanel() {
           }}
         />
       )}
-    </Paper>
+    </div>
   );
 }

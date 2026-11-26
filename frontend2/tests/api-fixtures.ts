@@ -89,6 +89,7 @@ export const options: CatalogOptionsResponse = {
     { value: "134", label: "8 let – 134 cm" },
     { value: "146", label: "10 let – 146 cm" },
     { value: "158", label: "12 let – 158 cm" },
+    { value: "UNI", label: "Jednotná" },
   ],
   carriers: [],
 };

@@ -57,6 +57,7 @@ import type {
   AdminUser,
   AdminUserCreate,
   AdminUsersListParams,
+  CardPaymentResponse,
   CartValidate,
   CartValidateResponse,
   CatalogOptionsResponse,
@@ -10667,6 +10668,230 @@ export function useOrdersAccessRetrieve<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getOrdersAccessCardPaymentRetrieveUrl = (accessToken: string) => {
+  return `/api/v1/orders/access/${accessToken}/card-payment`;
+};
+
+/**
+ * @summary Ověřit stav testovací platby kartou
+ */
+export const ordersAccessCardPaymentRetrieve = async (
+  accessToken: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<CardPaymentResponse> => {
+  return apiFetch<CardPaymentResponse>(getOrdersAccessCardPaymentRetrieveUrl(accessToken), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getOrdersAccessCardPaymentRetrieveQueryKey = (accessToken: string) => {
+  return [`/api/v1/orders/access/${accessToken}/card-payment`] as const;
+};
+
+export const getOrdersAccessCardPaymentRetrieveQueryOptions = <
+  TData = Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getOrdersAccessCardPaymentRetrieveQueryKey(accessToken);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>> = ({
+    signal,
+  }) => ordersAccessCardPaymentRetrieve(accessToken, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: accessToken !== null && accessToken !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OrdersAccessCardPaymentRetrieveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>
+>;
+export type OrdersAccessCardPaymentRetrieveQueryError = ErrorType<unknown>;
+
+/** @summary Ověřit stav testovací platby kartou */
+export function useOrdersAccessCardPaymentRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  accessToken: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** @summary Ověřit stav testovací platby kartou */
+export function useOrdersAccessCardPaymentRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+          TError,
+          Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** @summary Ověřit stav testovací platby kartou */
+export function useOrdersAccessCardPaymentRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/** @summary Ověřit stav testovací platby kartou */
+export function useOrdersAccessCardPaymentRetrieve<
+  TData = Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>,
+  TError = ErrorType<unknown>,
+>(
+  accessToken: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof ordersAccessCardPaymentRetrieve>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getOrdersAccessCardPaymentRetrieveQueryOptions(accessToken, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getOrdersAccessCardPaymentCreateUrl = (accessToken: string) => {
+  return `/api/v1/orders/access/${accessToken}/card-payment`;
+};
+
+/**
+ * @summary Založit testovací platbu kartou
+ */
+export const ordersAccessCardPaymentCreate = async (
+  accessToken: string,
+  options?: Parameters<typeof apiFetch>[1],
+): Promise<CardPaymentResponse> => {
+  return apiFetch<CardPaymentResponse>(getOrdersAccessCardPaymentCreateUrl(accessToken), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getOrdersAccessCardPaymentCreateMutationKey = () =>
+  ["ordersAccessCardPaymentCreate"] as const;
+
+export const getOrdersAccessCardPaymentCreateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>,
+    TError,
+    OrdersAccessCardPaymentCreateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>,
+  TError,
+  OrdersAccessCardPaymentCreateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getOrdersAccessCardPaymentCreateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>,
+    OrdersAccessCardPaymentCreateMutationVariables
+  > = (props) => {
+    const { accessToken } = props ?? {};
+
+    return ordersAccessCardPaymentCreate(accessToken, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OrdersAccessCardPaymentCreateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>
+>;
+
+export type OrdersAccessCardPaymentCreateMutationError = ErrorType<unknown>;
+export type OrdersAccessCardPaymentCreateMutationVariables = { accessToken: string };
+
+/** @summary Založit testovací platbu kartou */
+export const useOrdersAccessCardPaymentCreate = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>,
+      TError,
+      OrdersAccessCardPaymentCreateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof ordersAccessCardPaymentCreate>>,
+  TError,
+  OrdersAccessCardPaymentCreateMutationVariables,
+  TContext
+> => {
+  return useMutation(getOrdersAccessCardPaymentCreateMutationOptions(options), queryClient);
+};
 
 export const getOrdersLookupCreateUrl = () => {
   return `/api/v1/orders/lookup`;

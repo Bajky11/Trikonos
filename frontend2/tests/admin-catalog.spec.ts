@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
 import type { Page, Locator, Request } from "@playwright/test";
-import { mockAuthApi, mockStoreApi } from "./api-fixtures";
+import { mockAuthApi, mockStoreApi, options } from "./api-fixtures";
 import { existingMotif, mockAdminCatalog } from "./admin-catalog-fixtures";
 
-async function addClothing(page: Page, dialog: Locator) {
-  await dialog.getByRole("button", { name: "Přidat oblečení" }).click();
+async function addClothing(page: Page, editor: Locator) {
+  await page.locator(".admin-header").getByRole("button", { name: "Přidat oblečení" }).click();
   for (const [label, option] of [
     ["Typ oblečení", "Tričko"],
     ["Střih", "Pánské"],
   ]) {
-    await dialog.getByRole("combobox", { name: label }).click();
+    await editor.getByRole("combobox", { name: label }).click();
     await page.getByRole("option", { name: option, exact: true }).click();
   }
 }
@@ -53,6 +53,8 @@ test("creates a draft, preserves its URL on edit, enables a variant and refreshe
     .getByRole("navigation", { name: "Administrace" })
     .getByRole("link", { name: "Motivy" })
     .click();
+  const status = page.getByRole("combobox", { name: "Stav" });
+  await expect(status).toHaveText("Zveřejněné");
   await page.getByRole("button", { name: "Přidat motiv", exact: true }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: "Název motivu" }).fill("Jarní motiv");
@@ -64,7 +66,10 @@ test("creates a draft, preserves its URL on edit, enables a variant and refreshe
   await page.getByRole("option", { name: "Retro", exact: true }).click();
   await dialog.getByRole("button", { name: "Uložit a zavřít" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  let row = page.getByRole("row", { name: /Jarní motiv/ });
+  const row = page.getByRole("row", { name: /Jarní motiv/ });
+  await expect(row).toHaveCount(0);
+  await status.click();
+  await page.getByRole("option", { name: "Koncepty" }).click();
   await expect(row).toContainText("Koncept");
   await row.getByRole("button", { name: "Upravit", exact: true }).click();
   dialog = page.getByRole("dialog");
@@ -78,7 +83,7 @@ test("creates a draft, preserves its URL on edit, enables a variant and refreshe
   await editor.getByRole("checkbox", { name: "Bílá", exact: true }).check();
   await editor.getByRole("checkbox", { name: "L", exact: true }).check();
   await editor.getByRole("checkbox", { name: "4 roky – 110 cm", exact: true }).check();
-  await editor.getByRole("button", { name: "Uložit nabídku" }).click();
+  await page.locator(".admin-header").getByRole("button", { name: "Uložit nabídku" }).click();
   await page.getByRole("dialog").last().getByRole("button", { name: "Potvrdit změny" }).click();
   await expect(editor.getByText("Společná nabídka byla uložena.")).toBeVisible();
   await page.getByRole("link", { name: "← Zpět na web" }).click();
@@ -118,7 +123,11 @@ test("does not pretend an in-use motif was deleted and permits deactivation inst
   await dialog.getByRole("checkbox", { name: "Zobrazovat motiv v katalogu" }).uncheck();
   await dialog.getByRole("button", { name: "Uložit a zavřít" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("row", { name: /Používaný motiv/ })).toContainText("Koncept");
+  const row = page.getByRole("row", { name: /Používaný motiv/ });
+  await expect(row).toHaveCount(0);
+  await page.getByRole("combobox", { name: "Stav" }).click();
+  await page.getByRole("option", { name: "Všechny motivy" }).click();
+  await expect(row).toContainText("Koncept");
 });
 
 const white = {
@@ -128,6 +137,41 @@ const white = {
   size: "S",
 };
 const black = { ...white, colorId: "00000000-0000-0000-0000-000000000004", size: "M" };
+
+test("fits expanded garment exclusions inside the motif dialog on desktop and mobile", async ({
+  page,
+}) => {
+  await mockAdminCatalog(page, [existingMotif()], false, [
+    white,
+    black,
+    ...["L", "XL", "XXL", "110"].map((size) => ({ ...white, size })),
+  ]);
+  await page.goto("/admin/produkty");
+  await page.getByRole("button", { name: "Upravit", exact: true }).click();
+  const shirt = page.getByRole("dialog").getByRole("article", { name: "Tričko · Pánské" });
+  await shirt.getByText("Výjimky", { exact: true }).click();
+  const colors = shirt.getByRole("group", { name: "Vypnout barvy" });
+  const sizes = shirt.getByRole("group", { name: "Vypnout velikosti" });
+  await expect(colors.getByRole("checkbox")).toHaveCount(2);
+  await expect(sizes.getByRole("checkbox")).toHaveCount(6);
+
+  const checkLayout = async (singleColumn: boolean) => {
+    const layout = await sizes.evaluate((group) => ({
+      fits: group.scrollWidth <= group.clientWidth,
+      columns: new Set(
+        [...group.querySelectorAll("label")].map((label) => label.getBoundingClientRect().left),
+      ).size,
+    }));
+    expect(layout.fits).toBe(true);
+    if (singleColumn) expect(layout.columns).toBe(1);
+    else expect(layout.columns).toBeGreaterThan(1);
+  };
+
+  await checkLayout(false);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await checkLayout(true);
+  await sizes.getByRole("checkbox", { name: "XL", exact: true }).check();
+});
 
 test("saves only motif exclusions and labels ones missing from the shared offer", async ({
   page,
@@ -169,11 +213,131 @@ test("saves only motif exclusions and labels ones missing from the shared offer"
   await expect(size).toBeChecked();
 });
 
+test("shows the mockup immediately and bulk edits colors and sizes independently", async ({
+  page,
+}) => {
+  await mockAdminCatalog(page, [], false, [white]);
+  await page.goto("/admin/obleceni");
+  const card = page.getByRole("article", { name: "Tričko · Pánské" });
+  await expect(card.getByRole("heading", { name: "Podklad náhledu" })).toBeVisible();
+  const preview = card.getByRole("img", { name: "Podklad oblečení" });
+  const dropzone = card.getByRole("button", { name: /Vybrat PNG/ });
+  await expect(preview).toBeVisible();
+  await expect(dropzone).toBeVisible();
+  const previewBox = await preview.boundingBox();
+  const dropzoneBox = await dropzone.boundingBox();
+  expect(Math.abs(previewBox!.y - dropzoneBox!.y)).toBeLessThanOrEqual(1);
+
+  const colors = card.getByRole("group", { name: "Barvy", exact: true });
+  const sizes = card.getByRole("group", { name: "Velikosti", exact: true });
+  await expect(sizes.getByRole("checkbox", { name: "Jednotná", exact: true })).toBeVisible();
+  const sizeOptions = sizes.getByRole("checkbox");
+  await expect(sizeOptions.nth(2)).toBeVisible();
+  const firstSizes = await sizeOptions.evaluateAll((options) =>
+    options.slice(0, 3).map((option) => {
+      const { x, y } = option.getBoundingClientRect();
+      return { x, y };
+    }),
+  );
+  expect(firstSizes[1].x).toBe(firstSizes[0].x);
+  expect(firstSizes[2].x).toBe(firstSizes[0].x);
+  expect(firstSizes[1].y).toBeGreaterThan(firstSizes[0].y);
+  expect(firstSizes[2].y).toBeGreaterThan(firstSizes[1].y);
+  await colors.getByRole("button", { name: "Vybrat vše" }).click();
+  await expect(colors.getByRole("checkbox", { checked: false })).toHaveCount(0);
+  await expect(sizes.getByRole("checkbox", { checked: true })).toHaveCount(1);
+  await sizes.getByRole("button", { name: "Vybrat vše" }).click();
+  await expect(sizes.getByRole("checkbox", { checked: false })).toHaveCount(0);
+  await sizes.getByRole("button", { name: "Odstranit vše" }).click();
+  await expect(sizes.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await expect(colors.getByRole("checkbox", { checked: false })).toHaveCount(0);
+  await colors.getByRole("button", { name: "Odstranit vše" }).click();
+  await expect(colors.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await expect(card).toBeVisible();
+});
+
+test("selects a mockup PNG through the picker or by dropping it", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockAdminCatalog(page, [], false, [white]);
+  let customMockup = false;
+  await page.route("**/api/v1/catalog/options", (route) =>
+    route.fulfill({
+      json: {
+        ...options,
+        garmentMockups: customMockup
+          ? [{ productTypeId: white.productTypeId, cutId: white.cutId, url: "/assets/tshirt.png" }]
+          : [],
+      },
+    }),
+  );
+  await page.route(
+    `**/api/v1/admin/garment-mockups/${white.productTypeId}/${white.cutId}`,
+    (route) => {
+      customMockup = route.request().method() === "PUT";
+      return route.fulfill({ status: 204 });
+    },
+  );
+  await page.goto("/admin/obleceni");
+  const card = page.getByRole("article", { name: "Tričko · Pánské" });
+  const save = card.getByRole("button", { name: "Uložit podklad" });
+  const header = page.locator(".admin-header");
+  await expect(header.getByRole("button", { name: "Přidat oblečení" })).toBeVisible();
+  await page.evaluate(() =>
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
+  );
+  await expect.poll(() => header.evaluate((node) => node.getBoundingClientRect().top)).toBe(0);
+  await expect(header.getByRole("button", { name: "Uložit nabídku" })).toBeInViewport();
+  const reset = card.getByRole("button", { name: "Resetovat", exact: true });
+  await expect(save).toHaveCount(0);
+  await expect(reset).toHaveCount(0);
+  const previewHeader = card.locator(".garment-mockup-header");
+  const headerHeight = () =>
+    previewHeader.evaluate((element) => element.getBoundingClientRect().height);
+  const initialHeaderHeight = await headerHeight();
+  const chooser = page.waitForEvent("filechooser");
+  await card.getByRole("button", { name: /Vybrat PNG/ }).click();
+  await (
+    await chooser
+  ).setFiles({ name: "tricko.png", mimeType: "image/png", buffer: Buffer.from([]) });
+  await expect(card.getByText("Vybraný soubor: tricko.png")).toBeVisible();
+  await expect(save).toBeEnabled();
+  await expect(reset).toHaveCount(0);
+
+  const drop = async (name: string, type: string) => {
+    const dataTransfer = await page.evaluateHandle(
+      ({ name, type }) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([], name, { type }));
+        return transfer;
+      },
+      { name, type },
+    );
+    await card
+      .getByRole("button", { name: /Vybrat (jiné )?PNG/ })
+      .dispatchEvent("drop", { dataTransfer });
+    await dataTransfer.dispose();
+  };
+  await drop("tricko.jpg", "image/jpeg");
+  await expect(card.getByRole("alert")).toHaveText("Vyberte jeden soubor ve formátu PNG.");
+  await expect(save).toHaveCount(0);
+  await drop("novy-podklad.png", "image/png");
+  await expect(card.getByText("Vybraný soubor: novy-podklad.png")).toBeVisible();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Podklad byl uložen." })).toBeVisible();
+  await expect(card.getByText("Podklad byl uložen.")).toHaveCount(0);
+  await expect(reset).toBeVisible();
+  expect(await headerHeight()).toBe(initialHeaderHeight);
+  await reset.click();
+  await expect(card.getByText("Výchozí tričko", { exact: true })).toBeVisible();
+  await expect(reset).toHaveCount(0);
+});
+
 test("preserves irregular shared combinations until explicitly filled", async ({ page }) => {
   await mockAdminCatalog(page, [], false, [white, black]);
   await page.goto("/admin/obleceni");
   const card = page.getByRole("article", { name: "Tričko · Pánské" });
-  const save = page.getByRole("button", { name: "Uložit nabídku" });
+  const save = page.locator(".admin-header").getByRole("button", { name: "Uložit nabídku" });
   await expect(card.getByRole("checkbox", { name: "S", exact: true })).toBeChecked();
   await expect(save).toBeDisabled();
   await card.getByRole("button", { name: "Použít velikosti pro všechny barvy" }).click();
@@ -220,7 +384,7 @@ test("sets combinations on shared clothing cards and duplicates a motif using th
   const shirt = editor.getByRole("article", { name: "Tričko · Pánské" });
   for (const name of ["Bílá", "Černá", "M", "L", "XL"])
     await shirt.getByRole("checkbox", { name, exact: true }).check();
-  await editor.getByRole("button", { name: "Přidat oblečení" }).click();
+  await page.locator(".admin-header").getByRole("button", { name: "Přidat oblečení" }).click();
   for (const [label, value] of [
     ["Typ oblečení", "Mikina"],
     ["Střih", "Unisex"],
@@ -237,7 +401,7 @@ test("sets combinations on shared clothing cards and duplicates a motif using th
   const saveOffer = page.waitForRequest(
     (r) => r.method() === "PUT" && r.url().endsWith("/garment-offer"),
   );
-  await editor.getByRole("button", { name: "Uložit nabídku" }).click();
+  await page.locator(".admin-header").getByRole("button", { name: "Uložit nabídku" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Potvrdit změny" }).click();
   expect((await saveOffer).postDataJSON().variants).toHaveLength(7);
   await expect(editor.getByText("Společná nabídka byla uložena.")).toBeVisible();
@@ -253,6 +417,8 @@ test("sets combinations on shared clothing cards and duplicates a motif using th
   await expect(dialog.getByRole("link", { name: "společnou nabídku oblečení" })).toBeVisible();
   await dialog.getByRole("button", { name: "Uložit a zavřít" }).click();
   await expect(dialog).toHaveCount(0);
+  await page.getByRole("combobox", { name: "Stav" }).click();
+  await page.getByRole("option", { name: "Koncepty" }).click();
   await page
     .getByRole("row", { name: /Kočka/ })
     .getByRole("button", { name: "Upravit", exact: true })

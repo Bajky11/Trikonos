@@ -16,6 +16,7 @@ export const paymentStatuses: Record<string, string> = {
 };
 export const paymentMethods: Record<string, string> = {
   BANK_TRANSFER: "Převodem",
+  CARD_ONLINE: "Kartou online (test)",
   CASH_ON_DELIVERY: "Při převzetí / dobírka",
   INVOICE: "Faktura se splatností",
 };

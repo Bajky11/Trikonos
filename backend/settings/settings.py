@@ -277,6 +277,9 @@ if not DEBUG:
 # Shop configuration without its own DB table (GET /config, confirmation
 # e-mails) - all values come from env, see .env.example.
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+COMGATE_TEST_ENABLED = os.environ.get('COMGATE_TEST_ENABLED', 'false') == 'true'
+COMGATE_MERCHANT = os.environ.get('COMGATE_MERCHANT', '').strip()
+COMGATE_SECRET = os.environ.get('COMGATE_SECRET', '').strip()
 SHOP_CONFIG = {
     'NAME': os.environ.get('SHOP_NAME', 'Trikonoš.cz'),
     'CONTACT_EMAIL': os.environ.get('SHOP_CONTACT_EMAIL', ''),

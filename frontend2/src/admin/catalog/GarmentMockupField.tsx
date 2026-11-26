@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Button, TextField } from "@mui/material";
+import { Button } from "@mui/material";
+import { useSnackbar } from "notistack";
 import { adminGarmentMockupDestroy, adminGarmentMockupUpdate } from "../../api/generated/api";
+import { ImageDropzone } from "../../components/ImageDropzone";
 import { ProductArt } from "../../components/Products";
 import { useCatalogMutation } from "./api";
 import { catalogError } from "./forms";
@@ -17,8 +19,7 @@ export function GarmentMockupField({
   disabled: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [version, setVersion] = useState(0);
-  const [status, setStatus] = useState("");
+  const { enqueueSnackbar } = useSnackbar();
   const write = useCatalogMutation("garment-mockups", (file: File | null) =>
     file
       ? adminGarmentMockupUpdate(productTypeId, cutId, { file })
@@ -26,47 +27,68 @@ export function GarmentMockupField({
   );
   const locked = disabled || write.isPending;
   const save = async (file: File | null) => {
-    setStatus("");
     try {
       await write.mutateAsync(file);
       setFile(null);
-      setVersion((value) => value + 1);
-      setStatus(file ? "Podklad byl uložen." : "Opět se používá výchozí tričko.");
+      enqueueSnackbar(file ? "Podklad byl uložen." : "Opět se používá výchozí tričko.", {
+        variant: "success",
+      });
     } catch {
       // Keep the selection for retry; the mutation exposes the API error below.
     }
   };
 
   return (
-    <details className="motif-editor-details">
-      <summary>Podklad náhledu · {url ? "vlastní PNG" : "výchozí tričko"}</summary>
-      <div className="admin-garment-preview">
-        <ProductArt
-          src={url ?? new URL("/assets/tshirt.png", window.location.origin).href}
-          name="Podklad oblečení"
+    <section className="garment-mockup">
+      <header className="garment-axis-header garment-mockup-header">
+        <div className="garment-mockup-heading">
+          <h4>Podklad náhledu</h4>
+          <small>{url ? "Vlastní PNG" : "Výchozí tričko"}</small>
+        </div>
+        <div className="garment-axis-actions" data-visible={!!url}>
+          <Button
+            type="button"
+            size="small"
+            variant="text"
+            color="primary"
+            disabled={locked || !url}
+            onClick={() => void save(null)}
+          >
+            Resetovat
+          </Button>
+        </div>
+      </header>
+      <div className="garment-mockup-body">
+        <div className="garment-mockup-thumbnail">
+          <ProductArt
+            src={url ?? new URL("/assets/tshirt.png", window.location.origin).href}
+            name="Podklad oblečení"
+          />
+        </div>
+        <ImageDropzone
+          label="PNG podkladu"
+          format="png"
+          file={file}
+          onChange={setFile}
+          disabled={locked}
+          helperText="PNG 1131 × 1390 px, bílé oblečení zepředu na průhledném pozadí. Dodržte rozložení výchozího trička."
         />
       </div>
-      <TextField
-        key={version}
-        type="file"
-        label="PNG podkladu"
-        disabled={locked}
-        slotProps={{ inputLabel: { shrink: true }, htmlInput: { accept: "image/png" } }}
-        onChange={(event) => setFile((event.target as HTMLInputElement).files?.[0] ?? null)}
-        helperText="Nahraj bílé oblečení zepředu s průhledným pozadím. Pro správnou polohu motivu použij stejné rozložení jako u výchozího trička (1131 × 1390 px)."
-      />
-      <div>
-        <Button type="button" disabled={locked || !file} onClick={() => file && void save(file)}>
-          Uložit podklad
-        </Button>
-        {url && (
-          <Button type="button" disabled={locked} onClick={() => void save(null)}>
-            Použít výchozí tričko
+      <div className="garment-mockup-footer">
+        {file && (
+          <Button
+            type="button"
+            variant="contained"
+            color="primary"
+            fullWidth
+            disabled={locked}
+            onClick={() => void save(file)}
+          >
+            Uložit podklad
           </Button>
         )}
+        {write.isError && <p role="alert">{catalogError(write.error)}</p>}
       </div>
-      {write.isError && <p role="alert">{catalogError(write.error)}</p>}
-      {status && <p role="status">{status}</p>}
-    </details>
+    </section>
   );
 }

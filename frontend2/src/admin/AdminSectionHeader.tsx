@@ -5,6 +5,7 @@ import "./AdminSectionHeader.css";
 
 type Props = {
   title?: string;
+  titleActions?: ReactNode;
   titleId?: string;
   level?: 1 | 2;
   className?: string;
@@ -19,6 +20,7 @@ type Props = {
 
 export function AdminSectionHeader({
   title,
+  titleActions,
   titleId,
   level = 2,
   className,
@@ -28,7 +30,14 @@ export function AdminSectionHeader({
   const Heading = level === 1 ? "h1" : "h2";
   return (
     <header className={className ? `admin-section-header ${className}` : "admin-section-header"}>
-      {title && <Heading id={titleId}>{title}</Heading>}
+      {titleActions ? (
+        <div className="admin-section-title">
+          {title && <Heading id={titleId}>{title}</Heading>}
+          {titleActions}
+        </div>
+      ) : (
+        title && <Heading id={titleId}>{title}</Heading>
+      )}
       {search && (
         <TextField
           className="admin-section-search"

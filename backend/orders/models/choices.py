@@ -21,6 +21,7 @@ class DeliveryType(models.TextChoices):
 class PaymentMethod(models.TextChoices):
     CASH_ON_DELIVERY = 'CASH_ON_DELIVERY', 'Cash on delivery'
     BANK_TRANSFER = 'BANK_TRANSFER', 'Bank transfer'
+    CARD_ONLINE = 'CARD_ONLINE', 'Kartou online (test)'
     INVOICE = 'INVOICE', 'Invoice'
 
 
@@ -51,3 +52,4 @@ class Size(models.TextChoices):
     CHILD_134 = '134', '8 let – 134 cm'
     CHILD_146 = '146', '10 let – 146 cm'
     CHILD_158 = '158', '12 let – 158 cm'
+    UNIVERSAL = 'UNI', 'Jednotná'

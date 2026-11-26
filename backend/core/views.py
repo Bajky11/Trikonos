@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orders.models import DeliveryType, PaymentMethod
+from orders.comgate import enabled as comgate_enabled
 from shipping.models import PacketaConfig
 
 from .emails import send_templated_email
@@ -69,6 +70,7 @@ class ConfigView(APIView):
             'topbar_text': shop['TOPBAR_TEXT'],
             'payment_methods': [
                 {'value': value, 'label': label} for value, label in PaymentMethod.choices
+                if value != PaymentMethod.CARD_ONLINE or comgate_enabled()
             ],
             'delivery_types': [
                 {'value': value, 'label': label} for value, label in DeliveryType.choices

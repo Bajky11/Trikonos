@@ -16,6 +16,7 @@ import { orderStatuses, paymentStatuses, paymentMethods, shipmentStatuses } from
 import { StatusBadge } from "./OrderStatusBadge";
 import { OrdersLedger, ledgerColumns } from "./OrdersLedger";
 import { OrderPeriodFilter } from "./OrderPeriodFilter";
+import { selectedPeriod } from "./orderPeriod";
 import "./orders.css";
 
 type SelectFilter = [key: string, label: string, values: Record<string, string>];
@@ -132,15 +133,22 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
       return next;
     });
   };
+  const calendarPeriod = selectedPeriod(
+    params.get("createdFrom") || "",
+    params.get("createdTo") || "",
+  );
   const activeFilters = filterLabels.flatMap(([key, label, values]) => {
+    if (calendarPeriod && (key === "createdFrom" || key === "createdTo")) return [];
     const value = params.get(key);
     if (!value) return [];
     const title = values ? selectLabel(key, value, values) : value;
     return [{ key, title: key === "customer" || key === "carrier" ? label : `${label}: ${title}` }];
   });
-  const advancedCount = [...advancedFilters, ...dateFilters].filter(([key]) =>
-    params.get(key),
-  ).length;
+  const advancedCount = [
+    ...primaryFilters,
+    ...advancedFilters,
+    ...(calendarPeriod ? [] : dateFilters),
+  ].filter(([key]) => params.get(key)).length;
   const page = Math.max(1, Number(params.get("page")) || 1);
   const pageSize = overview ? 5 : 20;
   const filtersForRequest = {
@@ -239,14 +247,6 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
                 )
               }
             />
-            {primaryFilters.map((filter) => (
-              <FilterSelect
-                key={filter[0]}
-                filter={filter}
-                value={params.get(filter[0]) || ""}
-                onChange={(value) => update(filter[0], value)}
-              />
-            ))}
             <Button
               variant="outlined"
               startIcon={<TuneIcon />}
@@ -266,7 +266,7 @@ export function OrdersPanel({ overview = false }: { overview?: boolean }) {
                   value={filtersForRequest.ordering}
                   onChange={(value) => update("ordering", value === defaultOrdering ? "" : value)}
                 />
-                {advancedFilters.map((filter) => (
+                {[...primaryFilters, ...advancedFilters].map((filter) => (
                   <FilterSelect
                     key={filter[0]}
                     filter={filter}

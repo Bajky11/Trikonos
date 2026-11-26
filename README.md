@@ -125,8 +125,9 @@ a týmové poptávky. Kontakt vyžaduje `SHOP_NOTIFY_EMAIL` a nakonfigurovaný e
 backend; při nedostupném odesílání vrací chybu místo falešného úspěchu.
 
 Pro provoz nastav také `FRONTEND_URL` (veřejný origin frontendu pro e-maily),
-`SHOP_BANK_ACCOUNT`, kontakty, `SHOP_NOTIFY_EMAIL` a skutečné SMTP. Výdejní místa,
-faktura se splatností a online platební brána nejsou v tomto kroku zapojené.
+`SHOP_BANK_ACCOUNT`, kontakty, `SHOP_NOTIFY_EMAIL` a skutečné SMTP. Faktura se
+splatností není v pokladně zapojená. [Comgate](docs/comgate.md) je zatím jen pro
+oddělené testovací prostředí; skutečné platby neprovádí.
 Před nasazením je nutné maskovat tokeny v access logách a nepoužívat konzolový
 e-mailový backend pro skutečné zákazníky. Podrobnosti jsou v návodu frontendu.
 

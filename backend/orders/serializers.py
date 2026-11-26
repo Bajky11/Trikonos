@@ -227,6 +227,17 @@ class OrderCreateSerializer(serializers.Serializer):
             if existing is not None:
                 return existing
 
+        card_online = validated_data['payment_method'] == PaymentMethod.CARD_ONLINE
+        if card_online:
+            from . import comgate
+
+            if is_admin or not comgate.enabled():
+                raise serializers.ValidationError({'payment_method': 'Testovací platba kartou není dostupná.'})
+            if any(item['is_custom'] for item in validated_data['items']):
+                raise serializers.ValidationError({'payment_method': 'Platbu kartou nelze použít u objednávky k nacenění.'})
+            if not comgate.valid_amount(validated_data.get('expected_total')):
+                raise serializers.ValidationError({'payment_method': 'Pro platbu kartou potvrďte cenu od 1 Kč do 1 000 000 Kč.'})
+
         billing = validated_data['billing']
 
         billing_data = {

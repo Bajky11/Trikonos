@@ -279,6 +279,19 @@ def test_admin_motif_list_filters_by_category_isactive_and_q(admin_client, categ
     assert [row['id'] for row in by_search.data['results']] == [str(matching.id)]
 
 
+def test_admin_motif_list_includes_design_image_url(admin_client, motif, category):
+    motif.design_image = 'motifs/design.png'
+    motif.save(update_fields=['design_image'])
+    no_design = Motif.objects.create(name='Bez motivu', slug='bez-designu', price=10000, category=category)
+
+    response = admin_client.get('/api/v1/admin/motifs')
+
+    assert response.status_code == 200
+    designs = {row['id']: row['design_image_url'] for row in response.data['results']}
+    assert designs[str(motif.id)].endswith('/motifs/design.png')
+    assert designs[str(no_design.id)] is None
+
+
 def test_admin_can_retrieve_motif_detail(admin_client, motif):
     response = admin_client.get(f'/api/v1/admin/motifs/{motif.id}')
 

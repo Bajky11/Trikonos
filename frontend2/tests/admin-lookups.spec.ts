@@ -20,7 +20,7 @@ test("paginates and searches real lookup data, handles duplicates and refreshes 
   });
   const openClothing = async () => {
     await page.getByRole("link", { name: "Oblečení", exact: true }).click();
-    await page.getByRole("button", { name: "Přidat oblečení" }).click();
+    await page.locator(".admin-header").getByRole("button", { name: "Přidat oblečení" }).click();
     for (const [label, name] of [
       ["Typ oblečení", "Tričko"],
       ["Střih", "Pánské"],
@@ -184,6 +184,7 @@ test("preserves category URLs, explains IN_USE, stores exact type prices and pri
     page.getByText("Velikosti jsou pevný seznam backendu", { exact: false }),
   ).toBeVisible();
   await expect(page.getByText("12 let – 158 cm", { exact: true })).toBeVisible();
+  await expect(page.getByText("Jednotná", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Přidat" })).toHaveCount(0);
   await page.getByRole("link", { name: "← Zpět na web" }).click();
   await page

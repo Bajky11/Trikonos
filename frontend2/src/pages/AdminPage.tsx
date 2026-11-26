@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Link,
   NavLink,
@@ -42,6 +43,7 @@ const sections = [
 ];
 export function AdminLayout() {
   const user = useOutletContext<Me>();
+  const [appBarActions, setAppBarActions] = useState<HTMLDivElement | null>(null);
   const logout = useLogout();
   const { section: routeSection, orderId, customerId } = useParams();
   const location = useLocation();
@@ -82,6 +84,7 @@ export function AdminLayout() {
               className="admin-header"
               title={title}
               level={1}
+              titleActions={<div className="admin-appbar-actions" ref={setAppBarActions} />}
               actions={
                 <>
                   <GlobalSearch />
@@ -105,7 +108,7 @@ export function AdminLayout() {
               {logout.isError && (
                 <Alert severity="error">Odhlášení se nezdařilo. Zkuste to znovu.</Alert>
               )}
-              <Outlet />
+              <Outlet context={appBarActions} />
             </main>
           </div>
         </div>

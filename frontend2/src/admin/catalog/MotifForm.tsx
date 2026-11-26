@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   Button,
@@ -12,7 +12,6 @@ import {
 import {
   adminMotifsCreate,
   adminMotifDesignUpdate,
-  adminMotifDesignDestroy,
   adminMotifsImagesCreate,
   adminMotifsPartialUpdate,
 } from "../../api/generated/api";
@@ -23,7 +22,8 @@ import type { AdminMotifsCreateMutationBody } from "../../api/generated/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../api/http";
 import { MotifGarmentExclusions } from "./MotifGarmentExclusions";
-import { GarmentPreview } from "../../components/GarmentPreview";
+import { ImageDropzone } from "../../components/ImageDropzone";
+import { ProductArt } from "../../components/Products";
 
 export function MotifForm({
   initial,
@@ -55,7 +55,13 @@ export function MotifForm({
   const persisted = useRef<AdminMotifDetail | undefined>(duplicate ? undefined : initial);
   const uploaded = useRef<string | null>(null);
   const [design, setDesign] = useState<File | null>(null);
-  const [removeDesign, setRemoveDesign] = useState(false);
+  const [designPreview, setDesignPreview] = useState<string>();
+  useEffect(() => {
+    return () => {
+      if (designPreview) URL.revokeObjectURL(designPreview);
+    };
+  }, [designPreview]);
+  const [photo, setPhoto] = useState<File | null>(null);
   const uploadedDesign = useRef<File | null>(null);
   const client = useQueryClient();
   const save = useCatalogMutation(
@@ -86,9 +92,6 @@ export function MotifForm({
       if (uploadDesign) {
         await adminMotifDesignUpdate(id, { file: design });
         uploadedDesign.current = design;
-      } else if (removeDesign) {
-        await adminMotifDesignDestroy(id);
-        uploadedDesign.current = null;
       }
       if (persisted.current.isActive !== data.isActive)
         persisted.current = await adminMotifsPartialUpdate(id, {
@@ -103,8 +106,7 @@ export function MotifForm({
     const data = new FormData(event.currentTarget);
     const price = parsePrice(formText(data, "price"));
     const position = Number(formText(data, "position"));
-    const fileInput = data.get("file");
-    const file = fileInput instanceof File && fileInput.size ? fileInput : null;
+    const file = photo?.size ? photo : null;
     if (
       file &&
       (file.size > 10 * 1024 * 1024 ||
@@ -238,53 +240,36 @@ export function MotifForm({
           />
           <section className="motif-editor-section">
             <h3>Motiv pro automatický náhled</h3>
-            {existing && initial.designImageUrl && !removeDesign && (
-              <div className="admin-garment-preview">
-                <GarmentPreview
-                  design={initial.designImageUrl}
-                  label="Uložený náhled motivu na tričku"
+            <div className="garment-mockup-body">
+              <div className="garment-mockup-thumbnail">
+                <ProductArt
+                  src={designPreview ?? initial?.designImageUrl}
+                  name="Náhled samotného motivu"
                 />
               </div>
-            )}
-            <TextField
-              label={existing && initial.designImageUrl ? "Nahradit PNG motivu" : "PNG motivu"}
-              type="file"
-              disabled={disabled || removeDesign}
-              onChange={(event) => {
-                setDesign((event.target as HTMLInputElement).files?.[0] ?? null);
-                setChanged(true);
-              }}
-              slotProps={{ inputLabel: { shrink: true }, htmlInput: { accept: "image/png" } }}
-              helperText="Použij PNG s průhledným pozadím. Web ho vycentruje na oblečení ve vybrané barvě."
-            />
-            {existing && initial.designImageUrl && !design && (
-              <FormControlLabel
-                label="Odebrat PNG motivu"
-                control={
-                  <Checkbox
-                    checked={removeDesign}
-                    disabled={disabled}
-                    onChange={(_, checked) => {
-                      setRemoveDesign(checked);
-                      setChanged(true);
-                    }}
-                  />
-                }
+              <ImageDropzone
+                label={existing && initial.designImageUrl ? "Nahradit PNG motivu" : "PNG motivu"}
+                format="png"
+                file={design}
+                disabled={disabled}
+                onChange={(file) => {
+                  setDesign(file);
+                  setDesignPreview(file ? URL.createObjectURL(file) : undefined);
+                  setChanged(true);
+                }}
+                helperText="Použij PNG s průhledným pozadím. Web ho vycentruje na oblečení ve vybrané barvě."
               />
-            )}
+            </div>
           </section>
           {!existing && (
             <section className="motif-editor-section">
               <h3>Fotografie hotového produktu (volitelné)</h3>
-              <TextField
+              <ImageDropzone
                 label="Obrázek motivu"
-                name="file"
-                type="file"
+                format="photo"
+                file={photo}
+                onChange={setPhoto}
                 disabled={save.isPending}
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: { accept: "image/jpeg,image/png,image/webp" },
-                }}
                 helperText={duplicate ? "Fotografie původního motivu se nekopírují." : undefined}
               />
             </section>

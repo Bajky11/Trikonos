@@ -6,6 +6,7 @@ import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRou
 import { ordersAccessRetrieve } from "../api/generated/api";
 import { readAccessToken, readCheckout, rememberAccessToken } from "../checkout/session";
 import { PurchaseSteps } from "../checkout/PurchaseSteps";
+import { CardPayment } from "../checkout/CardPayment";
 import { useShop } from "../components/ShopContext";
 import { money } from "../data/catalog";
 import { useTitle } from "../useTitle";
@@ -177,9 +178,11 @@ export function OrderReceiptPage() {
                         pošleme údaje.
                       </p>
                     )
-                  ) : (
+                  ) : detail.data.paymentMethod === "CARD_ONLINE" ? (
+                    <CardPayment key={token} token={token} />
+                  ) : detail.data.paymentMethod === "CASH_ON_DELIVERY" ? (
                     <Typography>Zaplatíte při převzetí.</Typography>
-                  )}
+                  ) : null}
                 </>
               )}
           </>

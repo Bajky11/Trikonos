@@ -52,6 +52,7 @@ export const checkoutCustom = {
 export async function mockCheckout(page: Page) {
   const state = {
     termsReady: true,
+    cardEnabled: false,
     packetaHomeDelivery: undefined as ConfigResponse["packetaHomeDelivery"],
     carriers: [{ id: carrierId, name: "Packeta", code: "PACKETA" }],
     price: 69900,
@@ -70,6 +71,7 @@ export async function mockCheckout(page: Page) {
           { value: "BANK_TRANSFER", label: "Převodem" },
           { value: "CASH_ON_DELIVERY", label: "Dobírkou" },
           { value: "INVOICE", label: "Faktura se splatností" },
+          ...(state.cardEnabled ? [{ value: "CARD_ONLINE", label: "Kartou online (test)" }] : []),
         ],
         deliveryTypes: [
           { value: "PERSONAL_PICKUP", label: "Osobní odběr" },

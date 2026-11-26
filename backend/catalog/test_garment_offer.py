@@ -107,10 +107,11 @@ def test_custom_print_checks_the_same_shared_offer(admin_api, print_area, produc
     assert unavailable.value.code == 'VARIANT_NOT_AVAILABLE'
 
 
-def test_child_sizes_are_listed_and_orderable_when_offered(admin_api, motif, product_type, cut, color):
+def test_child_and_universal_sizes_are_listed_and_orderable_when_offered(admin_api, motif, product_type, cut, color):
     sizes = {
         '110': '4 roky – 110 cm', '122': '6 let – 122 cm', '134': '8 let – 134 cm',
         '146': '10 let – 146 cm', '158': '12 let – 158 cm',
+        'UNI': 'Jednotná',
     }
     public = APIClient()
     dictionary = {row['value']: row['label'] for row in public.get('/api/v1/catalog/options').json()['sizes']}

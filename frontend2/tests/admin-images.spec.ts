@@ -2,18 +2,58 @@ import { expect, test } from "@playwright/test";
 import { mockAuthApi, mockStoreApi } from "./api-fixtures";
 import { existingMotif, mockAdminCatalog } from "./admin-catalog-fixtures";
 
-test("adds an independent design PNG to an existing motif", async ({ page }) => {
+test("opens a larger shirt preview from the first motif column", async ({ page }) => {
+  const motif = { ...existingMotif(), designImageUrl: "/media/design.png" };
+  await mockStoreApi(page);
+  await mockAuthApi(page, true);
+  await mockAdminCatalog(page, [motif]);
+  await page.goto("/admin/produkty");
+
+  const table = page.getByRole("table", { name: "Motivy" });
+  await expect(table.getByRole("columnheader").first()).toHaveText("Náhled");
+  const thumbnail = table
+    .getByRole("row", { name: new RegExp(motif.name) })
+    .getByRole("cell")
+    .first()
+    .getByRole("button", { name: `Zvětšit náhled: ${motif.name}` });
+  await thumbnail.click();
+  const dialog = page.getByRole("dialog", { name: motif.name });
+  const image = dialog.getByRole("img", { name: `${motif.name} na tričku` });
+  await expect(image.locator("image").first()).toHaveAttribute("href", "/assets/tshirt.png");
+  await expect(image.locator("image").last()).toHaveAttribute("href", /\/media\/design\.png$/);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(thumbnail).toBeFocused();
+});
+
+test("adds an independent design PNG to an existing motif by dropping it", async ({ page }) => {
   await mockStoreApi(page);
   await mockAuthApi(page, true);
   await mockAdminCatalog(page, [existingMotif()]);
+  const png =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6YQAAAABJRU5ErkJggg==";
+  await page.route("**/media/design.png", (route) =>
+    route.fulfill({ contentType: "image/png", body: Buffer.from(png, "base64") }),
+  );
   await page.goto("/admin/produkty");
   await page.getByRole("button", { name: "Upravit", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Upravit motiv" });
-  await dialog.getByLabel("PNG motivu", { exact: true }).setInputFiles({
-    name: "design.png",
-    mimeType: "image/png",
-    buffer: Buffer.from("mock PNG"),
-  });
+  const dropzone = dialog.getByRole("button", { name: /^Vybrat (jiné )?PNG/ });
+  const preview = dialog.getByRole("img", { name: "Náhled samotného motivu" });
+  const dataTransfer = await page.evaluateHandle((png) => {
+    const transfer = new DataTransfer();
+    const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0));
+    transfer.items.add(new File([bytes], "design.png", { type: "image/png" }));
+    return transfer;
+  }, png);
+  await dropzone.dispatchEvent("drop", { dataTransfer });
+  await dataTransfer.dispose();
+  await expect(dialog.getByText("Vybraný soubor: design.png")).toBeVisible();
+  await expect(preview).toHaveAttribute("src", /^blob:/);
+  const imageBox = await preview.boundingBox();
+  const dropzoneBox = await dropzone.boundingBox();
+  expect(imageBox!.x + imageBox!.width).toBeLessThan(dropzoneBox!.x);
+  expect(Math.abs(imageBox!.y - dropzoneBox!.y)).toBeLessThanOrEqual(1);
   const upload = page.waitForRequest(
     (request) => request.url().endsWith("/design-image") && request.method() === "POST",
   );
@@ -21,7 +61,8 @@ test("adds an independent design PNG to an existing motif", async ({ page }) => 
   expect((await upload).headers()["content-type"]).toContain("multipart/form-data");
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: "Upravit", exact: true }).click();
-  await expect(dialog.getByRole("img", { name: "Uložený náhled motivu na tričku" })).toBeVisible();
+  await expect(preview).toHaveAttribute("src", /\/media\/design\.png$/);
+  await expect(dialog.getByRole("checkbox", { name: "Odebrat PNG motivu" })).toHaveCount(0);
   await expect(dialog.getByText("Motiv zatím nemá fotografie.")).toBeVisible();
 });
 

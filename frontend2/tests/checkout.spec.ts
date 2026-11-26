@@ -19,6 +19,59 @@ async function choose(page: Page, label: string, name: string) {
     .check();
 }
 
+test("offers test card payments only for priced catalog orders", async ({ page }) => {
+  await mockStoreApi(page);
+  const state = await mockCheckout(page);
+  state.cardEnabled = true;
+  await page.addInitScript(
+    (items) => {
+      localStorage.setItem("trikonos-cart-v2", JSON.stringify(items));
+    },
+    [checkoutCatalog, checkoutCustom],
+  );
+  await page.goto("/pokladna");
+  await expect(page.getByRole("radio", { name: "Bankovní převod" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Kartou online (test)" })).toHaveCount(0);
+});
+
+test("submits a card order, redirects to Comgate and verifies status on return", async ({
+  page,
+}) => {
+  await mockStoreApi(page);
+  const state = await mockCheckout(page);
+  state.cardEnabled = true;
+  const gateway = "https://pay1.comgate.cz/test-transaction";
+  let started = false;
+  await page.route("**/api/v1/orders/access/receipt-secret-token/card-payment", (route) => {
+    if (route.request().method() === "POST") {
+      started = true;
+      return route.fulfill({ json: { state: "PENDING", redirectUrl: gateway } });
+    }
+    return route.fulfill({ json: { state: started ? "PAID" : "NOT_STARTED" } });
+  });
+  await page.route(gateway, (route) =>
+    route.fulfill({ contentType: "text/plain", body: "Test Comgate" }),
+  );
+  await page.addInitScript((item) => {
+    if (!localStorage.getItem("trikonos-cart-v2"))
+      localStorage.setItem("trikonos-cart-v2", JSON.stringify([item]));
+  }, checkoutCatalog);
+  await page.goto("/pokladna");
+  await fillCustomer(page);
+  await choose(page, "Způsob doručení", "Osobní odběr");
+  await choose(page, "Způsob platby", "Kartou online (test)");
+  await page.getByRole("checkbox", { name: "Souhlasím s obchodními podmínkami" }).check();
+  await page.getByRole("button", { name: "Objednat s povinností platby" }).click();
+  await page.getByRole("button", { name: "Přejít na testovací platbu Comgate" }).click();
+  await expect(page).toHaveURL(gateway);
+  await page.goto("/objednavka");
+  await expect(
+    page.getByText("Objednávka nebyla skutečně uhrazena.", { exact: false }),
+  ).toBeVisible();
+  expect(state.posts).toHaveLength(1);
+  expect(state.posts[0]).toMatchObject({ paymentMethod: "CARD_ONLINE", expectedTotal: 69900 });
+});
+
 test("uses the Packeta HD widget only for Packeta and saves the selected shipping address", async ({
   page,
 }) => {

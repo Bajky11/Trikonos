@@ -10,6 +10,14 @@ export const sizeLabel = (size: string, lookups: Lookups) =>
 type Garment = Pick<MotifVariantRef, "productTypeId" | "cutId">;
 type OfferBlock = Garment & { key: string; colors: string[]; sizes: Size[]; gaps: Set<string> };
 export const garmentKey = (row: Garment) => `${row.productTypeId}:${row.cutId}`;
+export const newOfferBlock = (): OfferBlock => ({
+  key: crypto.randomUUID(),
+  productTypeId: "",
+  cutId: "",
+  colors: [],
+  sizes: [],
+  gaps: new Set(),
+});
 export const variantKey = (row: MotifVariantRef) => `${garmentKey(row)}:${row.colorId}:${row.size}`;
 export const garmentName = (row: Garment, lookups: Lookups) =>
   `${lookups.productTypes.find((item) => item.id === row.productTypeId)?.name ?? "Neznámý typ"} · ${lookups.cuts.find((item) => item.id === row.cutId)?.name ?? "Neznámý střih"}`;
@@ -68,6 +76,54 @@ export function variantsFromBlocks(blocks: OfferBlock[]) {
 const toggle = <T,>(values: T[], item: T, checked: boolean) =>
   checked ? [...values, item] : values.filter((value) => value !== item);
 
+const axisRows = (count: number) => ({
+  gridTemplateRows: count ? `auto repeat(${Math.ceil(count / 2)}, auto)` : "auto",
+});
+
+function AxisHeader({
+  id,
+  title,
+  allSelected,
+  noneSelected,
+  onSelectAll,
+  onClear,
+}: {
+  id: string;
+  title: string;
+  allSelected: boolean;
+  noneSelected: boolean;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="garment-axis-header">
+      <h4 id={id}>{title}</h4>
+      <div className="garment-axis-actions">
+        <Button
+          type="button"
+          size="small"
+          variant="text"
+          color="primary"
+          disabled={allSelected}
+          onClick={onSelectAll}
+        >
+          Vybrat vše
+        </Button>
+        <Button
+          type="button"
+          size="small"
+          variant="text"
+          color="primary"
+          disabled={noneSelected}
+          onClick={onClear}
+        >
+          Odstranit vše
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function OfferBlocks({
   blocks,
   onChange,
@@ -96,7 +152,8 @@ export function OfferBlocks({
               <Button
                 type="button"
                 size="small"
-                color="error"
+                variant="text"
+                color="primary"
                 disabled={disabled}
                 onClick={() => onChange(blocks.filter((item) => item.key !== block.key))}
               >
@@ -133,15 +190,22 @@ export function OfferBlocks({
             </div>
             {complete && (
               <>
-                <GarmentMockupField
-                  key={garmentKey(block)}
-                  productTypeId={block.productTypeId}
-                  cutId={block.cutId}
+                <fieldset
+                  className="garment-axis"
+                  style={axisRows(colors.length)}
+                  aria-labelledby={`${block.key}-colors`}
                   disabled={disabled}
-                  url={lookups.mockups.find((item) => garmentKey(item) === garmentKey(block))?.url}
-                />
-                <fieldset className="garment-axis" disabled={disabled}>
-                  <legend>Barvy</legend>
+                >
+                  <AxisHeader
+                    id={`${block.key}-colors`}
+                    title="Barvy"
+                    allSelected={colors.every((color) => block.colors.includes(color.id))}
+                    noneSelected={!block.colors.length}
+                    onSelectAll={() =>
+                      update(block.key, { colors: colors.map((color) => color.id) })
+                    }
+                    onClear={() => update(block.key, { colors: [] })}
+                  />
                   {colors.map((color) => (
                     <FormControlLabel
                       key={color.id}
@@ -158,8 +222,20 @@ export function OfferBlocks({
                     />
                   ))}
                 </fieldset>
-                <fieldset className="garment-axis" disabled={disabled}>
-                  <legend>Velikosti</legend>
+                <fieldset
+                  className="garment-axis"
+                  style={axisRows(sizes.length)}
+                  aria-labelledby={`${block.key}-sizes`}
+                  disabled={disabled}
+                >
+                  <AxisHeader
+                    id={`${block.key}-sizes`}
+                    title="Velikosti"
+                    allSelected={block.sizes.length === sizes.length}
+                    noneSelected={!block.sizes.length}
+                    onSelectAll={() => update(block.key, { sizes })}
+                    onClear={() => update(block.key, { sizes: [] })}
+                  />
                   {sizes.map((size) => (
                     <FormControlLabel
                       key={size}
@@ -192,31 +268,18 @@ export function OfferBlocks({
                     </Button>
                   </div>
                 )}
+                <GarmentMockupField
+                  key={garmentKey(block)}
+                  productTypeId={block.productTypeId}
+                  cutId={block.cutId}
+                  disabled={disabled}
+                  url={lookups.mockups.find((item) => garmentKey(item) === garmentKey(block))?.url}
+                />
               </>
             )}
           </article>
         );
       })}
-      <Button
-        type="button"
-        variant="outlined"
-        disabled={disabled}
-        onClick={() =>
-          onChange([
-            ...blocks,
-            {
-              key: crypto.randomUUID(),
-              productTypeId: "",
-              cutId: "",
-              colors: [],
-              sizes: [],
-              gaps: new Set(),
-            },
-          ])
-        }
-      >
-        Přidat oblečení
-      </Button>
     </section>
   );
 }

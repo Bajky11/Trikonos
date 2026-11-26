@@ -5,6 +5,7 @@
 /**
  * * `CASH_ON_DELIVERY` - Cash on delivery
  * * `BANK_TRANSFER` - Bank transfer
+ * * `CARD_ONLINE` - Kartou online (test)
  * * `INVOICE` - Invoice
  */
 export type PaymentMethodEnum = (typeof PaymentMethodEnum)[keyof typeof PaymentMethodEnum];
@@ -12,5 +13,6 @@ export type PaymentMethodEnum = (typeof PaymentMethodEnum)[keyof typeof PaymentM
 export const PaymentMethodEnum = {
   CASH_ON_DELIVERY: "CASH_ON_DELIVERY",
   BANK_TRANSFER: "BANK_TRANSFER",
+  CARD_ONLINE: "CARD_ONLINE",
   INVOICE: "INVOICE",
 } as const;

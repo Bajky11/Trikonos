@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useIsMutating, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
+  ButtonBase,
   Dialog,
   DialogActions,
   DialogContent,
@@ -22,6 +23,7 @@ import {
 } from "../../api/generated/api";
 import type { AdminMotifList } from "../../api/generated/models";
 import { CatalogFeedback } from "../../components/Products";
+import { GarmentPreview } from "../../components/GarmentPreview";
 import { money } from "../../data/catalog";
 import { AdminSectionHeader } from "../AdminSectionHeader";
 import { catalogMutationKey, useAdminCategories, useCatalogMutation } from "./api";
@@ -84,6 +86,7 @@ function EditMotif({
 }
 
 export function ProductsPanel() {
+  const [preview, setPreview] = useState<AdminMotifList | null>(null);
   const [routeParams, setRouteParams] = useSearchParams();
   const motifId = routeParams.get("motiv");
   const client = useQueryClient();
@@ -91,7 +94,7 @@ export function ProductsPanel() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [category, setCategory] = useState("");
-  const [active, setActive] = useState("");
+  const [active, setActive] = useState("true");
   const [editor, setEditor] = useState<Editor | null>(null);
   useEffect(() => {
     if (motifId) setEditor({ id: motifId });
@@ -202,10 +205,11 @@ export function ProductsPanel() {
             <DataTable
               label="Motivy"
               columns={[
+                { label: "Náhled", width: 76, compact: true },
                 { label: "Název", minWidth: 142 },
-                { label: "Kategorie", width: "18%", minWidth: 108 },
-                { label: "Cena motivu", align: "right", compact: true },
-                { label: "Stav", compact: true },
+                { label: "Kategorie", width: "25%", minWidth: 108 },
+                { label: "Cena motivu", align: "right", width: 120, compact: true },
+                { label: "Stav", width: 124, compact: true },
                 { label: "Akce", align: "right", compact: true },
               ]}
               page={page}
@@ -215,6 +219,29 @@ export function ProductsPanel() {
             >
               {products.data.results.map((product) => (
                 <TableRow key={product.id}>
+                  <TableCell>
+                    {product.designImageUrl ? (
+                      <ButtonBase
+                        aria-label={`Zvětšit náhled: ${product.name}`}
+                        onClick={() => setPreview(product)}
+                        sx={{
+                          display: "block",
+                          width: 48,
+                          height: 56,
+                          borderRadius: 1,
+                          "&:hover": { bgcolor: "action.hover" },
+                          "&.Mui-focusVisible": {
+                            outline: "2px solid",
+                            outlineColor: "primary.main",
+                          },
+                        }}
+                      >
+                        <GarmentPreview design={product.designImageUrl} label="Motiv na tričku" />
+                      </ButtonBase>
+                    ) : (
+                      <span aria-label="Náhled není k dispozici">—</span>
+                    )}
+                  </TableCell>
                   <TableCell component="th" scope="row" className="data-table-wrap">
                     {product.name}
                   </TableCell>
@@ -250,6 +277,25 @@ export function ProductsPanel() {
           </>
         )}
       </Paper>
+      <Dialog
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        aria-labelledby="motif-preview-title"
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle id="motif-preview-title">{preview?.name}</DialogTitle>
+        <DialogContent dividers>
+          {preview?.designImageUrl && (
+            <div style={{ width: "100%", height: "min(52dvh, 440px)" }}>
+              <GarmentPreview design={preview.designImageUrl} label={`${preview.name} na tričku`} />
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreview(null)}>Zavřít</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={editor !== null}
         onClose={busy ? undefined : closeEditor}

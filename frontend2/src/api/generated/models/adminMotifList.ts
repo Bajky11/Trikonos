@@ -27,4 +27,6 @@ export interface AdminMotifList {
   isActive?: boolean;
   readonly ordersCount: number;
   readonly createdAt: string;
+  /** @nullable */
+  readonly designImageUrl: string | null;
 }

@@ -930,9 +930,6 @@
 .garment-offer-panel {
   padding-bottom: 20px;
 }
-.garment-offer-panel > :not(:first-child) {
-  margin-inline: var(--admin-inset, 16px);
-}
 .garment-offer-panel > button {
   margin-top: 16px;
 }
@@ -941,15 +938,12 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 365px), 1fr));
   gap: 12px;
 }
-.garment-cards > button {
-  grid-column: 1 / -1;
-  justify-self: start;
-}
 .garment-card {
   min-width: 0;
   padding: 14px;
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 0;
+  background: var(--surface);
 }
 .garment-card-header {
   display: flex;
@@ -960,25 +954,97 @@
 }
 .garment-card-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 .garment-card-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
-.garment-axis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 8px;
+.garment-axis,
+.garment-mockup {
   border: 0;
+  border-top: 1px solid var(--border);
   margin: 12px 0 0;
-  padding: 0;
+  padding: 12px 0 0;
   min-width: 0;
 }
-.garment-axis > legend {
-  font-weight: 600;
-  padding: 0;
+.garment-axis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: 0 8px;
+}
+.garment-axis > .garment-axis-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+.garment-axis > .MuiFormControlLabel-root {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.garment-axis-header,
+.garment-axis-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.garment-axis-header {
+  gap: 4px 16px;
+  margin-bottom: 8px;
+}
+.garment-axis-actions {
+  justify-content: flex-end;
+  margin-inline-start: auto;
+  gap: 8px;
+}
+:is(.garment-card-header, .garment-axis-actions) > .MuiButton-root.MuiButton-text {
+  padding-inline: 4px;
+}
+.garment-mockup-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.garment-mockup-header > [data-visible="false"] {
+  visibility: hidden;
+}
+.garment-mockup-heading {
+  display: grid;
+  gap: 2px;
+}
+.garment-axis-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.garment-axis-header small {
+  color: var(--muted);
+}
+.garment-mockup-body {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+.garment-mockup-thumbnail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.garment-mockup-thumbnail .product-art-placeholder {
+  padding: 4px;
+  text-align: center;
+  font-size: 0.75rem;
+}
+.garment-mockup-footer {
+  display: grid;
+  margin-top: 8px;
+  gap: 8px;
+}
+.garment-mockup-footer > p {
+  margin: 0;
 }
 .motif-garments:not(:empty) {
   border: 1px solid #ddd;
@@ -986,15 +1052,21 @@
 }
 .motif-garment {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 .motif-garment + .motif-garment {
   border-top: 1px solid #ddd;
 }
 .motif-garment .motif-garment-toggle {
-  justify-self: center;
-  margin-top: 5px;
+  grid-area: 1 / 1;
+  justify-self: start;
+  margin: 5px 0 0 4px;
+  z-index: 1;
+}
+.motif-garment-details {
+  grid-area: 1 / 1;
+  min-width: 0;
 }
 .motif-garment-details > summary {
   display: flex;
@@ -1002,7 +1074,7 @@
   justify-content: space-between;
   gap: 8px;
   min-height: 48px;
-  padding: 8px 12px 8px 0;
+  padding: 8px 12px 8px 42px;
   cursor: pointer;
   list-style: none;
 }
@@ -1028,7 +1100,33 @@
   transform: rotate(180deg);
 }
 .motif-garment-options {
-  padding: 0 12px 12px 0;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.motif-garment-option-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  align-items: start;
+  gap: 0 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.motif-garment-option-group legend {
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.motif-garment-option-group .MuiFormControlLabel-root {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.motif-garment-option-group .MuiCheckbox-root {
+  flex-shrink: 0;
 }
 .motif-garment-options > p {
   margin: 0;
@@ -1136,10 +1234,6 @@
   display: block;
   width: 100%;
   height: 100%;
-}
-.admin-garment-preview {
-  width: 100px;
-  aspect-ratio: 1131 / 1390;
 }
 .product-slide {
   position: absolute;
@@ -1548,11 +1642,23 @@
   min-height: 100svh;
 }
 .admin-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   min-height: 80px;
   gap: var(--admin-gap);
   padding: 16px var(--admin-outer);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+}
+.admin-appbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-appbar-actions:empty {
+  display: none;
 }
 .admin-header h1 {
   margin: 0;

@@ -1,4 +1,4 @@
-import { MenuItem, TextField } from "@mui/material";
+import { Button } from "@mui/material";
 import { months, periodRange, selectedPeriod } from "./orderPeriod";
 
 export function OrderPeriodFilter({
@@ -14,7 +14,7 @@ export function OrderPeriodFilter({
   const currentYear = new Date().getFullYear();
   const year = selected?.year ?? (Number(from.slice(0, 4)) || currentYear);
   const years = [
-    ...new Set([year, ...Array.from({ length: 15 }, (_, index) => currentYear - index)]),
+    ...new Set([year, ...Array.from({ length: 8 }, (_, index) => currentYear - index)]),
   ].sort((a, b) => b - a);
   const select = (nextYear: number, month?: number) => {
     const range = periodRange(nextYear, month);
@@ -22,41 +22,40 @@ export function OrderPeriodFilter({
   };
   return (
     <div className="orders-period" role="group" aria-label="Období objednávek">
-      <TextField
-        select
-        size="small"
-        label="Rok"
-        value={from || to ? year : ""}
-        onChange={(event) =>
-          event.target.value
-            ? select(Number(event.target.value), selected?.month)
-            : onChange("", "")
-        }
-      >
-        <MenuItem value="">Všechny roky</MenuItem>
+      <div role="group" aria-label="Rok">
         {years.map((value) => (
-          <MenuItem key={value} value={value}>
+          <Button
+            key={value}
+            size="small"
+            aria-pressed={selected?.year === value}
+            onClick={() => select(value, selected?.month)}
+          >
             {value}
-          </MenuItem>
+          </Button>
         ))}
-      </TextField>
-      <TextField
-        select
-        size="small"
-        label="Měsíc"
-        value={selected ? (selected.month ?? "") : from || to ? "custom" : ""}
-        onChange={(event) =>
-          select(year, event.target.value === "" ? undefined : Number(event.target.value))
-        }
-      >
-        <MenuItem value="">{from || to ? "Celý rok" : "Všechny měsíce"}</MenuItem>
-        {!selected && (from || to) && <MenuItem value="custom">Vlastní období</MenuItem>}
+        <Button size="small" aria-pressed={!from && !to} onClick={() => onChange("", "")}>
+          Všechna období
+        </Button>
+      </div>
+      <div role="group" aria-label="Měsíc">
         {months.map((month, index) => (
-          <MenuItem key={month} value={index}>
+          <Button
+            key={month}
+            size="small"
+            aria-pressed={selected?.month === index}
+            onClick={() => select(year, index)}
+          >
             {month}
-          </MenuItem>
+          </Button>
         ))}
-      </TextField>
+        <Button
+          size="small"
+          aria-pressed={!!selected && selected.month === undefined}
+          onClick={() => select(year)}
+        >
+          Celý rok
+        </Button>
+      </div>
     </div>
   );
 }

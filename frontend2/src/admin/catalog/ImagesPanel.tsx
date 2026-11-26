@@ -14,6 +14,7 @@ import type {
   PatchedMotifImagePatch,
 } from "../../api/generated/models";
 import { CatalogFeedback, ProductArt } from "../../components/Products";
+import { ImageDropzone } from "../../components/ImageDropzone";
 import { useCatalogMutation, useVariantLookups } from "./api";
 import { garmentKey, garmentName, groupGarments } from "./OfferBlocks";
 import { useAdminGarmentOfferRetrieve } from "../../api/generated/api";
@@ -122,6 +123,7 @@ export function ImagesPanel({ motifId, busy }: { motifId: string; busy: boolean 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [uploadVersion, setUploadVersion] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
   const write = useCatalogMutation("motifs", async (action: Action) => {
     switch (action.kind) {
       case "upload":
@@ -161,8 +163,7 @@ export function ImagesPanel({ motifId, busy }: { motifId: string; busy: boolean 
   const upload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const file = data.get("file");
-    if (!(file instanceof File) || !file.size) {
+    if (!file?.size) {
       setError("Vyberte fotografii.");
       return;
     }
@@ -187,8 +188,10 @@ export function ImagesPanel({ motifId, busy }: { motifId: string; busy: boolean 
         },
         "Fotografie byla nahrána.",
       )
-    )
+    ) {
+      setFile(null);
       setUploadVersion((version) => version + 1);
+    }
   };
   const images = detail.data?.images ?? [];
   const move = (index: number, offset: number) => {
@@ -342,15 +345,11 @@ export function ImagesPanel({ motifId, busy }: { motifId: string; busy: boolean 
             aria-label="Nahrát fotografii"
             onSubmit={(event) => void upload(event)}
           >
-            <TextField
+            <ImageDropzone
               label="Soubor fotografie"
-              name="file"
-              type="file"
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: { accept: "image/jpeg,image/png,image/webp" },
-              }}
-              required
+              format="photo"
+              file={file}
+              onChange={setFile}
               disabled={disabled || !!editing || !!deleting}
             />
             <details className="motif-editor-details">

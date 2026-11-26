@@ -38,10 +38,14 @@ class AdminMotifCategoryRefSerializer(serializers.ModelSerializer):
 class AdminMotifListSerializer(serializers.ModelSerializer):
     category = AdminMotifCategoryRefSerializer(read_only=True)
     orders_count = serializers.IntegerField(read_only=True)
+    design_image_url = serializers.ImageField(source='design_image', read_only=True, allow_null=True)
 
     class Meta:
         model = Motif
-        fields = ['id', 'name', 'slug', 'price', 'category', 'position', 'is_active', 'orders_count', 'created_at']
+        fields = [
+            'id', 'name', 'slug', 'price', 'category', 'position', 'is_active',
+            'orders_count', 'created_at', 'design_image_url',
+        ]
 
 
 class GarmentExclusionSerializer(serializers.Serializer):

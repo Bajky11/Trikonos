@@ -161,13 +161,19 @@ export function MotifGarmentExclusions({
                     </summary>
                     <div className="motif-garment-options">
                       {entire && <p>Výjimky můžeš upravit po zapnutí oblečení.</p>}
-                      <fieldset className="garment-axis" disabled={disabled || entire}>
+                      <fieldset
+                        className="motif-garment-option-group"
+                        disabled={disabled || entire}
+                      >
                         <legend>Vypnout barvy</legend>
                         {colors.map((color) =>
                           option({ ...rule, colorId: color.id }, color.name, entire),
                         )}
                       </fieldset>
-                      <fieldset className="garment-axis" disabled={disabled || entire}>
+                      <fieldset
+                        className="motif-garment-option-group"
+                        disabled={disabled || entire}
+                      >
                         <legend>Vypnout velikosti</legend>
                         {Object.values(SizeEnum)
                           .filter((size) => group.some((row) => row.size === size))

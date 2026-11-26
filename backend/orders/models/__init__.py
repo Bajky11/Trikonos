@@ -9,6 +9,7 @@ from .choices import (
 from .order import Order
 from .order_item import OrderItem
 from .custom_design_placement import CustomDesignPlacement
+from .comgate_payment import ComgatePayment
 
 __all__ = [
     'DeliveryType',
@@ -20,4 +21,5 @@ __all__ = [
     'Order',
     'OrderItem',
     'CustomDesignPlacement',
+    'ComgatePayment',
 ]

@@ -61,6 +61,7 @@ const deliveryLabels: Partial<Record<DeliveryTypeEnum, string>> = {
 const paymentLabels: Partial<Record<PaymentMethodEnum, string>> = {
   BANK_TRANSFER: "Bankovní převod",
   CASH_ON_DELIVERY: "Dobírkou",
+  CARD_ONLINE: "Kartou online (test)",
 };
 
 export function CheckoutPage() {
@@ -107,11 +108,13 @@ export function CheckoutPage() {
       choice.value === DeliveryTypeEnum.HOME_DELIVERY ||
       (choice.value === DeliveryTypeEnum.PICKUP_POINT && !!packetaCarrier && !!widgetConfig),
   );
-  const paymentChoices = (config.data?.paymentMethods ?? []).filter((choice) =>
-    [PaymentMethodEnum.BANK_TRANSFER, PaymentMethodEnum.CASH_ON_DELIVERY].some(
-      (value) => value === choice.value,
-    ),
+  const paymentChoices = (config.data?.paymentMethods ?? []).filter(
+    ({ value }) =>
+      value === PaymentMethodEnum.BANK_TRANSFER ||
+      value === PaymentMethodEnum.CASH_ON_DELIVERY ||
+      (value === PaymentMethodEnum.CARD_ONLINE && !items.some((item) => item.isCustom)),
   );
+  const card = payment === PaymentMethodEnum.CARD_ONLINE;
   const paymentLabel = (value: PaymentMethodEnum) =>
     value === PaymentMethodEnum.CASH_ON_DELIVERY && delivery === DeliveryTypeEnum.PERSONAL_PICKUP
       ? "Při převzetí na prodejně"
@@ -156,6 +159,11 @@ export function CheckoutPage() {
     preview.data.items.length === items.length &&
     preview.data.items.every((item) => item.valid) &&
     preview.data.shippingCost !== null &&
+    (!card ||
+      (paymentChoices.some((choice) => choice.value === payment) &&
+        preview.data.total !== null &&
+        preview.data.total >= 100 &&
+        preview.data.total <= 100_000_000)) &&
     (preview.data.requiresQuote || preview.data.total !== null);
 
   const send = async (current: Attempt) => {
@@ -580,6 +588,12 @@ export function CheckoutPage() {
                     label: paymentLabel(choice.value as PaymentMethodEnum) ?? choice.label,
                   }))}
                 />
+                {card && (
+                  <Alert severity="info">
+                    Po odeslání objednávky můžete pokračovat na testovací bránu Comgate. Skutečná
+                    platba neproběhne; nezadávejte údaje své karty.
+                  </Alert>
+                )}
               </Paper>
               <Paper
                 variant="orderSection"
@@ -694,6 +708,14 @@ export function CheckoutPage() {
                 </>
               )}
               {error && <Alert severity="error">{error}</Alert>}
+              {card &&
+                preview.isSuccess &&
+                preview.data.total !== null &&
+                (preview.data.total < 100 || preview.data.total > 100_000_000) && (
+                  <Alert severity="warning">
+                    Kartou lze v testu platit od 1 Kč do 1 000 000 Kč.
+                  </Alert>
+                )}
               {termsUrl && (
                 <FormControlLabel
                   className="checkout-terms"

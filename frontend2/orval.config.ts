@@ -13,6 +13,8 @@ export default defineConfig({
           "uploadsDesignsCreate",
           "ordersCreate",
           "ordersAccessRetrieve",
+          "ordersAccessCardPaymentRetrieve",
+          "ordersAccessCardPaymentCreate",
           "ordersLookupCreate",
           "contactCreate",
           "adminOrdersList",

@@ -13,6 +13,7 @@
  * * `134` - 8 let – 134 cm
  * * `146` - 10 let – 146 cm
  * * `158` - 12 let – 158 cm
+ * * `UNI` - Jednotná
  */
 export type SizeEnum = (typeof SizeEnum)[keyof typeof SizeEnum];
 
@@ -27,4 +28,5 @@ export const SizeEnum = {
   NUMBER_134: "134",
   NUMBER_146: "146",
   NUMBER_158: "158",
+  UNI: "UNI",
 } as const;
